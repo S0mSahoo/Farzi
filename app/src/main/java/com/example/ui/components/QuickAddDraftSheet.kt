@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import android.app.DatePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,9 +26,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.EventNote
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +46,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -91,6 +97,7 @@ fun QuickAddDraftSheet(
 ) {
   if (!isOpen) return
 
+  val context = LocalContext.current
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
   var selectedType by remember(editingItem) {
@@ -112,7 +119,7 @@ fun QuickAddDraftSheet(
     )
   }
   var selectedPaymentMethod by remember(editingItem) {
-    mutableStateOf(editingItem?.paymentMethod ?: PaymentMethod.CASH)
+    mutableStateOf(editingItem?.paymentMethod ?: PaymentMethod.UPI)
   }
   var selectedTimestamp by remember(editingItem) {
     mutableStateOf(editingItem?.timestamp ?: System.currentTimeMillis())
@@ -122,6 +129,39 @@ fun QuickAddDraftSheet(
   }
   var isRecurring by remember(editingItem) {
     mutableStateOf(editingItem?.isRecurring ?: false)
+  }
+  var showDatePicker by remember { mutableStateOf(false) }
+
+  if (showDatePicker) {
+    val cal = Calendar.getInstance().apply { timeInMillis = selectedTimestamp }
+    val datePickerDialog = DatePickerDialog(
+      context,
+      { _, year, month, dayOfMonth ->
+        val newCal = Calendar.getInstance().apply {
+          set(Calendar.YEAR, year)
+          set(Calendar.MONTH, month)
+          set(Calendar.DAY_OF_MONTH, dayOfMonth)
+          val nowCal = Calendar.getInstance()
+          set(Calendar.HOUR_OF_DAY, nowCal.get(Calendar.HOUR_OF_DAY))
+          set(Calendar.MINUTE, nowCal.get(Calendar.MINUTE))
+          set(Calendar.SECOND, 0)
+        }
+        selectedTimestamp = newCal.timeInMillis
+        showDatePicker = false
+      },
+      cal.get(Calendar.YEAR),
+      cal.get(Calendar.MONTH),
+      cal.get(Calendar.DAY_OF_MONTH)
+    )
+    datePickerDialog.setOnDismissListener {
+      showDatePicker = false
+    }
+    DisposableEffect(showDatePicker) {
+      datePickerDialog.show()
+      onDispose {
+        datePickerDialog.dismiss()
+      }
+    }
   }
 
   // Filter categories based on transaction type
@@ -289,14 +329,14 @@ fun QuickAddDraftSheet(
           modifier = Modifier.fillMaxWidth()
         )
 
-        // Quick bump chips (+10, +50, +100, +500)
+        // Quick bump chips (+50, +100, +500, +1000)
         Row(
           modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          val bumps = listOf(10, 50, 100, 500)
+          val bumps = listOf(50, 100, 500, 1000)
           bumps.forEach { bump ->
             Surface(
               shape = RoundedCornerShape(8.dp),
@@ -313,7 +353,7 @@ fun QuickAddDraftSheet(
               Text(
                 text = "+$bump",
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.primary,
+                color = MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(vertical = 6.dp)
               )
@@ -333,7 +373,7 @@ fun QuickAddDraftSheet(
         OutlinedTextField(
           value = titleText,
           onValueChange = { titleText = it },
-          placeholder = { Text("e.g. Starbucks coffee, Monthly Salary, Rent") },
+          placeholder = { Text("e.g. Swiggy dinner, Chai & snack, Rent, Metro") },
           singleLine = true,
           shape = RoundedCornerShape(12.dp),
           colors = OutlinedTextFieldDefaults.colors(
@@ -395,19 +435,30 @@ fun QuickAddDraftSheet(
         }
       }
 
-      // Date Selection Chips (Today, Yesterday, 2 Days Ago)
-      Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-          text = "Date",
-          style = MaterialTheme.typography.labelMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(6.dp))
+      // Date Selection (Calendar & Quick Chips)
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "Draft Date",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Text(
+            text = "Pick past/future dates",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
+          )
+        }
 
-        val now = Calendar.getInstance()
         val todayCal = Calendar.getInstance()
         val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
-        val twoDaysAgoCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -2) }
 
         val currentCal = Calendar.getInstance().apply { timeInMillis = selectedTimestamp }
         val isToday = currentCal.get(Calendar.DAY_OF_YEAR) == todayCal.get(Calendar.DAY_OF_YEAR) && currentCal.get(Calendar.YEAR) == todayCal.get(Calendar.YEAR)
@@ -433,15 +484,84 @@ fun QuickAddDraftSheet(
             modifier = Modifier.weight(1f)
           )
           FilterChipItem(
-            label = SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(selectedTimestamp)),
+            label = "Calendar 📅",
             isSelected = !isToday && !isYesterday,
             icon = Icons.Default.CalendarToday,
-            onClick = {
-              // Quick jump back 2 days
-              selectedTimestamp = twoDaysAgoCal.timeInMillis
-            },
+            onClick = { showDatePicker = true },
             modifier = Modifier.weight(1.2f)
           )
+        }
+
+        // Selected Date Card / Calendar Banner
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { showDatePicker = true }
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Row(
+              verticalAlignment = Alignment.CenterVertically,
+              modifier = Modifier.weight(1f)
+            ) {
+              Box(
+                modifier = Modifier
+                  .size(34.dp)
+                  .clip(CircleShape)
+                  .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+              ) {
+                Icon(
+                  imageVector = Icons.Default.CalendarMonth,
+                  contentDescription = "Pick Date",
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(18.dp)
+                )
+              }
+              Spacer(modifier = Modifier.width(10.dp))
+              Column {
+                Text(
+                  text = SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault()).format(Date(selectedTimestamp)),
+                  style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                val diffDays = ((todayCal.timeInMillis - selectedTimestamp) / (1000 * 60 * 60 * 24)).toInt()
+                val relativeDesc = when {
+                  isToday -> "Today's draft"
+                  isYesterday -> "Yesterday's draft"
+                  diffDays > 0 -> "$diffDays days ago • Past draft"
+                  else -> "Future scheduled draft"
+                }
+                Text(
+                  text = relativeDesc,
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.primary
+                )
+              }
+            }
+
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+              modifier = Modifier.clickable { showDatePicker = true }
+            ) {
+              Text(
+                text = "Change",
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+              )
+            }
+          }
         }
       }
 
@@ -562,7 +682,9 @@ fun QuickAddDraftSheet(
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
           containerColor = MaterialTheme.colorScheme.primary,
-          disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+          disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         modifier = Modifier
           .fillMaxWidth()
@@ -572,8 +694,7 @@ fun QuickAddDraftSheet(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
           text = if (editingItem != null) "Update Draft" else "Save Daily Draft",
-          style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-          color = if (canSave) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+          style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
         )
       }
 

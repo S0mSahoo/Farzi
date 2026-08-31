@@ -10,64 +10,76 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.example.data.model.AppThemeMode
 
-private val DarkColorScheme = darkColorScheme(
-  primary = Color.White,
-  onPrimary = MinimalBlack,
-  primaryContainer = Gray800,
+// Refined Dark Color Scheme (Subtle dark layered tones with soft accents)
+private val RefinedDarkColorScheme = darkColorScheme(
+  primary = MinimalIndigo,
+  onPrimary = Color.White,
+  primaryContainer = DarkSurfaceElevated,
   onPrimaryContainer = Color.White,
-  secondary = Gray300,
-  onSecondary = MinimalBlack,
-  secondaryContainer = Gray700,
-  onSecondaryContainer = Color.White,
-  tertiary = MinimalEmeraldLight,
-  onTertiary = MinimalBlack,
+  secondary = MinimalBlue,
+  onSecondary = Color.White,
+  secondaryContainer = DarkSurfaceVariant,
+  onSecondaryContainer = DarkTextPrimary,
+  tertiary = MinimalEmerald,
+  onTertiary = Color.White,
   background = DarkBackground,
-  onBackground = Color(0xFFF1F5F9),
+  onBackground = DarkTextPrimary,
   surface = DarkSurface,
-  onSurface = Color(0xFFF1F5F9),
+  onSurface = DarkTextPrimary,
   surfaceVariant = DarkSurfaceVariant,
-  onSurfaceVariant = Color(0xFF94A3B8),
+  onSurfaceVariant = DarkTextSecondary,
   outline = DarkBorder,
+  outlineVariant = DarkBorderLight,
   error = MinimalRose,
   onError = Color.White
 )
 
-private val LightColorScheme = lightColorScheme(
-  primary = MinimalBlack,
+// Refined Clean Light Color Scheme (Soft slate & warm white)
+private val RefinedLightColorScheme = lightColorScheme(
+  primary = MinimalIndigo,
   onPrimary = Color.White,
-  primaryContainer = Gray100,
-  onPrimaryContainer = MinimalBlack,
-  secondary = MinimalDark,
+  primaryContainer = MinimalIndigoBg,
+  onPrimaryContainer = MinimalIndigo,
+  secondary = MinimalBlue,
   onSecondary = Color.White,
-  secondaryContainer = Gray200,
-  onSecondaryContainer = MinimalBlack,
+  secondaryContainer = MinimalBlueBg,
+  onSecondaryContainer = MinimalBlue,
   tertiary = MinimalEmerald,
   onTertiary = Color.White,
-  background = Gray50,
-  onBackground = MinimalBlack,
-  surface = Color.White,
-  onSurface = MinimalBlack,
-  surfaceVariant = Gray100,
-  onSurfaceVariant = Gray500,
-  outline = Gray200,
+  background = LightBackground,
+  onBackground = LightTextPrimary,
+  surface = LightSurface,
+  onSurface = LightTextPrimary,
+  surfaceVariant = LightSurfaceVariant,
+  onSurfaceVariant = LightTextSecondary,
+  outline = LightBorder,
+  outlineVariant = LightBorderDarker,
   error = MinimalRose,
   onError = Color.White
 )
 
 @Composable
 fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false, // Keep curated financial palette by default
+  themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
+  val isSystemDark = isSystemInDarkTheme()
+  val darkTheme = when (themeMode) {
+    AppThemeMode.SYSTEM -> isSystemDark
+    AppThemeMode.LIGHT -> false
+    AppThemeMode.AMOLED_DARK -> true
+  }
+
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       val context = LocalContext.current
       if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
     }
-    darkTheme -> DarkColorScheme
-    else -> LightColorScheme
+    darkTheme -> RefinedDarkColorScheme
+    else -> RefinedLightColorScheme
   }
 
   MaterialTheme(

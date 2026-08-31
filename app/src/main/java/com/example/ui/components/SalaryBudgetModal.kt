@@ -78,7 +78,7 @@ fun SalaryBudgetModal(
     mutableStateOf(currentSettings.currencySymbol)
   }
 
-  val currencySymbols = listOf("$", "€", "£", "₹", "¥", "₱", "₩", "CHF")
+  val currencySymbols = listOf("₹", "$", "€", "£", "¥", "₱", "AED", "CAD")
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -155,7 +155,7 @@ fun SalaryBudgetModal(
                 Text(
                   text = sym,
                   style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                  color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurface,
+                  color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
                   modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                 )
               }
@@ -174,7 +174,7 @@ fun SalaryBudgetModal(
           OutlinedTextField(
             value = salaryText,
             onValueChange = { salaryText = it },
-            placeholder = { Text("e.g. 3500") },
+            placeholder = { Text("e.g. 65000") },
             leadingIcon = {
               Icon(imageVector = Icons.Default.Savings, contentDescription = null, tint = IncomeGreen)
             },
@@ -200,7 +200,7 @@ fun SalaryBudgetModal(
           OutlinedTextField(
             value = budgetText,
             onValueChange = { budgetText = it },
-            placeholder = { Text("e.g. 2000") },
+            placeholder = { Text("e.g. 35000") },
             leadingIcon = {
               Icon(imageVector = Icons.Default.AccountBalanceWallet, contentDescription = null, tint = AccentIndigo)
             },
@@ -280,6 +280,10 @@ fun SalaryBudgetModal(
           onSave(sal, selectedPayDay, bud, selectedSymbol)
         },
         shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(
+          containerColor = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary
+        ),
         modifier = Modifier.fillMaxWidth()
       ) {
         Text("Save & Apply Settings", fontWeight = FontWeight.Bold)

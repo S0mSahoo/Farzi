@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Work
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.ui.theme.AccentAmber
@@ -32,6 +33,28 @@ import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.Slate500
 
+enum class AppThemeMode(val displayName: String) {
+  SYSTEM("Sync with System"),
+  LIGHT("Light Mode"),
+  AMOLED_DARK("Pure AMOLED Dark")
+}
+
+enum class ActiveModule(val displayName: String, val shortName: String) {
+  ALL("All Drafts", "All"),
+  EXPENSE("Expense Module", "Expenses"),
+  INCOME("Income & Salary", "Income")
+}
+
+@Immutable
+data class DateGroupedDrafts(
+  val dateKey: String,
+  val headerTitle: String,
+  val totalExpense: Double,
+  val totalIncome: Double,
+  val count: Int,
+  val items: List<TransactionItem>
+)
+
 enum class TransactionType(val displayName: String) {
   EXPENSE("Expense"),
   INCOME("Income"),
@@ -39,11 +62,12 @@ enum class TransactionType(val displayName: String) {
 }
 
 enum class PaymentMethod(val displayName: String) {
+  UPI("UPI (GPay / PhonePe / Paytm)"),
   CASH("Cash"),
   CREDIT_CARD("Credit Card"),
   DEBIT_CARD("Debit Card"),
-  BANK_TRANSFER("Bank Transfer"),
-  UPI_WALLET("UPI / Wallet")
+  BANK_TRANSFER("Net Banking / IMPS"),
+  UPI_WALLET("Digital Wallet")
 }
 
 enum class TransactionCategory(
@@ -100,6 +124,7 @@ enum class TransactionCategory(
     }
 }
 
+@Immutable
 data class TransactionItem(
   val id: Long = 0,
   val title: String,
@@ -108,18 +133,36 @@ data class TransactionItem(
   val category: TransactionCategory,
   val timestamp: Long, // Epoch milliseconds
   val note: String = "",
-  val paymentMethod: PaymentMethod = PaymentMethod.CASH,
+  val paymentMethod: PaymentMethod = PaymentMethod.UPI,
   val isRecurring: Boolean = false,
-  val createdAt: Long = System.currentTimeMillis()
+  val createdAt: Long = System.currentTimeMillis(),
+  // Pre-computed cache for lag-free 120fps scrolling (zero runtime date/string allocations on scroll)
+  val formattedTime: String = "",
+  val formattedDate: String = "",
+  val formattedAmount: String = ""
 )
 
+@Immutable
+data class MonthlySalaryLog(
+  val transactionId: Long,
+  val monthKey: String, // e.g. "2026-08"
+  val monthLabel: String, // e.g. "August 2026"
+  val amount: Double,
+  val timestamp: Long,
+  val dateFormatted: String,
+  val paymentMethod: PaymentMethod,
+  val note: String
+)
+
+@Immutable
 data class MonthlySalarySettings(
-  val salaryAmount: Double = 3500.0,
+  val salaryAmount: Double = 65000.0,
   val payDayOfMonth: Int = 1,
-  val monthlyBudgetGoal: Double = 2200.0,
-  val currencySymbol: String = "$"
+  val monthlyBudgetGoal: Double = 35000.0,
+  val currencySymbol: String = "₹"
 )
 
+@Immutable
 data class CategoryAnalytics(
   val category: TransactionCategory,
   val totalAmount: Double,
@@ -128,6 +171,7 @@ data class CategoryAnalytics(
   val color: Color
 )
 
+@Immutable
 data class DailySpendingTrend(
   val dateKey: String, // e.g. "2026-08-30"
   val dayLabel: String, // e.g. "Mon 30"
@@ -136,6 +180,7 @@ data class DailySpendingTrend(
   val netAmount: Double
 )
 
+@Immutable
 data class DayOfWeekBreakdown(
   val dayName: String,
   val shortName: String,

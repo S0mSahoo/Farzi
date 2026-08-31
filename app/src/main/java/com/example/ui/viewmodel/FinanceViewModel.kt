@@ -3,9 +3,13 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.model.ActiveModule
+import com.example.data.model.AppThemeMode
 import com.example.data.model.CategoryAnalytics
 import com.example.data.model.DailySpendingTrend
+import com.example.data.model.DateGroupedDrafts
 import com.example.data.model.DayOfWeekBreakdown
+import com.example.data.model.MonthlySalaryLog
 import com.example.data.model.MonthlySalarySettings
 import com.example.data.model.PaymentMethod
 import com.example.data.model.TimeRangeFilter
@@ -20,6 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -28,13 +33,20 @@ import java.util.Locale
 data class FinanceUiState(
   val allTransactions: List<TransactionItem> = emptyList(),
   val filteredTransactions: List<TransactionItem> = emptyList(),
+  val groupedDrafts: List<DateGroupedDrafts> = emptyList(),
   val timeRange: TimeRangeFilter = TimeRangeFilter.THIS_MONTH,
+  val activeModule: ActiveModule = ActiveModule.ALL,
+  val selectedYear: Int = 2026,
+  val selectedMonth: Int = 7, // 0-indexed Calendar.MONTH
+  val selectedMonthLabel: String = "August 2026",
+  val isCurrentMonthSelected: Boolean = true,
   val selectedType: TransactionType? = null,
   val selectedCategory: TransactionCategory? = null,
   val searchQuery: String = "",
   val salarySettings: MonthlySalarySettings = MonthlySalarySettings(),
+  val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
   
-  // Analytics
+  // Analytics & Module Metrics
   val totalIncome: Double = 0.0,
   val totalExpense: Double = 0.0,
   val netSavings: Double = 0.0,
@@ -51,19 +63,36 @@ data class FinanceUiState(
   val topCategory: CategoryAnalytics? = null,
   val avgDailyExpense: Double = 0.0,
 
+  // Per-Month Salary Tracking
+  val monthlySalaryLogs: List<MonthlySalaryLog> = emptyList(),
+  val currentMonthSalaryDrafted: Double = 0.0,
+  val isSalaryDraftedForSelectedMonth: Boolean = false,
+  val isMonthSalaryDraftDialogOpen: Boolean = false,
+
   // Navigation & Modals
   val currentTab: Int = 0, // 0 = Drafts, 1 = Analytics, 2 = Salary/Budget
   val isAddDraftSheetOpen: Boolean = false,
   val editingTransaction: TransactionItem? = null,
   val isSalaryModalOpen: Boolean = false,
+  val isThemeDialogOpen: Boolean = false,
+  val isClearDataDialogOpen: Boolean = false,
   val selectedDetailItem: TransactionItem? = null
 )
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
   private val repository = FinanceRepository(application)
 
+  private val _themeMode = MutableStateFlow(repository.getThemeMode())
+  val themeMode: StateFlow<AppThemeMode> = _themeMode.asStateFlow()
+
   private val _timeRange = MutableStateFlow(TimeRangeFilter.THIS_MONTH)
   val timeRange: StateFlow<TimeRangeFilter> = _timeRange.asStateFlow()
+
+  private val _activeModule = MutableStateFlow(ActiveModule.ALL)
+  val activeModule: StateFlow<ActiveModule> = _activeModule.asStateFlow()
+
+  // Selected Month (Year and Month)
+  private val _selectedMonthOffset = MutableStateFlow(0) // 0 = current month, -1 = prev, +1 = next
 
   private val _selectedType = MutableStateFlow<TransactionType?>(null)
   val selectedType: StateFlow<TransactionType?> = _selectedType.asStateFlow()
@@ -89,47 +118,74 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private val _isSalaryModalOpen = MutableStateFlow(false)
   val isSalaryModalOpen: StateFlow<Boolean> = _isSalaryModalOpen.asStateFlow()
 
+  private val _isThemeDialogOpen = MutableStateFlow(false)
+  val isThemeDialogOpen: StateFlow<Boolean> = _isThemeDialogOpen.asStateFlow()
+
+  private val _isClearDataDialogOpen = MutableStateFlow(false)
+  val isClearDataDialogOpen: StateFlow<Boolean> = _isClearDataDialogOpen.asStateFlow()
+
   private val _selectedDetailItem = MutableStateFlow<TransactionItem?>(null)
   val selectedDetailItem: StateFlow<TransactionItem?> = _selectedDetailItem.asStateFlow()
+
+  private val _isMonthSalaryDraftDialogOpen = MutableStateFlow(false)
+  val isMonthSalaryDraftDialogOpen: StateFlow<Boolean> = _isMonthSalaryDraftDialogOpen.asStateFlow()
 
   val uiState: StateFlow<FinanceUiState> = combine(
     repository.allTransactions,
     _timeRange,
+    _activeModule,
+    _selectedMonthOffset,
     _selectedType,
     _selectedCategory,
     _searchQuery,
     _salarySettings,
+    _themeMode,
     _currentTab,
     _isAddDraftSheetOpen,
     _editingTransaction,
     _isSalaryModalOpen,
-    _selectedDetailItem
+    _isThemeDialogOpen,
+    _isClearDataDialogOpen,
+    _selectedDetailItem,
+    _isMonthSalaryDraftDialogOpen
   ) { args: Array<Any?> ->
     @Suppress("UNCHECKED_CAST")
     val allItems = args[0] as List<TransactionItem>
     val range = args[1] as TimeRangeFilter
-    val type = args[2] as TransactionType?
-    val category = args[3] as TransactionCategory?
-    val query = args[4] as String
-    val salary = args[5] as MonthlySalarySettings
-    val tab = args[6] as Int
-    val isAddOpen = args[7] as Boolean
-    val editing = args[8] as TransactionItem?
-    val isSalaryOpen = args[9] as Boolean
-    val detailItem = args[10] as TransactionItem?
+    val activeMod = args[2] as ActiveModule
+    val monthOffset = args[3] as Int
+    val type = args[4] as TransactionType?
+    val category = args[5] as TransactionCategory?
+    val query = args[6] as String
+    val salary = args[7] as MonthlySalarySettings
+    val theme = args[8] as AppThemeMode
+    val tab = args[9] as Int
+    val isAddOpen = args[10] as Boolean
+    val editing = args[11] as TransactionItem?
+    val isSalaryOpen = args[12] as Boolean
+    val isThemeOpen = args[13] as Boolean
+    val isClearOpen = args[14] as Boolean
+    val detailItem = args[15] as TransactionItem?
+    val isMonthSalaryOpen = args[16] as Boolean
 
     computeUiState(
       allItems = allItems,
       range = range,
+      activeMod = activeMod,
+      monthOffset = monthOffset,
       type = type,
       category = category,
       query = query,
       salary = salary,
+      theme = theme,
       tab = tab,
       isAddOpen = isAddOpen,
       editing = editing,
       isSalaryOpen = isSalaryOpen,
-      detailItem = detailItem
+      isThemeOpen = isThemeOpen,
+      isClearOpen = isClearOpen,
+      detailItem = detailItem,
+      isMonthSalaryOpen = isMonthSalaryOpen
     )
   }.stateIn(
     scope = viewModelScope,
@@ -146,35 +202,118 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private fun computeUiState(
     allItems: List<TransactionItem>,
     range: TimeRangeFilter,
+    activeMod: ActiveModule,
+    monthOffset: Int,
     type: TransactionType?,
     category: TransactionCategory?,
     query: String,
     salary: MonthlySalarySettings,
+    theme: AppThemeMode,
     tab: Int,
     isAddOpen: Boolean,
     editing: TransactionItem?,
     isSalaryOpen: Boolean,
-    detailItem: TransactionItem?
+    isThemeOpen: Boolean,
+    isClearOpen: Boolean,
+    detailItem: TransactionItem?,
+    isMonthSalaryOpen: Boolean
   ): FinanceUiState {
     val now = Calendar.getInstance()
-    val currentYear = now.get(Calendar.YEAR)
-    val currentMonth = now.get(Calendar.MONTH)
-    val maxDaysInMonth = now.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val currentDay = now.get(Calendar.DAY_OF_MONTH)
-    val daysRemaining = (maxDaysInMonth - currentDay + 1).coerceAtLeast(1)
+    val actualYear = now.get(Calendar.YEAR)
+    val actualMonth = now.get(Calendar.MONTH)
 
-    // Calculate time bounds
-    val (startTime, endTime) = getTimeBounds(range, now)
+    val targetCal = Calendar.getInstance().apply {
+      add(Calendar.MONTH, monthOffset)
+    }
+    val selYear = targetCal.get(Calendar.YEAR)
+    val selMonth = targetCal.get(Calendar.MONTH)
+    val isCurrentMonth = (selYear == actualYear && selMonth == actualMonth)
+    val monthLabelFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    val selectedMonthLabel = monthLabelFormat.format(targetCal.time)
 
-    // Filtered by time range first for analytics
-    val inRangeItems = allItems.filter { it.timestamp in startTime..endTime }
+    val maxDaysInTargetMonth = targetCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val currentDay = if (isCurrentMonth) now.get(Calendar.DAY_OF_MONTH) else maxDaysInTargetMonth
+    val daysRemaining = if (isCurrentMonth) {
+      (maxDaysInTargetMonth - now.get(Calendar.DAY_OF_MONTH) + 1).coerceAtLeast(1)
+    } else 1
+
+    // Pre-format all items for ultra-smooth 120fps scrolling
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val dateDisplayFormat = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault())
+    val shortDisplayFormat = SimpleDateFormat("MMM d", Locale.getDefault())
+    val wholeCurrencyFormatter = DecimalFormat("#,##0")
+    val decCurrencyFormatter = DecimalFormat("#,##0.00")
+
+    val formattedAllItems = allItems.map { item ->
+      val formattedAmount = if (item.amount % 1.0 == 0.0) {
+        salary.currencySymbol + wholeCurrencyFormatter.format(item.amount)
+      } else {
+        salary.currencySymbol + decCurrencyFormatter.format(item.amount)
+      }
+      item.copy(
+        formattedTime = timeFormat.format(Date(item.timestamp)),
+        formattedDate = dateFormat.format(Date(item.timestamp)),
+        formattedAmount = formattedAmount
+      )
+    }
+
+    // Selected Month Bounds
+    val monthStartCal = Calendar.getInstance().apply {
+      set(selYear, selMonth, 1, 0, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    val monthEndCal = Calendar.getInstance().apply {
+      set(selYear, selMonth, maxDaysInTargetMonth, 23, 59, 59)
+      set(Calendar.MILLISECOND, 999)
+    }
+    val selMonthStart = monthStartCal.timeInMillis
+    val selMonthEnd = monthEndCal.timeInMillis
+
+    // Calculate time bounds based on range or month offset
+    val (startTime, endTime) = if (monthOffset != 0) {
+      selMonthStart to selMonthEnd
+    } else {
+      getTimeBounds(range, now)
+    }
+
+    // Filtered by time range
+    val inRangeItems = formattedAllItems.filter { it.timestamp in startTime..endTime }
+
+    // Salary logs grouped by month to show month-by-month salary drafts
+    val salaryFormat = SimpleDateFormat("yyyy-MM", Locale.getDefault())
+    val salaryDisplayMonthFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
+    val salaryDateDisplayFormat = SimpleDateFormat("d MMMM yyyy", Locale.getDefault())
+
+    val monthlySalaryLogs = formattedAllItems
+      .filter { it.type == TransactionType.SALARY }
+      .sortedByDescending { it.timestamp }
+      .map { item ->
+        MonthlySalaryLog(
+          transactionId = item.id,
+          monthKey = salaryFormat.format(Date(item.timestamp)),
+          monthLabel = salaryDisplayMonthFormat.format(Date(item.timestamp)),
+          amount = item.amount,
+          timestamp = item.timestamp,
+          dateFormatted = salaryDateDisplayFormat.format(Date(item.timestamp)),
+          paymentMethod = item.paymentMethod,
+          note = item.note
+        )
+      }
+
+    // Check salary drafted for the currently selected month
+    val selectedMonthSalaryDrafts = formattedAllItems.filter {
+      it.type == TransactionType.SALARY && it.timestamp in selMonthStart..selMonthEnd
+    }
+    val isSalaryDraftedForSelectedMonth = selectedMonthSalaryDrafts.isNotEmpty()
+    val currentMonthSalaryDrafted = selectedMonthSalaryDrafts.sumOf { it.amount }
 
     // Analytics computation on in-range items
     var totalIncome = 0.0
     var totalExpense = 0.0
     val expenseCategoryMap = mutableMapOf<TransactionCategory, Double>()
     val expenseCategoryCountMap = mutableMapOf<TransactionCategory, Int>()
-    val dayOfWeekSpendMap = mutableMapOf<Int, Double>() // Calendar.DAY_OF_WEEK -> spent
+    val dayOfWeekSpendMap = mutableMapOf<Int, Double>()
     val dayOfWeekCountMap = mutableMapOf<Int, Int>()
 
     inRangeItems.forEach { item ->
@@ -210,7 +349,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       )
     }.sortedByDescending { it.totalAmount }
 
-    // Daily spending trends (last 7 days or current month days)
+    // Daily spending trends
     val dailyTrends = computeDailyTrends(inRangeItems, startTime, endTime, range)
 
     // Day of week breakdown
@@ -240,46 +379,72 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val topCat = categoryAnalyticsList.firstOrNull()
 
     // Monthly Budget & Safe daily burn rate
-    // Calculate expense for strictly THIS month for budget progress
-    val thisMonthStart = Calendar.getInstance().apply {
-      set(currentYear, currentMonth, 1, 0, 0, 0)
-      set(Calendar.MILLISECOND, 0)
-    }.timeInMillis
-    val thisMonthEnd = Calendar.getInstance().apply {
-      set(currentYear, currentMonth, maxDaysInMonth, 23, 59, 59)
-      set(Calendar.MILLISECOND, 999)
-    }.timeInMillis
-
-    val thisMonthExpenses = allItems
-      .filter { it.timestamp in thisMonthStart..thisMonthEnd && it.type == TransactionType.EXPENSE }
-      .sumOf { it.amount }
-
     val budgetGoal = salary.monthlyBudgetGoal
-    val budgetProgress = if (budgetGoal > 0) (thisMonthExpenses / budgetGoal).toFloat() else 0f
-    val remainingBudget = (budgetGoal - thisMonthExpenses).coerceAtLeast(0.0)
+    val budgetProgress = if (budgetGoal > 0) (totalExpense / budgetGoal).toFloat() else 0f
+    val remainingBudget = (budgetGoal - totalExpense).coerceAtLeast(0.0)
     val dailySafeSpend = remainingBudget / daysRemaining
-    val avgDailyExpense = if (currentDay > 0) thisMonthExpenses / currentDay else 0.0
+    val avgDailyExpense = if (currentDay > 0) totalExpense / currentDay else 0.0
 
-    // Filter list for display
-    val filteredList = inRangeItems.filter { item ->
+    // Filter items based on active module and search
+    val baseList = if (query.matches(Regex("^\\d{4}-\\d{2}-\\d{2}$"))) formattedAllItems else inRangeItems
+
+    val filteredList = baseList.filter { item ->
+      val matchesModule = when (activeMod) {
+        ActiveModule.ALL -> true
+        ActiveModule.EXPENSE -> item.type == TransactionType.EXPENSE
+        ActiveModule.INCOME -> item.type == TransactionType.INCOME || item.type == TransactionType.SALARY
+      }
       val matchesType = type == null || (if (type == TransactionType.INCOME) (item.type == TransactionType.INCOME || item.type == TransactionType.SALARY) else item.type == type)
       val matchesCategory = category == null || item.category == category
       val matchesQuery = query.isBlank() ||
           item.title.contains(query, ignoreCase = true) ||
           item.note.contains(query, ignoreCase = true) ||
           item.category.displayName.contains(query, ignoreCase = true) ||
-          item.paymentMethod.displayName.contains(query, ignoreCase = true)
-      matchesType && matchesCategory && matchesQuery
+          item.paymentMethod.displayName.contains(query, ignoreCase = true) ||
+          item.formattedDate.contains(query, ignoreCase = true)
+      matchesModule && matchesType && matchesCategory && matchesQuery
     }
 
+    // Pre-group transactions for instant, lag-free UI rendering
+    val todayKey = dateFormat.format(Date())
+    val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+    val yesterdayKey = dateFormat.format(yesterdayCal.time)
+
+    val groupedDrafts = filteredList
+      .groupBy { it.formattedDate }
+      .map { (dateKey, items) ->
+        val headerTitle = when (dateKey) {
+          todayKey -> "Today • ${shortDisplayFormat.format(Date())}"
+          yesterdayKey -> "Yesterday • ${shortDisplayFormat.format(yesterdayCal.time)}"
+          else -> items.firstOrNull()?.let { dateDisplayFormat.format(Date(it.timestamp)) } ?: dateKey
+        }
+        val dayExpense = items.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val dayIncome = items.filter { it.type != TransactionType.EXPENSE }.sumOf { it.amount }
+        DateGroupedDrafts(
+          dateKey = dateKey,
+          headerTitle = headerTitle,
+          totalExpense = dayExpense,
+          totalIncome = dayIncome,
+          count = items.size,
+          items = items
+        )
+      }
+
     return FinanceUiState(
-      allTransactions = allItems,
+      allTransactions = formattedAllItems,
       filteredTransactions = filteredList,
+      groupedDrafts = groupedDrafts,
       timeRange = range,
+      activeModule = activeMod,
+      selectedYear = selYear,
+      selectedMonth = selMonth,
+      selectedMonthLabel = selectedMonthLabel,
+      isCurrentMonthSelected = isCurrentMonth,
       selectedType = type,
       selectedCategory = category,
       searchQuery = query,
       salarySettings = salary,
+      themeMode = theme,
       totalIncome = totalIncome,
       totalExpense = totalExpense,
       netSavings = netSavings,
@@ -287,7 +452,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       categoryAnalytics = categoryAnalyticsList,
       dailyTrends = dailyTrends,
       dayOfWeekBreakdown = dayOfWeekList,
-      budgetSpent = thisMonthExpenses,
+      budgetSpent = totalExpense,
       budgetProgress = budgetProgress,
       remainingBudget = remainingBudget,
       daysRemainingInMonth = daysRemaining,
@@ -295,10 +460,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       topSpendingDay = topDay,
       topCategory = topCat,
       avgDailyExpense = avgDailyExpense,
+      monthlySalaryLogs = monthlySalaryLogs,
+      currentMonthSalaryDrafted = currentMonthSalaryDrafted,
+      isSalaryDraftedForSelectedMonth = isSalaryDraftedForSelectedMonth,
+      isMonthSalaryDraftDialogOpen = isMonthSalaryOpen,
       currentTab = tab,
       isAddDraftSheetOpen = isAddOpen,
       editingTransaction = editing,
       isSalaryModalOpen = isSalaryOpen,
+      isThemeDialogOpen = isThemeOpen,
+      isClearDataDialogOpen = isClearOpen,
       selectedDetailItem = detailItem
     )
   }
@@ -379,64 +550,104 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   private fun computeDailyTrends(
     items: List<TransactionItem>,
-    startTime: Long,
-    endTime: Long,
+    start: Long,
+    end: Long,
     range: TimeRangeFilter
   ): List<DailySpendingTrend> {
     val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val labelFormat = SimpleDateFormat("MMM d", Locale.getDefault())
-    
-    // Group transactions by date key
-    val dailyMap = mutableMapOf<String, Pair<Double, Double>>() // dateKey -> (expense, income)
-    
-    items.forEach { item ->
-      val key = dateFormat.format(Date(item.timestamp))
-      val (currExp, currInc) = dailyMap[key] ?: (0.0 to 0.0)
-      if (item.type == TransactionType.EXPENSE) {
-        dailyMap[key] = (currExp + item.amount) to currInc
-      } else {
-        dailyMap[key] = currExp to (currInc + item.amount)
-      }
+    val labelFormat = SimpleDateFormat("EEE d", Locale.getDefault())
+    val numDays = when (range) {
+      TimeRangeFilter.LAST_7_DAYS -> 7
+      TimeRangeFilter.THIS_MONTH, TimeRangeFilter.LAST_MONTH -> 14
+      else -> 10
     }
 
-    // Generate consecutive days for nice visual timeline
-    val cal = Calendar.getInstance().apply { timeInMillis = startTime.coerceAtLeast(System.currentTimeMillis() - 30L * 86400000L) }
-    val endCal = Calendar.getInstance().apply { timeInMillis = endTime.coerceAtMost(System.currentTimeMillis() + 86400000L) }
-    val list = mutableListOf<DailySpendingTrend>()
+    val trends = mutableListOf<DailySpendingTrend>()
 
-    var safetyCount = 0
-    while (cal.before(endCal) && safetyCount < 35) {
-      safetyCount++
-      val key = dateFormat.format(cal.time)
-      val label = labelFormat.format(cal.time)
-      val (exp, inc) = dailyMap[key] ?: (0.0 to 0.0)
-      list.add(
+    for (i in (numDays - 1) downTo 0) {
+      val dayCal = Calendar.getInstance().apply {
+        add(Calendar.DAY_OF_YEAR, -i)
+      }
+      val dateKey = dateFormat.format(dayCal.time)
+      val dayLabel = labelFormat.format(dayCal.time)
+
+      val startOfDay = dayCal.apply {
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+      }.timeInMillis
+
+      val endOfDay = dayCal.apply {
+        set(Calendar.HOUR_OF_DAY, 23)
+        set(Calendar.MINUTE, 59)
+        set(Calendar.SECOND, 59)
+        set(Calendar.MILLISECOND, 999)
+      }.timeInMillis
+
+      val daysItems = items.filter { it.timestamp in startOfDay..endOfDay }
+      val exp = daysItems.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+      val inc = daysItems.filter { it.type != TransactionType.EXPENSE }.sumOf { it.amount }
+
+      trends.add(
         DailySpendingTrend(
-          dateKey = key,
-          dayLabel = label,
+          dateKey = dateKey,
+          dayLabel = dayLabel,
           expenseAmount = exp,
           incomeAmount = inc,
           netAmount = inc - exp
         )
       )
-      cal.add(Calendar.DAY_OF_YEAR, 1)
     }
 
-    return if (list.size > 14 && range != TimeRangeFilter.LAST_7_DAYS) {
-      // Sample or condense to last 14 days for optimal mobile chart rendering
-      list.takeLast(14)
-    } else {
-      list
-    }
+    return trends
   }
 
-  // User Actions
+  // Navigation & Actions
   fun setTab(index: Int) {
     _currentTab.value = index
   }
 
+  fun setActiveModule(module: ActiveModule) {
+    _activeModule.value = module
+  }
+
+  fun nextMonth() {
+    _selectedMonthOffset.value += 1
+  }
+
+  fun prevMonth() {
+    _selectedMonthOffset.value -= 1
+  }
+
+  fun resetToCurrentMonth() {
+    _selectedMonthOffset.value = 0
+  }
+
+  fun setThemeMode(mode: AppThemeMode) {
+    _themeMode.value = mode
+    repository.saveThemeMode(mode)
+  }
+
+  fun openThemeDialog() {
+    _isThemeDialogOpen.value = true
+  }
+
+  fun closeThemeDialog() {
+    _isThemeDialogOpen.value = false
+  }
+
+  fun openClearDataDialog() {
+    _isClearDataDialogOpen.value = true
+  }
+
+  fun closeClearDataDialog() {
+    _isClearDataDialogOpen.value = false
+  }
+
   fun setTimeRange(range: TimeRangeFilter) {
     _timeRange.value = range
+    _selectedMonthOffset.value = 0 // Reset month offset when using standard time ranges
   }
 
   fun setTypeFilter(type: TransactionType?) {
@@ -467,6 +678,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun closeSalaryModal() {
     _isSalaryModalOpen.value = false
+  }
+
+  fun openMonthSalaryDraftDialog() {
+    _isMonthSalaryDraftDialogOpen.value = true
+  }
+
+  fun closeMonthSalaryDraftDialog() {
+    _isMonthSalaryDraftDialogOpen.value = false
   }
 
   fun openDetailDialog(item: TransactionItem) {
@@ -531,27 +750,57 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     closeSalaryModal()
   }
 
-  fun autoDraftSalaryForMonth() {
+  // Draft distinct salary for the selected month or any custom amount/month
+  fun draftSalaryForSpecificMonth(
+    year: Int,
+    month: Int,
+    amount: Double,
+    payDay: Int = _salarySettings.value.payDayOfMonth,
+    paymentMethod: PaymentMethod = PaymentMethod.BANK_TRANSFER,
+    note: String = "Monthly salary draft"
+  ) {
     viewModelScope.launch {
-      val settings = _salarySettings.value
-      val now = Calendar.getInstance()
       val payDate = Calendar.getInstance().apply {
-        set(Calendar.DAY_OF_MONTH, settings.payDayOfMonth.coerceIn(1, 28))
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month)
+        val maxDays = getActualMaximum(Calendar.DAY_OF_MONTH)
+        set(Calendar.DAY_OF_MONTH, payDay.coerceIn(1, maxDays))
         set(Calendar.HOUR_OF_DAY, 9)
         set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
       }
 
+      val monthLabel = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(payDate.time)
       val salaryItem = TransactionItem(
-        title = "Monthly Salary (${SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(now.time)})",
-        amount = settings.salaryAmount,
+        title = "Monthly Salary ($monthLabel)",
+        amount = amount,
         type = TransactionType.SALARY,
         category = TransactionCategory.SALARY,
         timestamp = payDate.timeInMillis,
-        note = "Auto-drafted recurring monthly earnings",
-        paymentMethod = PaymentMethod.BANK_TRANSFER,
+        note = note.ifBlank { "Salary draft for $monthLabel" },
+        paymentMethod = paymentMethod,
         isRecurring = true
       )
       repository.insertTransaction(salaryItem)
+      closeMonthSalaryDraftDialog()
+    }
+  }
+
+  fun autoDraftSalaryForMonth() {
+    val targetCal = Calendar.getInstance().apply {
+      add(Calendar.MONTH, _selectedMonthOffset.value)
+    }
+    draftSalaryForSpecificMonth(
+      year = targetCal.get(Calendar.YEAR),
+      month = targetCal.get(Calendar.MONTH),
+      amount = _salarySettings.value.salaryAmount
+    )
+  }
+
+  fun cleanAllData() {
+    viewModelScope.launch {
+      repository.clearAll()
+      closeClearDataDialog()
     }
   }
 

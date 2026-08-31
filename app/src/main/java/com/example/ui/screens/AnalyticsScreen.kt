@@ -124,7 +124,7 @@ fun AnalyticsScreen(
                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                     fontSize = 12.sp
                   ),
-                  color = if (isSel) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                  color = if (isSel) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                   modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
                 )
               }

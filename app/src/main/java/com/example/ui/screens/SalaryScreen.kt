@@ -225,7 +225,10 @@ fun SalaryScreen(
             Button(
               onClick = onPostSalaryDraftNow,
               shape = RoundedCornerShape(12.dp),
-              colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+              colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+              ),
               modifier = Modifier.weight(1.3f)
             ) {
               Icon(imageVector = Icons.Default.AddCard, contentDescription = null, modifier = Modifier.size(15.dp))

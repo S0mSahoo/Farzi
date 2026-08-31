@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.example.data.local.AppDatabase
 import com.example.data.local.TransactionEntity
+import com.example.data.model.AppThemeMode
 import com.example.data.model.MonthlySalarySettings
 import com.example.data.model.PaymentMethod
 import com.example.data.model.TransactionCategory
@@ -24,31 +25,57 @@ class FinanceRepository(private val context: Context) {
     entities.map { it.toModel() }
   }
 
+  companion object {
+    private const val KEY_APP_INITIALIZED = "has_app_been_initialized_v1"
+  }
+
   suspend fun insertTransaction(item: TransactionItem): Long = withContext(Dispatchers.IO) {
+    markAppInitialized()
     dao.insertTransaction(TransactionEntity.fromModel(item))
   }
 
   suspend fun updateTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
+    markAppInitialized()
     dao.updateTransaction(TransactionEntity.fromModel(item))
   }
 
   suspend fun deleteTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
+    markAppInitialized()
     dao.deleteTransaction(TransactionEntity.fromModel(item))
   }
 
   suspend fun deleteById(id: Long) = withContext(Dispatchers.IO) {
+    markAppInitialized()
     dao.deleteById(id)
   }
 
   suspend fun clearAll() = withContext(Dispatchers.IO) {
+    markAppInitialized()
     dao.clearAll()
   }
 
+  private fun markAppInitialized() {
+    prefs.edit().putBoolean(KEY_APP_INITIALIZED, true).apply()
+  }
+
+  fun getThemeMode(): AppThemeMode {
+    val modeStr = prefs.getString("theme_mode", AppThemeMode.SYSTEM.name) ?: AppThemeMode.SYSTEM.name
+    return try {
+      AppThemeMode.valueOf(modeStr)
+    } catch (e: Exception) {
+      AppThemeMode.SYSTEM
+    }
+  }
+
+  fun saveThemeMode(mode: AppThemeMode) {
+    prefs.edit().putString("theme_mode", mode.name).apply()
+  }
+
   fun getSalarySettings(): MonthlySalarySettings {
-    val salary = prefs.getFloat("salary_amount", 3800.0f).toDouble()
+    val salary = prefs.getFloat("salary_amount", 65000.0f).toDouble()
     val payDay = prefs.getInt("pay_day", 1)
-    val budget = prefs.getFloat("monthly_budget", 2200.0f).toDouble()
-    val symbol = prefs.getString("currency_symbol", "$") ?: "$"
+    val budget = prefs.getFloat("monthly_budget", 35000.0f).toDouble()
+    val symbol = prefs.getString("currency_symbol", "₹") ?: "₹"
     return MonthlySalarySettings(
       salaryAmount = salary,
       payDayOfMonth = payDay,
@@ -67,10 +94,17 @@ class FinanceRepository(private val context: Context) {
   }
 
   suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
+    val isInitialized = prefs.getBoolean(KEY_APP_INITIALIZED, false)
+    if (isInitialized) {
+      // User has already initialized the app before (or cleared all drafts). Never auto-seed!
+      return@withContext
+    }
+
     val count = dao.getCount()
     if (count == 0) {
       seedInitialDrafts()
     }
+    markAppInitialized()
   }
 
   suspend fun seedInitialDrafts() = withContext(Dispatchers.IO) {
@@ -86,201 +120,72 @@ class FinanceRepository(private val context: Context) {
       return cal.timeInMillis
     }
 
-    val sampleList = mutableListOf<TransactionItem>()
-
-    // Monthly Salary on Day 1
-    sampleList.add(
+    val sampleList = listOf(
+      // 1. Base Salary
       TransactionItem(
         title = "Monthly Base Salary",
-        amount = 3800.0,
+        amount = 65000.0,
         type = TransactionType.SALARY,
         category = TransactionCategory.SALARY,
         timestamp = createTimestamp(1, 9, 0),
-        note = "Direct deposit from company payroll",
+        note = "Direct bank deposit from payroll",
         paymentMethod = PaymentMethod.BANK_TRANSFER,
         isRecurring = true
-      )
-    )
-
-    // Housing rent
-    sampleList.add(
+      ),
+      // 2. Rent
       TransactionItem(
-        title = "Apartment Rent & Parking",
-        amount = 950.0,
+        title = "Apartment Rent",
+        amount = 14000.0,
         type = TransactionType.EXPENSE,
         category = TransactionCategory.HOUSING,
         timestamp = createTimestamp(2, 10, 30),
-        note = "Monthly lease payment",
+        note = "Monthly lease payment via IMPS",
         paymentMethod = PaymentMethod.BANK_TRANSFER,
         isRecurring = true
-      )
-    )
-
-    // Freelance Project
-    sampleList.add(
+      ),
+      // 3. Groceries
       TransactionItem(
-        title = "UI/UX Mobile Redesign Client",
-        amount = 750.0,
-        type = TransactionType.INCOME,
-        category = TransactionCategory.FREELANCE,
-        timestamp = createTimestamp(5, 14, 0),
-        note = "Milestone 2 completion",
-        paymentMethod = PaymentMethod.BANK_TRANSFER,
-        isRecurring = false
-      )
-    )
-
-    // Groceries
-    sampleList.add(
-      TransactionItem(
-        title = "Whole Foods Organic Market",
-        amount = 142.50,
+        title = "Supermarket & Produce",
+        amount = 2850.0,
         type = TransactionType.EXPENSE,
         category = TransactionCategory.GROCERIES,
-        timestamp = createTimestamp(6, 17, 45),
-        note = "Weekly produce, dairy & pantry restock",
-        paymentMethod = PaymentMethod.CREDIT_CARD,
+        timestamp = createTimestamp(currentDay.coerceAtLeast(3), 17, 30),
+        note = "Weekly groceries & pantry essentials",
+        paymentMethod = PaymentMethod.UPI,
         isRecurring = false
-      )
-    )
-
-    // Dining
-    sampleList.add(
+      ),
+      // 4. Dining / Swiggy
       TransactionItem(
-        title = "Artisan Espresso & Brunch",
-        amount = 34.20,
+        title = "Swiggy Dinner Order",
+        amount = 460.0,
         type = TransactionType.EXPENSE,
         category = TransactionCategory.FOOD_DINING,
-        timestamp = createTimestamp(8, 11, 15),
-        note = "Weekend breakfast with friends",
-        paymentMethod = PaymentMethod.UPI_WALLET,
+        timestamp = createTimestamp(currentDay.coerceAtLeast(2), 20, 15),
+        note = "Biryani & snacks with team",
+        paymentMethod = PaymentMethod.UPI,
         isRecurring = false
-      )
-    )
-
-    // Utilities
-    sampleList.add(
+      ),
+      // 5. Chai / Daily Fuel
       TransactionItem(
-        title = "High-speed Fiber Internet & Power",
-        amount = 118.00,
+        title = "Chai & Breakfast Snacks",
+        amount = 120.0,
+        type = TransactionType.EXPENSE,
+        category = TransactionCategory.FOOD_DINING,
+        timestamp = createTimestamp(currentDay, 8, 30),
+        note = "Morning tea & snack",
+        paymentMethod = PaymentMethod.UPI,
+        isRecurring = false
+      ),
+      // 6. Bills & Utilities
+      TransactionItem(
+        title = "Electricity & WiFi Bill",
+        amount = 1750.0,
         type = TransactionType.EXPENSE,
         category = TransactionCategory.UTILITIES,
-        timestamp = createTimestamp(10, 8, 30),
-        note = "Monthly utility billing",
-        paymentMethod = PaymentMethod.DEBIT_CARD,
+        timestamp = createTimestamp(5, 14, 0),
+        note = "Broadband fiber & power bill",
+        paymentMethod = PaymentMethod.UPI,
         isRecurring = true
-      )
-    )
-
-    // Transportation
-    sampleList.add(
-      TransactionItem(
-        title = "Metro Pass & EV Charging",
-        amount = 65.00,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.TRANSPORTATION,
-        timestamp = createTimestamp(12, 16, 20),
-        note = "Monthly transit reload",
-        paymentMethod = PaymentMethod.CREDIT_CARD,
-        isRecurring = false
-      )
-    )
-
-    // Shopping
-    sampleList.add(
-      TransactionItem(
-        title = "Noise-Cancelling Earbuds",
-        amount = 89.99,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.SHOPPING,
-        timestamp = createTimestamp(15, 19, 10),
-        note = "Sale discount replacement",
-        paymentMethod = PaymentMethod.CREDIT_CARD,
-        isRecurring = false
-      )
-    )
-
-    // Subscriptions
-    sampleList.add(
-      TransactionItem(
-        title = "Cloud Storage & Music Streaming",
-        amount = 24.99,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.SUBSCRIPTIONS,
-        timestamp = createTimestamp(17, 9, 0),
-        note = "Monthly digital services",
-        paymentMethod = PaymentMethod.CREDIT_CARD,
-        isRecurring = true
-      )
-    )
-
-    // Dining
-    sampleList.add(
-      TransactionItem(
-        title = "Sushi Dinner Takeout",
-        amount = 46.50,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.FOOD_DINING,
-        timestamp = createTimestamp(20, 20, 0),
-        note = "Dinner after work",
-        paymentMethod = PaymentMethod.UPI_WALLET,
-        isRecurring = false
-      )
-    )
-
-    // Dividends / Investment Income
-    sampleList.add(
-      TransactionItem(
-        title = "Index Fund Quarterly Dividend",
-        amount = 125.40,
-        type = TransactionType.INCOME,
-        category = TransactionCategory.INVESTMENTS,
-        timestamp = createTimestamp(22, 10, 0),
-        note = "Portfolio distribution",
-        paymentMethod = PaymentMethod.BANK_TRANSFER,
-        isRecurring = false
-      )
-    )
-
-    // Healthcare
-    sampleList.add(
-      TransactionItem(
-        title = "Pharmacy & Vitamin Supplements",
-        amount = 38.00,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.HEALTHCARE,
-        timestamp = createTimestamp(24, 15, 30),
-        note = "Monthly wellness supplies",
-        paymentMethod = PaymentMethod.DEBIT_CARD,
-        isRecurring = false
-      )
-    )
-
-    // Entertainment
-    sampleList.add(
-      TransactionItem(
-        title = "Cinema IMAX Tickets & Snacks",
-        amount = 32.50,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.ENTERTAINMENT,
-        timestamp = createTimestamp(26, 21, 15),
-        note = "Sci-fi movie night",
-        paymentMethod = PaymentMethod.UPI_WALLET,
-        isRecurring = false
-      )
-    )
-
-    // Today / Yesterday draft
-    sampleList.add(
-      TransactionItem(
-        title = "Fresh Bakery & Matcha Latte",
-        amount = 14.80,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.FOOD_DINING,
-        timestamp = createTimestamp(currentDay, 8, 45),
-        note = "Morning fuel draft",
-        paymentMethod = PaymentMethod.CASH,
-        isRecurring = false
       )
     )
 

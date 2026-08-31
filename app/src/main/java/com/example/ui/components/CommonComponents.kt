@@ -56,9 +56,15 @@ import java.util.Date
 import java.util.Locale
 
 private val currencyFormatter = DecimalFormat("#,##0.00")
+private val wholeCurrencyFormatter = DecimalFormat("#,##0")
 
-fun formatCurrency(amount: Double, symbol: String = "$"): String {
-  return "$symbol${currencyFormatter.format(amount)}"
+fun formatCurrency(amount: Double, symbol: String = "₹"): String {
+  val formatted = if (amount % 1.0 == 0.0) {
+    wholeCurrencyFormatter.format(amount)
+  } else {
+    currencyFormatter.format(amount)
+  }
+  return "$symbol$formatted"
 }
 
 @Composable
@@ -155,8 +161,15 @@ fun FilterChipItem(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   icon: ImageVector? = null,
-  activeColor: Color = MaterialTheme.colorScheme.primary
+  activeColor: Color = MaterialTheme.colorScheme.primary,
+  activeContentColor: Color = MaterialTheme.colorScheme.onPrimary
 ) {
+  val contentColor = if (isSelected) {
+    if (activeColor == MaterialTheme.colorScheme.primary) MaterialTheme.colorScheme.onPrimary else activeContentColor
+  } else {
+    MaterialTheme.colorScheme.onSurfaceVariant
+  }
+
   Surface(
     modifier = modifier
       .clip(RoundedCornerShape(14.dp))
@@ -174,7 +187,7 @@ fun FilterChipItem(
         Icon(
           imageVector = icon,
           contentDescription = null,
-          tint = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+          tint = contentColor,
           modifier = Modifier
             .size(15.dp)
             .padding(end = 4.dp)
@@ -186,7 +199,7 @@ fun FilterChipItem(
           fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
           fontSize = 12.sp
         ),
-        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+        color = contentColor
       )
     }
   }
@@ -346,6 +359,10 @@ fun TransactionDetailDialog(
             onDismiss()
             onEdit()
           },
+          colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+          ),
           shape = RoundedCornerShape(10.dp),
           modifier = Modifier.weight(1f)
         ) {
