@@ -10,7 +10,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import com.example.data.model.AppThemeMode
 
 // Refined Dark Color Scheme (Subtle dark layered tones with soft accents)
 private val RefinedDarkColorScheme = darkColorScheme(
@@ -62,17 +61,10 @@ private val RefinedLightColorScheme = lightColorScheme(
 
 @Composable
 fun MyApplicationTheme(
-  themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+  darkTheme: Boolean = isSystemInDarkTheme(),
   dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
-  val isSystemDark = isSystemInDarkTheme()
-  val darkTheme = when (themeMode) {
-    AppThemeMode.SYSTEM -> isSystemDark
-    AppThemeMode.LIGHT -> false
-    AppThemeMode.AMOLED_DARK -> true
-  }
-
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       val context = LocalContext.current

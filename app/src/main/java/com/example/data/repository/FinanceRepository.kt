@@ -3,193 +3,243 @@ package com.example.data.repository
 import android.content.Context
 import android.content.SharedPreferences
 import com.example.data.local.AppDatabase
+import com.example.data.local.BudgetEntity
+import com.example.data.local.RecurringRuleEntity
 import com.example.data.local.TransactionEntity
-import com.example.data.model.AppThemeMode
-import com.example.data.model.MonthlySalarySettings
+import com.example.data.model.BudgetModel
+import com.example.data.model.ExportPeriod
 import com.example.data.model.PaymentMethod
+import com.example.data.model.RecurrenceInterval
+import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
+import com.example.data.model.UserProfile
+import com.example.ui.components.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 class FinanceRepository(private val context: Context) {
   private val database = AppDatabase.getDatabase(context)
-  private val dao = database.transactionDao()
-  private val prefs: SharedPreferences = context.getSharedPreferences("daily_draft_prefs", Context.MODE_PRIVATE)
+  private val transactionDao = database.transactionDao()
+  private val budgetDao = database.budgetDao()
+  private val recurringRuleDao = database.recurringRuleDao()
 
-  val allTransactions: Flow<List<TransactionItem>> = dao.getAllTransactionsFlow().map { entities ->
-    entities.map { it.toModel() }
-  }
+  private val prefs: SharedPreferences =
+    context.getSharedPreferences("paisa_user_preferences", Context.MODE_PRIVATE)
 
-  companion object {
-    private const val KEY_APP_INITIALIZED = "has_app_been_initialized_v1"
-  }
+  // Reactive transaction flow
+  val allTransactions: Flow<List<TransactionItem>> =
+    transactionDao.getAllTransactionsFlow().map { entities ->
+      entities.map { it.toModel() }
+    }
+
+  // Reactive budget flow
+  val allBudgets: Flow<List<BudgetModel>> =
+    budgetDao.getAllBudgetsFlow().map { entities ->
+      entities.map { it.toModel() }
+    }
+
+  fun getBudgetForMonth(monthKey: String): Flow<BudgetModel?> =
+    budgetDao.getBudgetForMonthFlow(monthKey).map { it?.toModel() }
+
+  // Reactive recurring rules flow
+  val allRecurringRules: Flow<List<RecurringRule>> =
+    recurringRuleDao.getAllRulesFlow().map { entities ->
+      entities.map { it.toModel() }
+    }
+
+  // ================= Transactions CRUD =================
 
   suspend fun insertTransaction(item: TransactionItem): Long = withContext(Dispatchers.IO) {
-    markAppInitialized()
-    dao.insertTransaction(TransactionEntity.fromModel(item))
+    transactionDao.insertTransaction(TransactionEntity.fromModel(item))
   }
 
   suspend fun updateTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
-    markAppInitialized()
-    dao.updateTransaction(TransactionEntity.fromModel(item))
+    transactionDao.updateTransaction(TransactionEntity.fromModel(item))
   }
 
   suspend fun deleteTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
-    markAppInitialized()
-    dao.deleteTransaction(TransactionEntity.fromModel(item))
+    transactionDao.deleteTransaction(TransactionEntity.fromModel(item))
   }
 
-  suspend fun deleteById(id: Long) = withContext(Dispatchers.IO) {
-    markAppInitialized()
-    dao.deleteById(id)
+  suspend fun deleteTransactionById(id: Long) = withContext(Dispatchers.IO) {
+    transactionDao.deleteById(id)
   }
 
-  suspend fun clearAll() = withContext(Dispatchers.IO) {
-    markAppInitialized()
-    dao.clearAll()
+  suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
+    transactionDao.clearAll()
   }
 
-  private fun markAppInitialized() {
-    prefs.edit().putBoolean(KEY_APP_INITIALIZED, true).apply()
+  // ================= Budgets CRUD =================
+
+  suspend fun saveBudget(budget: BudgetModel): Long = withContext(Dispatchers.IO) {
+    budgetDao.insertOrUpdateBudget(BudgetEntity.fromModel(budget))
   }
 
-  fun getThemeMode(): AppThemeMode {
-    val modeStr = prefs.getString("theme_mode", AppThemeMode.SYSTEM.name) ?: AppThemeMode.SYSTEM.name
-    return try {
-      AppThemeMode.valueOf(modeStr)
-    } catch (e: Exception) {
-      AppThemeMode.SYSTEM
+  suspend fun deleteBudgetForMonth(monthKey: String) = withContext(Dispatchers.IO) {
+    budgetDao.deleteBudgetByMonth(monthKey)
+  }
+
+  // ================= Recurring Rules CRUD =================
+
+  suspend fun insertRecurringRule(rule: RecurringRule): Long = withContext(Dispatchers.IO) {
+    recurringRuleDao.insertRule(RecurringRuleEntity.fromModel(rule))
+  }
+
+  suspend fun updateRecurringRule(rule: RecurringRule) = withContext(Dispatchers.IO) {
+    recurringRuleDao.updateRule(RecurringRuleEntity.fromModel(rule))
+  }
+
+  suspend fun deleteRecurringRule(id: Long) = withContext(Dispatchers.IO) {
+    recurringRuleDao.deleteRuleById(id)
+  }
+
+  suspend fun toggleRecurringRule(id: Long, isActive: Boolean) = withContext(Dispatchers.IO) {
+    val existing = recurringRuleDao.getRuleById(id) ?: return@withContext
+    recurringRuleDao.updateRule(existing.copy(isActive = isActive))
+  }
+
+  // ================= Idempotent Recurring Rule Engine =================
+
+  /**
+   * Evaluates all active recurring rules and generates missing transaction instances
+   * up to the current timestamp without duplicating any records.
+   * Safe across app restarts, offline periods, and long intervals.
+   */
+  suspend fun processDueRecurringRules(): Int = withContext(Dispatchers.IO) {
+    val activeRules = recurringRuleDao.getActiveRules()
+    if (activeRules.isEmpty()) return@withContext 0
+
+    val now = Calendar.getInstance()
+    val endOfToday = DateUtils.getEndOfDay(now.timeInMillis)
+    var generatedCount = 0
+
+    for (ruleEntity in activeRules) {
+      val rule = ruleEntity.toModel()
+      val startPoint = if (rule.lastGeneratedDate > 0) {
+        getNextOccurrence(rule.lastGeneratedDate, rule.interval)
+      } else {
+        rule.startDate
+      }
+
+      var currentCheck = startPoint
+      var latestGenerated = rule.lastGeneratedDate
+      val newTransactions = mutableListOf<TransactionEntity>()
+
+      while (currentCheck <= endOfToday && (rule.endDate == null || currentCheck <= rule.endDate)) {
+        val newTx = TransactionEntity(
+          title = rule.title,
+          amount = rule.amount,
+          type = rule.type.name,
+          category = rule.category.name,
+          timestamp = currentCheck,
+          note = if (rule.note.isNotBlank()) rule.note else "Recurring (${rule.interval.displayName})",
+          paymentMethod = rule.paymentMethod.name,
+          isRecurring = true,
+          recurringRuleId = rule.id
+        )
+        newTransactions.add(newTx)
+        latestGenerated = currentCheck
+        currentCheck = getNextOccurrence(currentCheck, rule.interval)
+      }
+
+      if (newTransactions.isNotEmpty()) {
+        transactionDao.insertAll(newTransactions)
+        recurringRuleDao.updateRule(ruleEntity.copy(lastGeneratedDate = latestGenerated))
+        generatedCount += newTransactions.size
+      }
     }
+
+    generatedCount
   }
 
-  fun saveThemeMode(mode: AppThemeMode) {
-    prefs.edit().putString("theme_mode", mode.name).apply()
+  private fun getNextOccurrence(currentDateMillis: Long, interval: RecurrenceInterval): Long {
+    val cal = Calendar.getInstance()
+    cal.timeInMillis = currentDateMillis
+    when (interval) {
+      RecurrenceInterval.DAILY -> cal.add(Calendar.DAY_OF_MONTH, 1)
+      RecurrenceInterval.WEEKLY -> cal.add(Calendar.DAY_OF_MONTH, 7)
+      RecurrenceInterval.MONTHLY -> cal.add(Calendar.MONTH, 1)
+      RecurrenceInterval.YEARLY -> cal.add(Calendar.YEAR, 1)
+    }
+    return cal.timeInMillis
   }
 
-  fun getSalarySettings(): MonthlySalarySettings {
-    val salary = prefs.getFloat("salary_amount", 65000.0f).toDouble()
-    val payDay = prefs.getInt("pay_day", 1)
-    val budget = prefs.getFloat("monthly_budget", 35000.0f).toDouble()
-    val symbol = prefs.getString("currency_symbol", "₹") ?: "₹"
-    return MonthlySalarySettings(
-      salaryAmount = salary,
-      payDayOfMonth = payDay,
-      monthlyBudgetGoal = budget,
-      currencySymbol = symbol
+  // ================= User Profile & Preferences =================
+
+  fun getUserProfile(): UserProfile {
+    val name = prefs.getString("user_name", "") ?: ""
+    val completed = prefs.getBoolean("has_completed_onboarding", false)
+
+    return UserProfile(
+      name = name,
+      hasCompletedOnboarding = completed
     )
   }
 
-  fun saveSalarySettings(settings: MonthlySalarySettings) {
+  fun saveUserProfile(profile: UserProfile) {
     prefs.edit()
-      .putFloat("salary_amount", settings.salaryAmount.toFloat())
-      .putInt("pay_day", settings.payDayOfMonth)
-      .putFloat("monthly_budget", settings.monthlyBudgetGoal.toFloat())
-      .putString("currency_symbol", settings.currencySymbol)
+      .putString("user_name", profile.name)
+      .putBoolean("has_completed_onboarding", profile.hasCompletedOnboarding)
       .apply()
   }
 
-  suspend fun checkAndSeedInitialData() = withContext(Dispatchers.IO) {
-    val isInitialized = prefs.getBoolean(KEY_APP_INITIALIZED, false)
-    if (isInitialized) {
-      // User has already initialized the app before (or cleared all drafts). Never auto-seed!
-      return@withContext
+  // ================= PDF Report Export =================
+
+  suspend fun exportToPdf(
+    period: ExportPeriod,
+    selectedCalendar: Calendar,
+    customStart: Long? = null,
+    customEnd: Long? = null
+  ): File = withContext(Dispatchers.IO) {
+    val (transactions, periodLabel) = when (period) {
+      ExportPeriod.CURRENT_MONTH -> {
+        val start = DateUtils.getStartOfMonth(selectedCalendar)
+        val end = DateUtils.getEndOfMonth(selectedCalendar)
+        val list = transactionDao.getTransactionsBetween(start, end)
+        val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(selectedCalendar.time)
+        Pair(list, label)
+      }
+      ExportPeriod.SELECTED_YEAR -> {
+        val year = selectedCalendar.get(Calendar.YEAR)
+        val start = DateUtils.getStartOfYear(year)
+        val end = DateUtils.getEndOfYear(year)
+        val list = transactionDao.getTransactionsBetween(start, end)
+        Pair(list, "Full Year $year")
+      }
+      ExportPeriod.CUSTOM_RANGE -> {
+        val start = customStart ?: 0L
+        val end = customEnd ?: Long.MAX_VALUE
+        val list = transactionDao.getTransactionsBetween(start, end)
+        val df = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val startStr = if (customStart != null) df.format(Date(customStart)) else "Beginning"
+        val endStr = if (customEnd != null) df.format(Date(customEnd)) else "Present"
+        Pair(list, "$startStr to $endStr")
+      }
+      ExportPeriod.ALL_TIME -> {
+        val list = transactionDao.getAllTransactions()
+        Pair(list, "All Time Records")
+      }
     }
 
-    val count = dao.getCount()
-    if (count == 0) {
-      seedInitialDrafts()
-    }
-    markAppInitialized()
-  }
+    val profile = getUserProfile()
+    val modelList = transactions.map { it.toModel() }
 
-  suspend fun seedInitialDrafts() = withContext(Dispatchers.IO) {
-    val now = Calendar.getInstance()
-    val currentYear = now.get(Calendar.YEAR)
-    val currentMonth = now.get(Calendar.MONTH)
-    val currentDay = now.get(Calendar.DAY_OF_MONTH)
-
-    fun createTimestamp(day: Int, hour: Int = 12, min: Int = 0): Long {
-      val cal = Calendar.getInstance()
-      val targetDay = day.coerceIn(1, 28)
-      cal.set(currentYear, currentMonth, targetDay, hour, min, 0)
-      return cal.timeInMillis
-    }
-
-    val sampleList = listOf(
-      // 1. Base Salary
-      TransactionItem(
-        title = "Monthly Base Salary",
-        amount = 65000.0,
-        type = TransactionType.SALARY,
-        category = TransactionCategory.SALARY,
-        timestamp = createTimestamp(1, 9, 0),
-        note = "Direct bank deposit from payroll",
-        paymentMethod = PaymentMethod.BANK_TRANSFER,
-        isRecurring = true
-      ),
-      // 2. Rent
-      TransactionItem(
-        title = "Apartment Rent",
-        amount = 14000.0,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.HOUSING,
-        timestamp = createTimestamp(2, 10, 30),
-        note = "Monthly lease payment via IMPS",
-        paymentMethod = PaymentMethod.BANK_TRANSFER,
-        isRecurring = true
-      ),
-      // 3. Groceries
-      TransactionItem(
-        title = "Supermarket & Produce",
-        amount = 2850.0,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.GROCERIES,
-        timestamp = createTimestamp(currentDay.coerceAtLeast(3), 17, 30),
-        note = "Weekly groceries & pantry essentials",
-        paymentMethod = PaymentMethod.UPI,
-        isRecurring = false
-      ),
-      // 4. Dining / Swiggy
-      TransactionItem(
-        title = "Swiggy Dinner Order",
-        amount = 460.0,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.FOOD_DINING,
-        timestamp = createTimestamp(currentDay.coerceAtLeast(2), 20, 15),
-        note = "Biryani & snacks with team",
-        paymentMethod = PaymentMethod.UPI,
-        isRecurring = false
-      ),
-      // 5. Chai / Daily Fuel
-      TransactionItem(
-        title = "Chai & Breakfast Snacks",
-        amount = 120.0,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.FOOD_DINING,
-        timestamp = createTimestamp(currentDay, 8, 30),
-        note = "Morning tea & snack",
-        paymentMethod = PaymentMethod.UPI,
-        isRecurring = false
-      ),
-      // 6. Bills & Utilities
-      TransactionItem(
-        title = "Electricity & WiFi Bill",
-        amount = 1750.0,
-        type = TransactionType.EXPENSE,
-        category = TransactionCategory.UTILITIES,
-        timestamp = createTimestamp(5, 14, 0),
-        note = "Broadband fiber & power bill",
-        paymentMethod = PaymentMethod.UPI,
-        isRecurring = true
-      )
+    com.example.util.PdfReportGenerator.generateReport(
+      context = context,
+      userName = profile.name,
+      periodLabel = periodLabel,
+      transactions = modelList,
+      currencySymbol = profile.currencySymbol
     )
-
-    val entities = sampleList.map { TransactionEntity.fromModel(it) }
-    dao.insertAll(entities)
   }
 }
+

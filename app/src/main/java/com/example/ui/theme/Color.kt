@@ -2,16 +2,17 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Dark Mode Palette (Subtle, easy on the eyes, balanced contrast)
-val DarkBackground = Color(0xFF101218)
-val DarkSurface = Color(0xFF181A22)
-val DarkSurfaceVariant = Color(0xFF21242F)
-val DarkSurfaceElevated = Color(0xFF2A2E3B)
-val DarkBorder = Color(0xFF2C303E)
-val DarkBorderLight = Color(0xFF383D4E)
-val DarkTextPrimary = Color(0xFFEDEFEF)
-val DarkTextSecondary = Color(0xFFA1A7B5)
-val DarkTextMuted = Color(0xFF717786)
+// AMOLED Dark Mode Palette (Pure AMOLED Black background with distinct near-black surface hierarchy)
+val AmoledBlack = Color(0xFF000000)
+val DarkBackground = Color(0xFF000000)
+val DarkSurface = Color(0xFF121214)
+val DarkSurfaceVariant = Color(0xFF1A1A1E)
+val DarkSurfaceElevated = Color(0xFF24242A)
+val DarkBorder = Color(0xFF282830)
+val DarkBorderLight = Color(0xFF363640)
+val DarkTextPrimary = Color(0xFFFFFFFF)
+val DarkTextSecondary = Color(0xFFA2A6B2)
+val DarkTextMuted = Color(0xFF727682)
 
 // Light Mode Palette (Subtle warm slate, soft natural borders)
 val LightBackground = Color(0xFFF7F8FA)

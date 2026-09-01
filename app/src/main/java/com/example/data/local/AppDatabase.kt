@@ -5,9 +5,19 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [TransactionEntity::class], version = 1, exportSchema = false)
+@Database(
+  entities = [
+    TransactionEntity::class,
+    BudgetEntity::class,
+    RecurringRuleEntity::class
+  ],
+  version = 2,
+  exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
   abstract fun transactionDao(): TransactionDao
+  abstract fun budgetDao(): BudgetDao
+  abstract fun recurringRuleDao(): RecurringRuleDao
 
   companion object {
     @Volatile
@@ -18,7 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
         val instance = Room.databaseBuilder(
           context.applicationContext,
           AppDatabase::class.java,
-          "dailydraft_database"
+          "paisa_finance_database"
         ).fallbackToDestructiveMigration().build()
         INSTANCE = instance
         instance

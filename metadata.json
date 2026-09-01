@@ -1,6 +1,6 @@
 {
-  "name": "DailyDraft",
-  "description": "A sleek, modern Android personal finance application for daily expense drafting, income tracking, and interactive financial analytics.",
+  "name": "Paisa",
+  "description": "Production-quality personal income & expense tracker with monthly budgeting, recurring transactions, savings analytics, calendar insights, and data export.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

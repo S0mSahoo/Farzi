@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "DailyDraft"
+rootProject.name = "Paisa"
 
 include(":app")
