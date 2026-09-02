@@ -9,15 +9,19 @@ import androidx.room.RoomDatabase
   entities = [
     TransactionEntity::class,
     BudgetEntity::class,
-    RecurringRuleEntity::class
+    RecurringRuleEntity::class,
+    PaidRecurringOccurrenceEntity::class,
+    SecureNoteEntity::class
   ],
-  version = 2,
+  version = 3,
   exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
   abstract fun transactionDao(): TransactionDao
   abstract fun budgetDao(): BudgetDao
   abstract fun recurringRuleDao(): RecurringRuleDao
+  abstract fun paidRecurringOccurrenceDao(): PaidRecurringOccurrenceDao
+  abstract fun secureNoteDao(): SecureNoteDao
 
   companion object {
     @Volatile

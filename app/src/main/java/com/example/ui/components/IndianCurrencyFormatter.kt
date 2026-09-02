@@ -1,5 +1,8 @@
 package com.example.ui.components
 
+import com.example.data.model.CalendarDayData
+import com.example.data.model.TransactionItem
+import com.example.data.model.TransactionType
 import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -73,6 +76,10 @@ object IndianCurrencyFormatter {
       isNegative -> "-$symbol$formattedNum"
       else -> "$symbol$formattedNum"
     }
+  }
+
+  fun format(amount: Double, symbol: String = "₹"): String {
+    return formatWithSymbol(amount, symbol)
   }
 
   fun formatCompact(amount: Double, symbol: String = "₹"): String {
@@ -173,5 +180,105 @@ object DateUtils {
     c.set(Calendar.SECOND, 59)
     c.set(Calendar.MILLISECOND, 999)
     return c.timeInMillis
+  }
+
+  fun buildMonthCalendarDays(cal: Calendar, transactions: List<TransactionItem>): List<CalendarDayData> {
+    val currentYear = cal.get(Calendar.YEAR)
+    val currentMonth = cal.get(Calendar.MONTH)
+
+    val workCal = Calendar.getInstance().apply {
+      set(Calendar.YEAR, currentYear)
+      set(Calendar.MONTH, currentMonth)
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 0)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+
+    val daysInMonth = workCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val firstDayOfWeek = workCal.get(Calendar.DAY_OF_WEEK) // 1=Sunday, 2=Monday...
+    val leadingEmptyDays = (firstDayOfWeek - Calendar.SUNDAY)
+
+    val todayCal = Calendar.getInstance()
+    val isCurrentYearAndMonth = todayCal.get(Calendar.YEAR) == currentYear && todayCal.get(Calendar.MONTH) == currentMonth
+    val todayDay = if (isCurrentYearAndMonth) todayCal.get(Calendar.DAY_OF_MONTH) else -1
+
+    val days = mutableListOf<CalendarDayData>()
+
+    // Leading days from previous month
+    if (leadingEmptyDays > 0) {
+      val prevCal = (workCal.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
+      val prevMax = prevCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+      for (i in (prevMax - leadingEmptyDays + 1)..prevMax) {
+        val dayMillis = (prevCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, i) }.timeInMillis
+        days.add(
+          CalendarDayData(
+            dayOfMonth = i,
+            dateKey = getDayKey(dayMillis),
+            epochMillis = dayMillis,
+            isCurrentMonth = false,
+            isToday = false,
+            hasIncome = false,
+            hasExpense = false,
+            totalIncome = 0.0,
+            totalExpense = 0.0,
+            transactions = emptyList()
+          )
+        )
+      }
+    }
+
+    // Days in current month
+    for (day in 1..daysInMonth) {
+      val dayCal = (workCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
+      val startOfDay = getStartOfDay(dayCal.timeInMillis)
+      val endOfDay = getEndOfDay(dayCal.timeInMillis)
+
+      val dayTxs = transactions.filter { it.timestamp in startOfDay..endOfDay }
+      val dayIncome = dayTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+      val dayExpense = dayTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+
+      days.add(
+        CalendarDayData(
+          dayOfMonth = day,
+          dateKey = getDayKey(dayCal.timeInMillis),
+          epochMillis = dayCal.timeInMillis,
+          isCurrentMonth = true,
+          isToday = (day == todayDay),
+          hasIncome = dayIncome > 0,
+          hasExpense = dayExpense > 0,
+          totalIncome = dayIncome,
+          totalExpense = dayExpense,
+          transactions = dayTxs
+        )
+      )
+    }
+
+    // Trailing days to complete the 7-column grid
+    val totalCells = days.size
+    val remainingCells = if (totalCells % 7 == 0) 0 else 7 - (totalCells % 7)
+    if (remainingCells > 0) {
+      val nextCal = (workCal.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
+      for (day in 1..remainingCells) {
+        val dayMillis = (nextCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }.timeInMillis
+        days.add(
+          CalendarDayData(
+            dayOfMonth = day,
+            dateKey = getDayKey(dayMillis),
+            epochMillis = dayMillis,
+            isCurrentMonth = false,
+            isToday = false,
+            hasIncome = false,
+            hasExpense = false,
+            totalIncome = 0.0,
+            totalExpense = 0.0,
+            transactions = emptyList()
+          )
+        )
+      }
+    }
+
+    return days
   }
 }

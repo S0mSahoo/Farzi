@@ -1,8 +1,15 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +49,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -49,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -58,13 +68,14 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.CalendarDayData
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
-import com.example.ui.components.AppDatePickerDialog
 import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
 import com.example.ui.components.IndianCurrencyFormatter
+import com.example.ui.components.MonthYearPickerDialog
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
+import java.util.Calendar
 
 @Composable
 fun CalendarScreen(
@@ -72,14 +83,15 @@ fun CalendarScreen(
   onAddTransactionForDate: (timestamp: Long) -> Unit,
   onEditTransaction: (item: TransactionItem) -> Unit
 ) {
-  val selectedCalendar by viewModel.calendarMonth.collectAsState()
-  val calendarDays by viewModel.calendarDaysData.collectAsState()
+  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
+  val calendarDays by viewModel.calendarDays.collectAsState()
   val selectedDayMillis by viewModel.calendarSelectedDayMillis.collectAsState()
-  val selectedDayTransactions by viewModel.calendarDateTransactions.collectAsState()
+  val selectedDayTransactions by viewModel.selectedDayTransactions.collectAsState()
   val userProfile by viewModel.userProfile.collectAsState()
 
-  var showDatePicker by remember { mutableStateOf(false) }
+  var showMonthPicker by remember { mutableStateOf(false) }
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
+  var swipeDirection by remember { mutableIntStateOf(1) } // 1 for next (leftwards drag), -1 for prev
 
   val currencySymbol = userProfile.currencySymbol
   val selectedDayKey = DateUtils.getDayKey(selectedDayMillis)
@@ -88,13 +100,13 @@ fun CalendarScreen(
   val dayExpense = selectedDayTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
   val dayNet = dayIncome - dayExpense
 
-  if (showDatePicker) {
-    AppDatePickerDialog(
-      initialDateMillis = selectedDayMillis,
-      onDateSelected = { selectedMillis ->
-        viewModel.selectCalendarDate(selectedMillis)
-      },
-      onDismiss = { showDatePicker = false }
+  if (showMonthPicker) {
+    MonthYearPickerDialog(
+      currentCalendar = selectedCalendar,
+      onDismiss = { showMonthPicker = false },
+      onMonthYearSelected = { year, month ->
+        viewModel.setSelectedMonth(year, month)
+      }
     )
   }
 
@@ -110,6 +122,9 @@ fun CalendarScreen(
     )
   }
 
+  // Horizontal Swipe Drag State
+  var totalDragX by remember { mutableFloatStateOf(0f) }
+
   LazyColumn(
     modifier = Modifier
       .fillMaxSize()
@@ -118,163 +133,163 @@ fun CalendarScreen(
     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 100.dp),
     verticalArrangement = Arrangement.spacedBy(18.dp)
   ) {
-    // 1. Month Navigation Header with Date Jump
+    // Top Bar with Month Navigation
     item {
-      Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surface,
-        tonalElevation = 1.dp,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-        modifier = Modifier.fillMaxWidth()
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
       ) {
-        Row(
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
+        Column {
+          Text(
+            text = "Calendar",
+            style = MaterialTheme.typography.headlineMedium.copy(
+              fontWeight = FontWeight.Bold,
+              letterSpacing = (-0.5).sp
+            ),
+            color = MaterialTheme.colorScheme.onBackground
+          )
+          Text(
+            text = "Swipe horizontally to navigate months",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+
+        OutlinedButton(
+          onClick = {
+            val today = Calendar.getInstance()
+            viewModel.setSelectedMonth(today.get(Calendar.YEAR), today.get(Calendar.MONTH))
+            viewModel.setCalendarSelectedDay(today.timeInMillis)
+          },
+          shape = RoundedCornerShape(12.dp),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
         ) {
-          IconButton(
-            onClick = { viewModel.previousCalendarMonth() },
-            modifier = Modifier.testTag("cal_prev_month_btn")
-          ) {
-            Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
-          }
-
-          Surface(
-            shape = RoundedCornerShape(10.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-            modifier = Modifier
-              .clip(RoundedCornerShape(10.dp))
-              .clickable { showDatePicker = true }
-              .testTag("cal_jump_date_chip")
-          ) {
-            Row(
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-              Icon(Icons.Default.Today, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
-              Text(
-                text = DateUtils.getMonthLabel(selectedCalendar),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-              )
-              Icon(Icons.Default.Edit, contentDescription = "Pick Date", modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-            }
-          }
-
-          IconButton(
-            onClick = { viewModel.nextCalendarMonth() },
-            modifier = Modifier.testTag("cal_next_month_btn")
-          ) {
-            Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
-          }
+          Icon(Icons.Filled.Today, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Today", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold))
         }
       }
     }
 
-    // 2. Calendar Grid Card
+    // Calendar Card Container (With Horizontal Swipe Gesture & Month Slider)
     item {
       Card(
-        shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+          .fillMaxWidth()
+          .pointerInput(selectedCalendar.timeInMillis) {
+            detectHorizontalDragGestures(
+              onDragStart = { totalDragX = 0f },
+              onDragEnd = {
+                if (totalDragX < -60f) {
+                  // Swiped Left -> Move to Next Month
+                  swipeDirection = 1
+                  viewModel.nextMonth()
+                } else if (totalDragX > 60f) {
+                  // Swiped Right -> Move to Previous Month
+                  swipeDirection = -1
+                  viewModel.previousMonth()
+                }
+                totalDragX = 0f
+              },
+              onHorizontalDrag = { _, dragAmount ->
+                totalDragX += dragAmount
+              }
+            )
+          },
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-        modifier = Modifier.fillMaxWidth()
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
       ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          // Weekdays header
+        Column(modifier = Modifier.padding(16.dp)) {
+          // Month Header Row with Navigation Arrows
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            IconButton(
+              onClick = {
+                swipeDirection = -1
+                viewModel.previousMonth()
+              }
+            ) {
+              Icon(Icons.Filled.ChevronLeft, contentDescription = "Previous Month", tint = MaterialTheme.colorScheme.onSurface)
+            }
+
+            Text(
+              text = DateUtils.getMonthLabel(selectedCalendar),
+              style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+              color = MaterialTheme.colorScheme.onSurface,
+              modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { showMonthPicker = true }
+                .padding(horizontal = 12.dp, vertical = 6.dp)
+            )
+
+            IconButton(
+              onClick = {
+                swipeDirection = 1
+                viewModel.nextMonth()
+              }
+            ) {
+              Icon(Icons.Filled.ChevronRight, contentDescription = "Next Month", tint = MaterialTheme.colorScheme.onSurface)
+            }
+          }
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          // Day of Week Header Row (Sun, Mon, Tue, Wed, Thu, Fri, Sat)
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceAround
           ) {
-            listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { dayName ->
+            val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
+            daysOfWeek.forEach { dayName ->
               Text(
                 text = dayName,
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.width(36.dp),
+                textAlign = TextAlign.Center
               )
             }
           }
 
-          Spacer(modifier = Modifier.height(10.dp))
+          Spacer(modifier = Modifier.height(8.dp))
           HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-          Spacer(modifier = Modifier.height(10.dp))
+          Spacer(modifier = Modifier.height(8.dp))
 
-          // Days Grid
-          val rows = calendarDays.chunked(7)
-          rows.forEach { week ->
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 3.dp),
-              horizontalArrangement = Arrangement.SpaceAround
-            ) {
-              week.forEach { dayData ->
-                val isSelected = dayData.dateKey == selectedDayKey
-
-                Box(
-                  modifier = Modifier
-                    .weight(1f)
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                      when {
-                        isSelected -> MaterialTheme.colorScheme.primary
-                        dayData.isToday -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                        else -> Color.Transparent
-                      }
-                    )
-                    .border(
-                      width = if (dayData.isToday && !isSelected) 1.dp else 0.dp,
-                      color = if (dayData.isToday && !isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                      shape = RoundedCornerShape(12.dp)
-                    )
-                    .clickable { viewModel.selectCalendarDate(dayData.epochMillis) }
-                    .padding(2.dp)
-                    .testTag("cal_day_${dayData.dateKey}"),
-                  contentAlignment = Alignment.Center
+          // Month Days Grid with Smooth Slide Transition
+          AnimatedContent(
+            targetState = calendarDays,
+            transitionSpec = {
+              if (swipeDirection > 0) {
+                (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
+                  slideOutHorizontally { width -> -width } + fadeOut()
+                )
+              } else {
+                (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
+                  slideOutHorizontally { width -> width } + fadeOut()
+                )
+              }
+            },
+            label = "calendar_days_transition"
+          ) { daysGrid ->
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              daysGrid.chunked(7).forEach { week ->
+                Row(
+                  modifier = Modifier.fillMaxWidth(),
+                  horizontalArrangement = Arrangement.SpaceAround
                 ) {
-                  Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                  ) {
-                    Text(
-                      text = "${dayData.dayOfMonth}",
-                      style = MaterialTheme.typography.bodyMedium,
-                      fontWeight = if (isSelected || dayData.isToday) FontWeight.Bold else FontWeight.Normal,
-                      color = when {
-                        isSelected -> Color.White
-                        !dayData.isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
-                        else -> MaterialTheme.colorScheme.onSurface
+                  week.forEach { dayData ->
+                    CalendarDayCell(
+                      dayData = dayData,
+                      isSelected = dayData.dateKey == selectedDayKey,
+                      onClick = {
+                        viewModel.setCalendarSelectedDay(dayData.epochMillis)
                       }
                     )
-
-                    // Dots for Income / Expense activity
-                    if (dayData.hasIncome || dayData.hasExpense) {
-                      Spacer(modifier = Modifier.height(2.dp))
-                      Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (dayData.hasIncome) {
-                          Box(
-                            modifier = Modifier
-                              .size(4.dp)
-                              .clip(CircleShape)
-                              .background(if (isSelected) Color.White else IncomeGreen)
-                          )
-                        }
-                        if (dayData.hasExpense) {
-                          Box(
-                            modifier = Modifier
-                              .size(4.dp)
-                              .clip(CircleShape)
-                              .background(if (isSelected) Color.White else ExpenseRed)
-                          )
-                        }
-                      }
-                    }
                   }
                 }
               }
@@ -284,133 +299,97 @@ fun CalendarScreen(
       }
     }
 
-    // 3. Selected Date Details Header & Day Summary
+    // Selected Day Summary Card & Transaction List
     item {
       Card(
+        modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
-        modifier = Modifier.fillMaxWidth()
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
       ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(18.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
               Text(
                 text = DateUtils.getDayOfWeekLabel(selectedDayMillis),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
               )
               Text(
-                text = "${selectedDayTransactions.size} transactions logged",
-                style = MaterialTheme.typography.labelSmall,
+                text = "${selectedDayTransactions.size} transaction${if (selectedDayTransactions.size != 1) "s" else ""}",
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
 
-            OutlinedButton(
+            Button(
               onClick = { onAddTransactionForDate(selectedDayMillis) },
               shape = RoundedCornerShape(12.dp),
-              modifier = Modifier.testTag("add_to_selected_date_button")
+              contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+              modifier = Modifier.height(36.dp)
             ) {
-              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+              Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
               Spacer(modifier = Modifier.width(4.dp))
-              Text("Add")
+              Text("Add", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold))
             }
           }
 
-          Spacer(modifier = Modifier.height(14.dp))
-
-          // Day Totals Row (Income, Expense, Net)
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-          ) {
-            // Income
-            Column(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(IncomeGreen.copy(alpha = 0.1f))
-                .padding(horizontal = 10.dp, vertical = 8.dp)
+          if (selectedDayTransactions.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(14.dp))
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+              modifier = Modifier.fillMaxWidth()
             ) {
-              Text("Income", style = MaterialTheme.typography.labelSmall, color = IncomeGreen, maxLines = 1)
-              Spacer(modifier = Modifier.height(2.dp))
-              Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(dayIncome, currencySymbol),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = IncomeGreen,
-                maxLines = 1,
-                softWrap = false
-              )
-            }
+              Row(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Text(
+                  text = "Day Net: ${if (dayNet >= 0) "+" else ""}${IndianCurrencyFormatter.formatWithSymbol(dayNet, currencySymbol)}",
+                  style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = if (dayNet >= 0) IncomeGreen else ExpenseRed
+                  )
+                )
 
-            // Expense
-            Column(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(ExpenseRed.copy(alpha = 0.1f))
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-              Text("Expense", style = MaterialTheme.typography.labelSmall, color = ExpenseRed, maxLines = 1)
-              Spacer(modifier = Modifier.height(2.dp))
-              Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(dayExpense, currencySymbol),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = ExpenseRed,
-                maxLines = 1,
-                softWrap = false
-              )
-            }
-
-            // Net
-            Column(
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                .padding(horizontal = 10.dp, vertical = 8.dp)
-            ) {
-              Text("Net", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-              Spacer(modifier = Modifier.height(2.dp))
-              Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(dayNet, currencySymbol, includeSign = true),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (dayNet >= 0) IncomeGreen else ExpenseRed,
-                maxLines = 1,
-                softWrap = false
-              )
+                Text(
+                  text = "Spent: ${IndianCurrencyFormatter.formatWithSymbol(dayExpense, currencySymbol)}",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
             }
           }
         }
       }
     }
 
-    // 4. List of Transactions on Selected Day / Empty State
+    // List of Transactions on Selected Day
     if (selectedDayTransactions.isEmpty()) {
       item {
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-          modifier = Modifier.fillMaxWidth()
+        Box(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+          contentAlignment = Alignment.Center
         ) {
-          Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-          ) {
-            Icon(Icons.Default.EventNote, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f), modifier = Modifier.size(36.dp))
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+              Icons.Filled.EventNote,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+              modifier = Modifier.size(40.dp)
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-              text = "No transactions recorded on this day",
+              text = "No records for this date",
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -419,81 +398,159 @@ fun CalendarScreen(
       }
     } else {
       items(selectedDayTransactions, key = { it.id }) { item ->
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surface,
-          tonalElevation = 1.dp,
-          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+        CalendarTransactionCard(
+          item = item,
+          currencySymbol = currencySymbol,
+          onEdit = { onEditTransaction(item) },
+          onDelete = { transactionToDelete = item }
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun CalendarDayCell(
+  dayData: CalendarDayData,
+  isSelected: Boolean,
+  onClick: () -> Unit
+) {
+  val isCurrentMonth = dayData.isCurrentMonth
+  val isToday = dayData.isToday
+
+  val cellBackground = when {
+    isSelected -> MaterialTheme.colorScheme.primary
+    isToday -> MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+    else -> Color.Transparent
+  }
+
+  val textColor = when {
+    isSelected -> Color.White
+    !isCurrentMonth -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    isToday -> MaterialTheme.colorScheme.primary
+    else -> MaterialTheme.colorScheme.onSurface
+  }
+
+  Column(
+    horizontalAlignment = Alignment.CenterHorizontally,
+    modifier = Modifier
+      .width(40.dp)
+      .clip(RoundedCornerShape(12.dp))
+      .clickable(enabled = isCurrentMonth) { onClick() }
+      .background(cellBackground)
+      .padding(vertical = 6.dp)
+  ) {
+    Text(
+      text = "${dayData.dayOfMonth}",
+      style = MaterialTheme.typography.bodyMedium.copy(
+        fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Normal
+      ),
+      color = textColor,
+      textAlign = TextAlign.Center
+    )
+
+    Spacer(modifier = Modifier.height(4.dp))
+
+    // Dots for Income / Expense
+    Row(
+      horizontalArrangement = Arrangement.spacedBy(2.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      modifier = Modifier.height(6.dp)
+    ) {
+      if (dayData.hasIncome) {
+        Box(
           modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable { onEditTransaction(item) }
+            .size(4.dp)
+            .clip(CircleShape)
+            .background(if (isSelected) Color.White else IncomeGreen)
+        )
+      }
+      if (dayData.hasExpense) {
+        Box(
+          modifier = Modifier
+            .size(4.dp)
+            .clip(CircleShape)
+            .background(if (isSelected) Color.White else ExpenseRed)
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun CalendarTransactionCard(
+  item: TransactionItem,
+  currencySymbol: String,
+  onEdit: () -> Unit,
+  onDelete: () -> Unit
+) {
+  val isExpense = item.type == TransactionType.EXPENSE
+  val amountColor = if (isExpense) ExpenseRed else IncomeGreen
+  val prefix = if (isExpense) "- " else "+ "
+
+  Surface(
+    shape = RoundedCornerShape(16.dp),
+    color = MaterialTheme.colorScheme.surface,
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)),
+    modifier = Modifier.fillMaxWidth()
+  ) {
+    Row(
+      modifier = Modifier
+        .fillMaxWidth()
+        .clickable { onEdit() }
+        .padding(14.dp),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.weight(1f)
+      ) {
+        Box(
+          modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(item.category.color.copy(alpha = 0.15f)),
+          contentAlignment = Alignment.Center
         ) {
-          Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Row(
-              modifier = Modifier.weight(1f),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-              Surface(
-                shape = CircleShape,
-                color = item.category.color.copy(alpha = 0.15f),
-                modifier = Modifier.size(40.dp)
-              ) {
-                Box(contentAlignment = Alignment.Center) {
-                  Icon(item.category.icon, contentDescription = null, tint = item.category.color, modifier = Modifier.size(20.dp))
-                }
-              }
+          Icon(
+            imageVector = item.category.icon,
+            contentDescription = null,
+            tint = item.category.color,
+            modifier = Modifier.size(20.dp)
+          )
+        }
 
-              Column(modifier = Modifier.weight(1f)) {
-                Text(
-                  text = item.title,
-                  style = MaterialTheme.typography.bodyLarge,
-                  fontWeight = FontWeight.SemiBold,
-                  color = MaterialTheme.colorScheme.onSurface,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                  text = "${item.category.displayName} • ${item.paymentMethod.displayName}",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  maxLines = 1,
-                  overflow = TextOverflow.Ellipsis
-                )
-              }
-            }
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = item.title,
+            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+          Text(
+            text = "${item.category.displayName} • ${item.paymentMethod.displayName}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+      }
 
-            Spacer(modifier = Modifier.width(10.dp))
+      Column(horizontalAlignment = Alignment.End) {
+        Text(
+          text = "$prefix${IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol)}",
+          style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+          color = amountColor
+        )
 
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-              Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(
-                  amount = item.amount,
-                  symbol = currencySymbol,
-                  includeSign = true
-                ),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = if (item.type == TransactionType.INCOME) IncomeGreen else ExpenseRed,
-                maxLines = 1,
-                softWrap = false
-              )
-
-              IconButton(
-                onClick = { transactionToDelete = item },
-                modifier = Modifier.size(28.dp)
-              ) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed.copy(alpha = 0.7f), modifier = Modifier.size(18.dp))
-              }
-            }
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+          IconButton(onClick = onEdit, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+          }
+          IconButton(onClick = onDelete, modifier = Modifier.size(28.dp)) {
+            Icon(Icons.Filled.Delete, contentDescription = "Delete", tint = ExpenseRed, modifier = Modifier.size(16.dp))
           }
         }
       }

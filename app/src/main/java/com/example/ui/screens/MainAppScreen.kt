@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -72,7 +74,6 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.BudgetModel
 import com.example.data.model.RecurringRule
-import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.components.AddEditRecurringSheet
@@ -100,12 +101,12 @@ fun MainAppScreen(
   viewModel: FinanceViewModel
 ) {
   val userProfile by viewModel.userProfile.collectAsState()
-  val dashboardCalendar by viewModel.dashboardCalendar.collectAsState()
-  val budgetCalendar by viewModel.budgetCalendar.collectAsState()
+  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
   val allBudgets by viewModel.allBudgets.collectAsState()
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
+  var isSecureVaultOpen by remember { mutableStateOf(false) }
 
   val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
   val scope = rememberCoroutineScope()
@@ -130,8 +131,8 @@ fun MainAppScreen(
   val budgetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-  val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(budgetCalendar)
-  val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(budgetCalendar)
+  val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(selectedCalendar)
+  val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(selectedCalendar)
   val currentBudget = allBudgets.find { it.monthKey == activeBudgetMonthKey }
 
   // Sheets
@@ -246,6 +247,14 @@ fun MainAppScreen(
     )
   }
 
+  if (isSecureVaultOpen) {
+    SecureVaultScreen(
+      viewModel = viewModel,
+      onBack = { isSecureVaultOpen = false }
+    )
+    return
+  }
+
   ModalNavigationDrawer(
     drawerState = drawerState,
     drawerContent = {
@@ -259,7 +268,7 @@ fun MainAppScreen(
             .fillMaxSize()
             .padding(16.dp)
         ) {
-          // Header: Google Account Profile & App Identity
+          // Header: Google Account Profile
           Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
@@ -332,13 +341,14 @@ fun MainAppScreen(
           )
 
           destinations.forEach { dest ->
-            val isSelected = !isSettingsOpen && selectedTab == dest.index
+            val isSelected = !isSettingsOpen && !isSecureVaultOpen && selectedTab == dest.index
             NavigationDrawerItem(
               icon = { Icon(dest.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
               label = { Text(dest.label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
               selected = isSelected,
               onClick = {
                 isSettingsOpen = false
+                isSecureVaultOpen = false
                 selectedTab = dest.index
                 scope.launch { drawerState.close() }
               },
@@ -355,6 +365,19 @@ fun MainAppScreen(
           Spacer(modifier = Modifier.height(8.dp))
           HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
           Spacer(modifier = Modifier.height(8.dp))
+
+          // Private Vault Action
+          NavigationDrawerItem(
+            icon = { Icon(Icons.Rounded.Security, contentDescription = null, tint = MinimalIndigo, modifier = Modifier.size(20.dp)) },
+            label = { Text("Private Vault", fontWeight = FontWeight.Medium) },
+            selected = isSecureVaultOpen,
+            onClick = {
+              scope.launch { drawerState.close() }
+              isSecureVaultOpen = true
+            },
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.padding(vertical = 2.dp)
+          )
 
           // Export & Portability Quick Action
           NavigationDrawerItem(
@@ -378,6 +401,7 @@ fun MainAppScreen(
             selected = isSettingsOpen,
             onClick = {
               isSettingsOpen = true
+              isSecureVaultOpen = false
               scope.launch { drawerState.close() }
             },
             shape = RoundedCornerShape(14.dp),
@@ -407,7 +431,7 @@ fun MainAppScreen(
               AppBrandLogo(size = 24.dp)
               Column {
                 Text("Paisa v3.0.0", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                Text("100% Offline & Private", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("100% Offline & Hardware Encrypted", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
               }
             }
           }
@@ -447,7 +471,6 @@ fun MainAppScreen(
           },
           actions = {
             if (!isSettingsOpen) {
-              // Clickable profile pill in header
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
@@ -550,7 +573,11 @@ fun MainAppScreen(
         if (isSettingsOpen) {
           SettingsScreen(
             viewModel = viewModel,
-            onOpenExportModal = { showExportModal = true }
+            onOpenExportModal = { showExportModal = true },
+            onNavigateToVault = {
+              isSettingsOpen = false
+              isSecureVaultOpen = true
+            }
           )
         } else {
           when (selectedTab) {
@@ -563,9 +590,12 @@ fun MainAppScreen(
                 showAddEditTransactionSheet = true
               },
               onOpenSetBudget = {
-                targetBudgetMonthKey = DateUtils.getMonthKey(dashboardCalendar)
-                targetBudgetMonthLabel = DateUtils.getMonthLabel(dashboardCalendar)
+                targetBudgetMonthKey = DateUtils.getMonthKey(selectedCalendar)
+                targetBudgetMonthLabel = DateUtils.getMonthLabel(selectedCalendar)
                 showSetBudgetSheet = true
+              },
+              onNavigateToRecurring = {
+                selectedTab = 4
               }
             )
             1 -> CalendarScreen(
@@ -591,8 +621,8 @@ fun MainAppScreen(
             3 -> BudgetScreen(
               viewModel = viewModel,
               onOpenSetBudget = {
-                targetBudgetMonthKey = DateUtils.getMonthKey(budgetCalendar)
-                targetBudgetMonthLabel = DateUtils.getMonthLabel(budgetCalendar)
+                targetBudgetMonthKey = DateUtils.getMonthKey(selectedCalendar)
+                targetBudgetMonthLabel = DateUtils.getMonthLabel(selectedCalendar)
                 showSetBudgetSheet = true
               }
             )

@@ -5,13 +5,16 @@ import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
 import com.example.data.model.BudgetModel
+import com.example.data.model.ExportPeriod
 import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringRule
+import com.example.data.model.SecureNote
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.data.model.UserProfile
+import com.example.ui.components.DateUtils
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +24,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -30,21 +34,24 @@ data class PaisaExportAccount(
 )
 
 data class PaisaJsonBackup(
-  val schemaVersion: Int = 1,
+  val schemaVersion: Int = 2,
   val appName: String = "Paisa",
-  val version: String = "3.0.0",
+  val version: String = "4.0.0",
   val exportedAt: String = "",
   val exportTimestamp: Long = 0L,
+  val exportRange: String = "All Data",
   val account: PaisaExportAccount = PaisaExportAccount(),
   val transactions: List<TransactionItem> = emptyList(),
   val budgets: List<BudgetModel> = emptyList(),
-  val recurringTransactions: List<RecurringRule> = emptyList()
+  val recurringTransactions: List<RecurringRule> = emptyList(),
+  val secureNotes: List<SecureNote> = emptyList()
 )
 
 data class ValidationSummary(
   val transactionCount: Int,
   val budgetCount: Int,
   val recurringCount: Int,
+  val secureNoteCount: Int,
   val accountName: String,
   val accountEmail: String,
   val exportDate: String
@@ -64,15 +71,21 @@ object JsonPortabilityManager {
   private val adapter = moshi.adapter(PaisaJsonBackup::class.java).indent("  ")
 
   /**
-   * Generates a clean, schema-versioned JSON export of all Paisa application records,
-   * completely stripped of any OAuth tokens, passwords, or client secrets.
+   * Generates a clean, schema-versioned JSON export of Paisa records based on range and options.
    */
   suspend fun exportToJsonFile(
     context: Context,
     profile: UserProfile,
-    transactions: List<TransactionItem>,
+    allTransactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
-    recurringRules: List<RecurringRule>
+    recurringRules: List<RecurringRule>,
+    secureNotes: List<SecureNote> = emptyList(),
+    period: ExportPeriod = ExportPeriod.ALL_TIME,
+    specificYear: Int? = null,
+    specificMonthCalendar: Calendar? = null,
+    customStart: Long? = null,
+    customEnd: Long? = null,
+    includeSecureNotes: Boolean = false
   ): File = withContext(Dispatchers.IO) {
     val exportDir = File(context.cacheDir, "exports")
     if (!exportDir.exists()) exportDir.mkdirs()
@@ -82,19 +95,48 @@ object JsonPortabilityManager {
     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(now)
     val isoDateStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(now)
 
+    val (filteredTransactions, rangeLabel) = when (period) {
+      ExportPeriod.CURRENT_MONTH -> {
+        val cal = specificMonthCalendar ?: Calendar.getInstance()
+        val start = DateUtils.getStartOfMonth(cal)
+        val end = DateUtils.getEndOfMonth(cal)
+        val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time)
+        Pair(allTransactions.filter { it.timestamp in start..end }, "Month of $label")
+      }
+      ExportPeriod.SELECTED_YEAR -> {
+        val year = specificYear ?: Calendar.getInstance().get(Calendar.YEAR)
+        val start = DateUtils.getStartOfYear(year)
+        val end = DateUtils.getEndOfYear(year)
+        Pair(allTransactions.filter { it.timestamp in start..end }, "Year $year")
+      }
+      ExportPeriod.CUSTOM_RANGE -> {
+        val start = customStart ?: 0L
+        val end = customEnd ?: Long.MAX_VALUE
+        val df = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        val startStr = if (customStart != null) df.format(Date(customStart)) else "Beginning"
+        val endStr = if (customEnd != null) df.format(Date(customEnd)) else "Present"
+        Pair(allTransactions.filter { it.timestamp in start..end }, "$startStr to $endStr")
+      }
+      ExportPeriod.ALL_TIME -> {
+        Pair(allTransactions, "All Financial Records")
+      }
+    }
+
     val backupObject = PaisaJsonBackup(
-      schemaVersion = 1,
+      schemaVersion = 2,
       appName = "Paisa",
-      version = "3.0.0",
+      version = "4.0.0",
       exportedAt = isoDateStr,
       exportTimestamp = now.time,
+      exportRange = rangeLabel,
       account = PaisaExportAccount(
         name = profile.name,
         email = profile.email
       ),
-      transactions = transactions.sortedByDescending { it.timestamp },
+      transactions = filteredTransactions.sortedByDescending { it.timestamp },
       budgets = budgets,
-      recurringTransactions = recurringRules
+      recurringTransactions = recurringRules,
+      secureNotes = if (includeSecureNotes) secureNotes else emptyList()
     )
 
     val jsonString = adapter.toJson(backupObject)
@@ -191,6 +233,7 @@ object JsonPortabilityManager {
         transactionCount = backup.transactions.size,
         budgetCount = backup.budgets.size,
         recurringCount = backup.recurringTransactions.size,
+        secureNoteCount = backup.secureNotes.size,
         accountName = backup.account.name.ifBlank { "Unspecified" },
         accountEmail = backup.account.email.ifBlank { "Unspecified" },
         exportDate = if (backup.exportedAt.isNotBlank()) backup.exportedAt else "Unknown Date"
@@ -209,8 +252,9 @@ object JsonPortabilityManager {
     currentTransactions: List<TransactionItem>,
     currentBudgets: List<BudgetModel>,
     currentRecurringRules: List<RecurringRule>,
+    currentSecureNotes: List<SecureNote> = emptyList(),
     importBackup: PaisaJsonBackup
-  ): Triple<List<TransactionItem>, List<BudgetModel>, List<RecurringRule>> {
+  ): Quadruple<List<TransactionItem>, List<BudgetModel>, List<RecurringRule>, List<SecureNote>> {
     // 1. Transactions merge: deduplicate by ID and unique signature
     val existingSignatures = currentTransactions.associateBy {
       "${it.title.trim().lowercase()}_${it.amount}_${it.type}_${it.category}_${it.timestamp}"
@@ -225,12 +269,10 @@ object JsonPortabilityManager {
       val matchBySig = existingSignatures[signature]
 
       if (matchById == null && matchBySig == null) {
-        // Brand new transaction
-        val newTx = incoming.copy(id = 0) // Allow auto-increment to handle ID cleanly
+        val newTx = incoming.copy(id = 0)
         mergedTransactions.add(newTx)
         existingSignatures[signature] = newTx
       } else {
-        // Exists: update if incoming has newer updatedAt, otherwise keep
         val target = matchById ?: matchBySig!!
         val index = mergedTransactions.indexOfFirst {
           (target.id > 0 && it.id == target.id) ||
@@ -249,7 +291,6 @@ object JsonPortabilityManager {
       if (existing == null) {
         mergedBudgetsMap[incomingBudget.monthKey] = incomingBudget.copy(id = 0)
       } else {
-        // Merge category limits & update total limit if newer
         val combinedCatBudgets = existing.categoryBudgets.toMutableMap().apply {
           putAll(incomingBudget.categoryBudgets)
         }
@@ -280,10 +321,21 @@ object JsonPortabilityManager {
       }
     }
 
-    return Triple(
+    // 4. Secure Notes merge
+    val existingNotes = currentSecureNotes.toMutableList()
+    for (incomingNote in importBackup.secureNotes) {
+      if (existingNotes.none { it.title.equals(incomingNote.title, ignoreCase = true) && it.content == incomingNote.content }) {
+        existingNotes.add(incomingNote.copy(id = 0))
+      }
+    }
+
+    return Quadruple(
       mergedTransactions.sortedByDescending { it.timestamp },
       mergedBudgetsMap.values.toList(),
-      mergedRules
+      mergedRules,
+      existingNotes
     )
   }
 }
+
+data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)

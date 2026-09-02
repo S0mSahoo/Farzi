@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -207,6 +208,7 @@ fun IncomeExpenseComparisonBar(
 fun CategorySpendingBreakdown(
   categories: List<CategorySpending>,
   currencySymbol: String = "₹",
+  onCategoryClick: ((CategorySpending) -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -214,7 +216,13 @@ fun CategorySpendingBreakdown(
       Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+          .fillMaxWidth()
+          .then(
+            if (onCategoryClick != null) {
+              Modifier.clip(RoundedCornerShape(14.dp)).clickable { onCategoryClick(item) }
+            } else Modifier
+          )
       ) {
         Column(modifier = Modifier.padding(12.dp)) {
           Row(
@@ -248,7 +256,7 @@ fun CategorySpendingBreakdown(
                   color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                  text = "${item.count} transactions",
+                  text = "${item.count} transaction${if (item.count != 1) "s" else ""} • Tap to view",
                   style = MaterialTheme.typography.labelSmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

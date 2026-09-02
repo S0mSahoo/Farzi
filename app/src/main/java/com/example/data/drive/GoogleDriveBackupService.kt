@@ -2,10 +2,14 @@ package com.example.data.drive
 
 import android.content.Context
 import android.content.Intent
+import com.example.data.local.PaidRecurringOccurrenceEntity
 import com.example.data.model.BudgetModel
+import com.example.data.model.DriveStorageInfo
 import com.example.data.model.RecurringRule
+import com.example.data.model.SecureNote
 import com.example.data.model.TransactionItem
 import com.example.data.model.UserProfile
+import com.example.util.CryptoManager
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -24,6 +28,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 class ConsentRequiredException(
@@ -49,12 +54,14 @@ sealed class GoogleDriveState {
 }
 
 data class BackupPayload(
-  val version: String = "3.0.0",
+  val version: String = "4.0.0",
   val exportTimestamp: Long = System.currentTimeMillis(),
   val userProfile: UserProfile,
   val transactions: List<TransactionItem>,
   val budgets: List<BudgetModel>,
-  val recurringRules: List<RecurringRule>
+  val recurringRules: List<RecurringRule>,
+  val paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList(),
+  val secureNotes: List<SecureNote> = emptyList()
 )
 
 class GoogleDriveBackupService(private val context: Context) {
@@ -70,9 +77,9 @@ class GoogleDriveBackupService(private val context: Context) {
   private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
   private val okHttpClient = OkHttpClient.Builder()
-    .connectTimeout(20, TimeUnit.SECONDS)
-    .readTimeout(25, TimeUnit.SECONDS)
-    .writeTimeout(25, TimeUnit.SECONDS)
+    .connectTimeout(15, TimeUnit.SECONDS)
+    .readTimeout(20, TimeUnit.SECONDS)
+    .writeTimeout(20, TimeUnit.SECONDS)
     .build()
 
   private val moshi = Moshi.Builder()
@@ -148,8 +155,66 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   /**
+   * Fetches actual Google Drive storage quota using Drive About API.
+   */
+  suspend fun fetchStorageQuota(account: GoogleSignInAccount): DriveStorageInfo = withContext(Dispatchers.IO) {
+    try {
+      val accessToken = getAccessToken(account)
+      val url = "https://www.googleapis.com/drive/v3/about?fields=storageQuota,user"
+      val request = Request.Builder()
+        .url(url)
+        .header("Authorization", "Bearer $accessToken")
+        .get()
+        .build()
+
+      val response = okHttpClient.newCall(request).execute()
+      if (!response.isSuccessful) {
+        response.close()
+        return@withContext DriveStorageInfo(isAvailable = false)
+      }
+
+      val responseBody = response.body?.string() ?: ""
+      val json = JSONObject(responseBody)
+      val quota = json.optJSONObject("storageQuota") ?: return@withContext DriveStorageInfo(isAvailable = false)
+
+      val limitStr = quota.optString("limit", "0")
+      val usageStr = quota.optString("usage", "0")
+      val limit = limitStr.toLongOrNull() ?: 0L
+      val usage = usageStr.toLongOrNull() ?: 0L
+
+      if (limit <= 0L) {
+        val usedGb = usage.toDouble() / (1024.0 * 1024.0 * 1024.0)
+        return@withContext DriveStorageInfo(
+          totalBytes = 0L,
+          usedBytes = usage,
+          availableBytes = 0L,
+          formattedSummary = String.format(Locale.getDefault(), "%.1f GB used (Unlimited)", usedGb),
+          isAvailable = true
+        )
+      }
+
+      val available = (limit - usage).coerceAtLeast(0L)
+      val availGb = available.toDouble() / (1024.0 * 1024.0 * 1024.0)
+      val totalGb = limit.toDouble() / (1024.0 * 1024.0 * 1024.0)
+      val usedGb = usage.toDouble() / (1024.0 * 1024.0 * 1024.0)
+
+      val formatted = String.format(Locale.getDefault(), "%.1f GB available of %.1f GB", availGb, totalGb)
+
+      DriveStorageInfo(
+        totalBytes = limit,
+        usedBytes = usage,
+        availableBytes = available,
+        formattedSummary = formatted,
+        isAvailable = true
+      )
+    } catch (e: Exception) {
+      DriveStorageInfo(isAvailable = false)
+    }
+  }
+
+  /**
    * Fetches the user's financial records from Google Drive AppData space.
-   * Returns the BackupPayload if found and parsed, or null if no cloud backup exists yet.
+   * Transparently decrypts the cloud payload.
    */
   suspend fun fetchCloudData(account: GoogleSignInAccount): BackupPayload? = withContext(Dispatchers.IO) {
     val accessToken = getAccessToken(account)
@@ -169,11 +234,14 @@ class GoogleDriveBackupService(private val context: Context) {
         throw IOException("Failed to download cloud records from Google Drive (${response.code})")
       }
 
-      val jsonContent = response.body?.string() ?: ""
-      if (jsonContent.isBlank()) return@withContext null
+      val rawCloudContent = response.body?.string() ?: ""
+      if (rawCloudContent.isBlank()) return@withContext null
+
+      val userIdentifier = account.id ?: account.email ?: "paisa_user"
+      val decryptedJson = CryptoManager.decryptCloudPayload(rawCloudContent, userIdentifier)
 
       val adapter = moshi.adapter(BackupPayload::class.java)
-      val payload = adapter.fromJson(jsonContent)
+      val payload = adapter.fromJson(decryptedJson)
       if (payload != null) {
         saveLastBackupTimestamp(payload.exportTimestamp)
         account.email?.let { saveConnectedEmail(it) }
@@ -187,7 +255,7 @@ class GoogleDriveBackupService(private val context: Context) {
 
   /**
    * Saves the user's complete financial payload to Google Drive AppData space.
-   * Returns the timestamp of successful save.
+   * Transparently encrypts the cloud payload before uploading.
    */
   suspend fun saveCloudData(
     account: GoogleSignInAccount,
@@ -195,14 +263,17 @@ class GoogleDriveBackupService(private val context: Context) {
   ): Long = withContext(Dispatchers.IO) {
     val accessToken = getAccessToken(account)
     val adapter = moshi.adapter(BackupPayload::class.java)
-    val jsonContent = adapter.toJson(payload)
+    val plainJson = adapter.toJson(payload)
+
+    val userIdentifier = account.id ?: account.email ?: "paisa_user"
+    val encryptedPayloadString = CryptoManager.encryptCloudPayload(plainJson, userIdentifier)
 
     val existingFileId = findExistingBackupFileId(accessToken)
 
     val uploadSuccess = if (existingFileId != null) {
-      updateFileContent(accessToken, existingFileId, jsonContent)
+      updateFileContent(accessToken, existingFileId, encryptedPayloadString)
     } else {
-      createNewFile(accessToken, jsonContent)
+      createNewFile(accessToken, encryptedPayloadString)
     }
 
     if (!uploadSuccess) {
@@ -213,28 +284,6 @@ class GoogleDriveBackupService(private val context: Context) {
     saveLastBackupTimestamp(timestamp)
     account.email?.let { saveConnectedEmail(it) }
     timestamp
-  }
-
-  /**
-   * Performs an actual backup upload to the user's Google Drive App Data / Files folder.
-   * Returns the timestamp of successful backup or throws an Exception with a human-readable message.
-   */
-  suspend fun performBackup(
-    account: GoogleSignInAccount,
-    userProfile: UserProfile,
-    transactions: List<TransactionItem>,
-    budgets: List<BudgetModel>,
-    recurringRules: List<RecurringRule>
-  ): Long = withContext(Dispatchers.IO) {
-    val payload = BackupPayload(
-      version = "3.0.0",
-      exportTimestamp = System.currentTimeMillis(),
-      userProfile = userProfile,
-      transactions = transactions,
-      budgets = budgets,
-      recurringRules = recurringRules
-    )
-    saveCloudData(account, payload)
   }
 
   private fun findExistingBackupFileId(accessToken: String): String? {
@@ -259,12 +308,12 @@ class GoogleDriveBackupService(private val context: Context) {
         return files.getJSONObject(0).optString("id")
       }
     } catch (e: Exception) {
-      // Fallback to creating a new file
+      // Fallback
     }
     return null
   }
 
-  private fun createNewFile(accessToken: String, jsonContent: String): Boolean {
+  private fun createNewFile(accessToken: String, fileContent: String): Boolean {
     val metadata = JSONObject().apply {
       put("name", BACKUP_FILE_NAME)
       put("parents", org.json.JSONArray().put("appDataFolder"))
@@ -272,7 +321,7 @@ class GoogleDriveBackupService(private val context: Context) {
     }.toString()
 
     val metadataBody = metadata.toRequestBody("application/json; charset=UTF-8".toMediaType())
-    val mediaBody = jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
+    val mediaBody = fileContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
 
     val requestBody = MultipartBody.Builder()
       .setType(MultipartBody.FORM)
@@ -292,8 +341,8 @@ class GoogleDriveBackupService(private val context: Context) {
     return isOk
   }
 
-  private fun updateFileContent(accessToken: String, fileId: String, jsonContent: String): Boolean {
-    val mediaBody = jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
+  private fun updateFileContent(accessToken: String, fileId: String, fileContent: String): Boolean {
+    val mediaBody = fileContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
 
     val request = Request.Builder()
       .url("https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media")

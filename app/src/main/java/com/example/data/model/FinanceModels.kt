@@ -247,3 +247,97 @@ enum class ExportPeriod(val displayName: String) {
   ALL_TIME("All Financial Records")
 }
 
+enum class ThemeMode(val displayName: String) {
+  SYSTEM("System Default"),
+  LIGHT("Light"),
+  DARK("Dark (AMOLED)")
+}
+
+enum class OccurrenceStatus {
+  DUE_TODAY,
+  OVERDUE,
+  UPCOMING,
+  PAID
+}
+
+@Immutable
+data class ScheduledRecurringOccurrence(
+  val ruleId: Long,
+  val ruleTitle: String,
+  val amount: Double,
+  val type: TransactionType,
+  val category: TransactionCategory,
+  val interval: RecurrenceInterval,
+  val paymentMethod: PaymentMethod,
+  val note: String,
+  val scheduledDateKey: String, // "YYYY-MM-DD"
+  val scheduledEpochMillis: Long,
+  val status: OccurrenceStatus,
+  val daysDiff: Int, // 0 = today, < 0 = overdue, > 0 = upcoming
+  val relativeLabel: String,
+  val isPaid: Boolean = false,
+  val paidTransactionId: Long? = null
+)
+
+@Immutable
+data class CategoryDetailData(
+  val category: TransactionCategory,
+  val monthKey: String,
+  val monthLabel: String,
+  val totalExpense: Double = 0.0,
+  val totalIncome: Double = 0.0,
+  val netAmount: Double = 0.0,
+  val transactionCount: Int = 0,
+  val transactions: List<TransactionItem> = emptyList()
+)
+
+enum class RecommendationSeverity {
+  INFO,
+  WARNING,
+  SUCCESS,
+  ALERT
+}
+
+@Immutable
+data class FinancialRecommendation(
+  val id: String,
+  val title: String,
+  val message: String,
+  val severity: RecommendationSeverity = RecommendationSeverity.INFO,
+  val category: TransactionCategory? = null,
+  val actionLabel: String? = null
+)
+
+enum class SecureNoteType(val displayName: String) {
+  GENERIC("Secure Note"),
+  CREDIT_DEBIT_CARD("Card Details"),
+  BANK_ACCOUNT("Bank Account"),
+  CREDENTIAL("Credential / PIN")
+}
+
+@Immutable
+data class SecureNote(
+  val id: Long = 0,
+  val title: String,
+  val content: String = "",
+  val type: SecureNoteType = SecureNoteType.GENERIC,
+  val maskedNumber: String? = null,
+  val expiryDate: String? = null,
+  val cvv: String? = null,
+  val ifscCode: String? = null,
+  val accountNumber: String? = null,
+  val additionalFields: Map<String, String> = emptyMap(),
+  val createdAt: Long = System.currentTimeMillis(),
+  val updatedAt: Long = System.currentTimeMillis()
+)
+
+@Immutable
+data class DriveStorageInfo(
+  val totalBytes: Long = 0L,
+  val usedBytes: Long = 0L,
+  val availableBytes: Long = 0L,
+  val formattedSummary: String = "Storage information unavailable",
+  val isAvailable: Boolean = false
+)
+
+

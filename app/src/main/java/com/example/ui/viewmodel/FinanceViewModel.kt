@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.drive.ConsentRequiredException
@@ -12,13 +13,20 @@ import com.example.data.drive.GoogleDriveBackupService
 import com.example.data.drive.GoogleDriveState
 import com.example.data.model.BudgetModel
 import com.example.data.model.CalendarDayData
+import com.example.data.model.CategoryDetailData
 import com.example.data.model.CategorySpending
 import com.example.data.model.DailySpendingPoint
+import com.example.data.model.DriveStorageInfo
 import com.example.data.model.ExportPeriod
+import com.example.data.model.FinancialRecommendation
 import com.example.data.model.MonthlyFinancialSummary
+import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringRule
+import com.example.data.model.ScheduledRecurringOccurrence
+import com.example.data.model.SecureNote
+import com.example.data.model.ThemeMode
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
@@ -28,26 +36,141 @@ import com.example.data.repository.FinanceRepository
 import com.example.ui.components.DateUtils
 import com.example.util.JsonPortabilityManager
 import com.example.util.JsonValidationResult
+import com.example.util.NotificationHelper
 import com.example.util.PaisaJsonBackup
+import com.example.util.RecommendationEngine
+import com.example.util.SecurityManager
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Calendar
 
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
   private val repository = FinanceRepository(application.applicationContext)
   val driveService = GoogleDriveBackupService(application.applicationContext)
+  val securityManager = SecurityManager(application.applicationContext)
 
-  // Google Drive Real State Flow
+  // ---------------- Theme Management ----------------
+  private val _themeMode = MutableStateFlow(
+    try {
+      ThemeMode.valueOf(securityManager.getThemeMode())
+    } catch (e: Exception) {
+      ThemeMode.SYSTEM
+    }
+  )
+  val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+  fun setThemeMode(mode: ThemeMode) {
+    _themeMode.value = mode
+    securityManager.setThemeMode(mode.name)
+  }
+
+  // ---------------- App Lock & Biometrics ----------------
+  private val _isAppLockEnabled = MutableStateFlow(securityManager.isAppLockEnabled())
+  val isAppLockEnabled: StateFlow<Boolean> = _isAppLockEnabled.asStateFlow()
+  val isAppLockConfigured: StateFlow<Boolean> = _isAppLockEnabled
+
+  // If App Lock is enabled, start locked; otherwise unlocked
+  private val _isAppLocked = MutableStateFlow(securityManager.isAppLockEnabled())
+  val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
+
+  // Secure Vault Lock State
+  private val _isVaultUnlocked = MutableStateFlow(false)
+  val isVaultUnlocked: StateFlow<Boolean> = _isVaultUnlocked.asStateFlow()
+
+  fun setAppLockEnabled(enabled: Boolean) {
+    _isAppLockEnabled.value = enabled
+    securityManager.setAppLockEnabled(enabled)
+    if (!enabled) {
+      _isAppLocked.value = false
+    }
+  }
+
+  fun setAppLockEnabled(activity: FragmentActivity, enabled: Boolean) {
+    if (enabled) {
+      viewModelScope.launch {
+        val success = securityManager.authenticate(
+          activity = activity,
+          title = "Enable App Lock",
+          subtitle = "Authenticate to confirm biometric security"
+        )
+        if (success) {
+          setAppLockEnabled(true)
+        }
+      }
+    } else {
+      setAppLockEnabled(false)
+    }
+  }
+
+  fun authenticateAndUnlockApp(activity: FragmentActivity, onResult: (Boolean) -> Unit = {}) {
+    viewModelScope.launch {
+      val success = securityManager.authenticate(
+        activity = activity,
+        title = "Unlock Paisa",
+        subtitle = "Confirm biometric credential or device passcode to access your finances"
+      )
+      if (success) {
+        _isAppLocked.value = false
+      }
+      onResult(success)
+    }
+  }
+
+  fun authenticateForExport(activity: FragmentActivity, onResult: (Boolean) -> Unit) {
+    if (!_isAppLockEnabled.value && !securityManager.canAuthenticateWithBiometrics()) {
+      onResult(true)
+      return
+    }
+    viewModelScope.launch {
+      val success = securityManager.authenticate(
+        activity = activity,
+        title = "Confirm Export",
+        subtitle = "Authenticate to generate financial export"
+      )
+      onResult(success)
+    }
+  }
+
+  fun authenticateVaultAccess(activity: FragmentActivity, onResult: (Boolean) -> Unit = {}) {
+    viewModelScope.launch {
+      val success = securityManager.authenticate(
+        activity = activity,
+        title = "Private Vault Access",
+        subtitle = "Authenticate to view and manage encrypted sensitive notes"
+      )
+      if (success) {
+        _isVaultUnlocked.value = true
+      }
+      onResult(success)
+    }
+  }
+
+  fun lockVault() {
+    _isVaultUnlocked.value = false
+  }
+
+  // ---------------- Google Drive & Cloud Sync ----------------
   private val _googleDriveState = MutableStateFlow<GoogleDriveState>(GoogleDriveState.NotConnected)
   val googleDriveState: StateFlow<GoogleDriveState> = _googleDriveState.asStateFlow()
 
-  // Cloud Sync Status Flows
+  private val _driveStorageInfo = MutableStateFlow(DriveStorageInfo())
+  val driveStorageInfo: StateFlow<DriveStorageInfo> = _driveStorageInfo.asStateFlow()
+  val driveStorageUsageBytes: StateFlow<Long> = _driveStorageInfo.map { it.usedBytes }.stateIn(
+    viewModelScope,
+    SharingStarted.WhileSubscribed(5000),
+    0L
+  )
+
   private val _isSyncing = MutableStateFlow(false)
   val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
 
@@ -57,6 +180,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private val _syncErrorMessage = MutableStateFlow<String?>(null)
   val syncErrorMessage: StateFlow<String?> = _syncErrorMessage.asStateFlow()
 
+  private val _syncStatusToast = MutableStateFlow<String?>(null)
+  val syncStatusToast: StateFlow<String?> = _syncStatusToast.asStateFlow()
+
+  fun clearSyncStatusToast() {
+    _syncStatusToast.value = null
+  }
+
   private val _driveConsentIntent = MutableStateFlow<Intent?>(null)
   val driveConsentIntent: StateFlow<Intent?> = _driveConsentIntent.asStateFlow()
 
@@ -64,187 +194,79 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _driveConsentIntent.value = null
   }
 
-  init {
-    initGoogleDriveState()
-    checkAndAutoSync()
+  fun getDriveSignInIntent(): Intent {
+    return driveService.getSignInIntent()
   }
 
-  private fun initGoogleDriveState() {
-    val account = driveService.getLastSignedInAccount()
-    val savedEmail = driveService.getSavedEmail()
-    val lastBackup = driveService.getLastBackupTimestamp()
-
-    if (account != null && account.email != null) {
-      _googleDriveState.value = GoogleDriveState.Connected(
-        email = account.email ?: savedEmail ?: "Connected",
-        lastBackupTimestampMillis = lastBackup
-      )
-      val currentProfile = repository.getUserProfile()
-      if (currentProfile.email.isBlank() || currentProfile.googleId == null) {
-        val updated = currentProfile.copy(
-          name = account.displayName ?: currentProfile.name.ifBlank { "User" },
-          email = account.email ?: "",
-          photoUrl = account.photoUrl?.toString(),
-          googleId = account.id,
-          hasCompletedOnboarding = true
-        )
-        _userProfile.value = updated
-        repository.saveUserProfile(updated)
-      }
-    } else if (!savedEmail.isNullOrBlank()) {
-      _googleDriveState.value = GoogleDriveState.Connected(
-        email = savedEmail,
-        lastBackupTimestampMillis = lastBackup
-      )
-    } else {
-      _googleDriveState.value = GoogleDriveState.NotConnected
-    }
-  }
-
-  private var lastAutoSyncCheckTime = 0L
-
-  private fun checkAndAutoSync() {
-    triggerAutoSyncOnResume(force = true)
-  }
-
-  /**
-   * Automatically synchronizes with Google Drive on app open or when returning to foreground.
-   * Throttled to avoid excessive calls within 30 seconds.
-   */
-  fun triggerAutoSyncOnResume(force: Boolean = false) {
-    val now = System.currentTimeMillis()
-    if (!force && (now - lastAutoSyncCheckTime < 30_000L)) {
-      return
-    }
-    lastAutoSyncCheckTime = now
-
-    viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount()
-      if (account != null && account.email != null) {
-        pullFromDriveAndMerge(account)
-        repository.processDueRecurringRules()
-      }
-    }
-  }
-
-  /**
-   * Persists the current local state to Google Drive automatically in background.
-   */
-  fun syncCurrentStateToDrive() {
-    viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount() ?: return@launch
-      _isSyncing.value = true
-      _syncErrorMessage.value = null
-      try {
-        val (txs, bgs, rcs) = repository.getAllLocalData()
-        val payload = com.example.data.drive.BackupPayload(
-          version = "3.0.0",
-          exportTimestamp = System.currentTimeMillis(),
-          userProfile = _userProfile.value,
-          transactions = txs,
-          budgets = bgs,
-          recurringRules = rcs
-        )
-        val ts = driveService.saveCloudData(account, payload)
-        _lastSyncTimestamp.value = ts
-        _googleDriveState.value = GoogleDriveState.BackupSuccess(
-          email = account.email ?: "Google Drive",
-          timestampMillis = ts
-        )
-      } catch (e: Exception) {
-        _syncErrorMessage.value = "Offline: Changes saved locally and will sync when reconnected."
-      } finally {
-        _isSyncing.value = false
-      }
-    }
-  }
-
-  private suspend fun pullFromDriveAndMerge(account: GoogleSignInAccount): Boolean {
-    _isSyncing.value = true
-    _syncErrorMessage.value = null
-    return try {
-      val cloudPayload = driveService.fetchCloudData(account)
-      _driveConsentIntent.value = null
-      if (cloudPayload != null) {
-        // Cloud has existing authoritative data
-        repository.replaceCacheWithCloudData(
-          transactions = cloudPayload.transactions,
-          budgets = cloudPayload.budgets,
-          recurringRules = cloudPayload.recurringRules
-        )
-        _lastSyncTimestamp.value = cloudPayload.exportTimestamp
-        _googleDriveState.value = GoogleDriveState.Connected(
-          email = account.email ?: "Google Drive",
-          lastBackupTimestampMillis = cloudPayload.exportTimestamp
-        )
-      } else {
-        // Cloud has no data yet: migrate existing local database data to Drive
-        val (txs, bgs, rcs) = repository.getAllLocalData()
-        val payload = com.example.data.drive.BackupPayload(
-          version = "3.0.0",
-          exportTimestamp = System.currentTimeMillis(),
-          userProfile = _userProfile.value,
-          transactions = txs,
-          budgets = bgs,
-          recurringRules = rcs
-        )
-        val ts = driveService.saveCloudData(account, payload)
-        _lastSyncTimestamp.value = ts
-        _googleDriveState.value = GoogleDriveState.Connected(
-          email = account.email ?: "Google Drive",
-          lastBackupTimestampMillis = ts
-        )
-      }
-      true
-    } catch (e: ConsentRequiredException) {
-      _driveConsentIntent.value = e.consentIntent
-      _syncErrorMessage.value = "Google Drive access requires permission. Tap 'Grant Permission' below."
-      _googleDriveState.value = GoogleDriveState.BackupFailed(
-        email = account.email,
-        errorMessage = "Permission required"
-      )
-      false
-    } catch (e: Exception) {
-      _syncErrorMessage.value = e.localizedMessage ?: "Failed to sync with Google Drive"
-      false
-    } finally {
-      _isSyncing.value = false
-    }
-  }
-
-  // 1. Dashboard Scoped Date State
-  private val _dashboardCalendar = MutableStateFlow(Calendar.getInstance().apply {
+  // ---------------- Universal Month/Year Period Selection ----------------
+  private val _selectedCalendar = MutableStateFlow(Calendar.getInstance().apply {
     set(Calendar.HOUR_OF_DAY, 12)
     set(Calendar.MINUTE, 0)
     set(Calendar.SECOND, 0)
     set(Calendar.MILLISECOND, 0)
   })
-  val dashboardCalendar: StateFlow<Calendar> = _dashboardCalendar.asStateFlow()
+  val selectedCalendar: StateFlow<Calendar> = _selectedCalendar.asStateFlow()
 
-  // 2. Calendar Screen Scoped Date State
-  private val _calendarMonth = MutableStateFlow(Calendar.getInstance().apply {
-    set(Calendar.HOUR_OF_DAY, 12)
-    set(Calendar.MINUTE, 0)
-    set(Calendar.SECOND, 0)
-    set(Calendar.MILLISECOND, 0)
-  })
-  val calendarMonth: StateFlow<Calendar> = _calendarMonth.asStateFlow()
+  // Aliases for screen compatibility
+  val dashboardCalendar: StateFlow<Calendar> = _selectedCalendar
+  val calendarMonth: StateFlow<Calendar> = _selectedCalendar
+  val budgetCalendar: StateFlow<Calendar> = _selectedCalendar
 
   private val _calendarSelectedDayMillis = MutableStateFlow(System.currentTimeMillis())
   val calendarSelectedDayMillis: StateFlow<Long> = _calendarSelectedDayMillis.asStateFlow()
+  val selectedDayTimestamp: StateFlow<Long> = _calendarSelectedDayMillis
 
-  // 3. Budget Screen Scoped Date State
-  private val _budgetCalendar = MutableStateFlow(Calendar.getInstance().apply {
-    set(Calendar.HOUR_OF_DAY, 12)
-    set(Calendar.MINUTE, 0)
-    set(Calendar.SECOND, 0)
-    set(Calendar.MILLISECOND, 0)
-  })
-  val budgetCalendar: StateFlow<Calendar> = _budgetCalendar.asStateFlow()
+  fun setCalendarSelectedDay(millis: Long) {
+    _calendarSelectedDayMillis.value = millis
+  }
 
-  // Backward compatibility alias for global observers
-  val selectedCalendar: StateFlow<Calendar> = _dashboardCalendar.asStateFlow()
-  val selectedDayTimestamp: StateFlow<Long> = _calendarSelectedDayMillis.asStateFlow()
+  fun setSelectedMonth(year: Int, monthIndex: Int) {
+    val updated = (_selectedCalendar.value.clone() as Calendar).apply {
+      set(Calendar.YEAR, year)
+      set(Calendar.MONTH, monthIndex)
+      set(Calendar.DAY_OF_MONTH, 1)
+    }
+    _selectedCalendar.value = updated
+  }
+
+  fun setBudgetMonthAndYear(year: Int, monthIndex: Int) {
+    setSelectedMonth(year, monthIndex)
+  }
+
+  fun nextMonth() {
+    val updated = (_selectedCalendar.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, 1)
+    }
+    _selectedCalendar.value = updated
+  }
+
+  fun previousMonth() {
+    val updated = (_selectedCalendar.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, -1)
+    }
+    _selectedCalendar.value = updated
+  }
+
+  fun nextBudgetMonth() = nextMonth()
+  fun previousBudgetMonth() = previousMonth()
+
+  fun nextYear() {
+    val updated = (_selectedCalendar.value.clone() as Calendar).apply {
+      add(Calendar.YEAR, 1)
+    }
+    _selectedCalendar.value = updated
+  }
+
+  fun previousYear() {
+    val updated = (_selectedCalendar.value.clone() as Calendar).apply {
+      add(Calendar.YEAR, -1)
+    }
+    _selectedCalendar.value = updated
+  }
+
+  // User Profile
+  private val _userProfile = MutableStateFlow(repository.getUserProfile())
+  val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
 
   // Search & Filter in Transactions Screen
   private val _searchQuery = MutableStateFlow("")
@@ -256,37 +278,84 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private val _filterCategory = MutableStateFlow<TransactionCategory?>(null)
   val filterCategory: StateFlow<TransactionCategory?> = _filterCategory.asStateFlow()
 
-  // User Profile
-  private val _userProfile = MutableStateFlow(repository.getUserProfile())
-  val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
+  fun setSearchQuery(q: String) { _searchQuery.value = q }
+  fun setFilterType(t: TransactionType?) { _filterType.value = t }
+  fun setFilterCategory(c: TransactionCategory?) { _filterCategory.value = c }
 
-  // All Transactions from DB
+  // ---------------- Base Database Collections ----------------
   val allTransactions: StateFlow<List<TransactionItem>> = repository.allTransactions.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
   )
 
-  // All Budgets from DB
+  val filteredTransactions: StateFlow<List<TransactionItem>> = combine(
+    allTransactions,
+    _searchQuery,
+    _filterType,
+    _filterCategory
+  ) { list, query, type, category ->
+    list.filter { item ->
+      val matchesQuery = if (query.isBlank()) true else {
+        item.title.contains(query, ignoreCase = true) ||
+          item.note.contains(query, ignoreCase = true) ||
+          item.amount.toString().contains(query)
+      }
+      val matchesType = type == null || item.type == type
+      val matchesCat = category == null || item.category == category
+      matchesQuery && matchesType && matchesCat
+    }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
   val allBudgets: StateFlow<List<BudgetModel>> = repository.allBudgets.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
   )
 
-  // All Recurring Rules from DB
   val allRecurringRules: StateFlow<List<RecurringRule>> = repository.allRecurringRules.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
   )
 
-  // ----------------- 1. Dashboard Flows (Scoped to _dashboardCalendar) -----------------
+  val allSecureNotes: StateFlow<List<SecureNote>> = repository.allSecureNotes.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = emptyList()
+  )
 
+  // ---------------- Scheduled Recurring Occurrences Flow ----------------
+  private val _scheduledOccurrences = MutableStateFlow<List<ScheduledRecurringOccurrence>>(emptyList())
+  val scheduledOccurrences: StateFlow<List<ScheduledRecurringOccurrence>> = _scheduledOccurrences.asStateFlow()
+
+  fun refreshScheduledOccurrences() {
+    viewModelScope.launch {
+      _scheduledOccurrences.value = repository.getScheduledOccurrences()
+    }
+  }
+
+  val dueTodayOccurrences: StateFlow<List<ScheduledRecurringOccurrence>> = _scheduledOccurrences.combine(allTransactions) { list, _ ->
+    list.filter { it.status == OccurrenceStatus.DUE_TODAY && !it.isPaid }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  val overdueOccurrences: StateFlow<List<ScheduledRecurringOccurrence>> = _scheduledOccurrences.combine(allTransactions) { list, _ ->
+    list.filter { it.status == OccurrenceStatus.OVERDUE && !it.isPaid }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  val upcomingOccurrences: StateFlow<List<ScheduledRecurringOccurrence>> = _scheduledOccurrences.combine(allTransactions) { list, _ ->
+    list.filter { it.status == OccurrenceStatus.UPCOMING && !it.isPaid }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  val paidOccurrences: StateFlow<List<ScheduledRecurringOccurrence>> = _scheduledOccurrences.combine(allTransactions) { list, _ ->
+    list.filter { it.isPaid }
+  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+  // ---------------- Universal Monthly & Yearly Summaries ----------------
   val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
     allTransactions,
     allBudgets,
-    _dashboardCalendar
+    _selectedCalendar
   ) { transactions, budgets, cal ->
     val monthKey = DateUtils.getMonthKey(cal)
     val monthLabel = DateUtils.getMonthLabel(cal)
@@ -326,9 +395,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     )
   )
 
+  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
+
   val dashboardYearSummary: StateFlow<YearlyFinancialSummary> = combine(
     allTransactions,
-    _dashboardCalendar
+    _selectedCalendar
   ) { transactions, cal ->
     val year = cal.get(Calendar.YEAR)
     val startOfYear = DateUtils.getStartOfYear(year)
@@ -376,7 +447,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   val dashboardCategorySpending: StateFlow<List<CategorySpending>> = combine(
     allTransactions,
-    _dashboardCalendar
+    _selectedCalendar
   ) { transactions, cal ->
     val startOfMonth = DateUtils.getStartOfMonth(cal)
     val endOfMonth = DateUtils.getEndOfMonth(cal)
@@ -404,396 +475,296 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = combine(
-    allTransactions,
-    _dashboardCalendar
-  ) { transactions, cal ->
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val year = cal.get(Calendar.YEAR)
-    val month = cal.get(Calendar.MONTH)
-
-    val points = mutableListOf<DailySpendingPoint>()
-    for (day in 1..daysInMonth) {
-      val dayCal = Calendar.getInstance().apply {
-        set(year, month, day, 0, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val startDay = dayCal.timeInMillis
-      val endDay = DateUtils.getEndOfDay(startDay)
-      val dayTx = transactions.filter { it.timestamp in startDay..endDay }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-
-      points.add(
-        DailySpendingPoint(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(dayCal),
-          dayLabel = day.toString(),
-          expense = exp,
-          income = inc,
-          net = inc - exp
-        )
-      )
-    }
-    points
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
-
-  // ----------------- 2. Calendar Screen Flows (Scoped to _calendarMonth & _calendarSelectedDayMillis) -----------------
-
-  val calendarDaysData: StateFlow<List<CalendarDayData>> = combine(
-    allTransactions,
-    _calendarMonth
-  ) { transactions, cal ->
-    val year = cal.get(Calendar.YEAR)
-    val month = cal.get(Calendar.MONTH)
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-
-    val firstDayCal = Calendar.getInstance().apply {
-      set(year, month, 1, 0, 0, 0)
-      set(Calendar.MILLISECOND, 0)
-    }
-    val firstDayOfWeek = firstDayCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 7=Sat
-    val leadDays = firstDayOfWeek - 1
-
-    val todayKey = DateUtils.getDayKey(Calendar.getInstance())
-    val gridDays = mutableListOf<CalendarDayData>()
-
-    // Leading days from previous month
-    val prevMonthCal = (firstDayCal.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
-    val prevDaysCount = prevMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    for (i in (prevDaysCount - leadDays + 1)..prevDaysCount) {
-      val c = (prevMonthCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, i) }
-      val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
-      gridDays.add(
-        CalendarDayData(
-          dayOfMonth = i,
-          dateKey = DateUtils.getDayKey(c),
-          epochMillis = start,
-          isCurrentMonth = false,
-          isToday = DateUtils.getDayKey(c) == todayKey,
-          hasIncome = inc > 0,
-          hasExpense = exp > 0,
-          totalIncome = inc,
-          totalExpense = exp,
-          transactions = dayTx
-        )
-      )
-    }
-
-    // Current month days
-    for (day in 1..daysInMonth) {
-      val c = Calendar.getInstance().apply {
-        set(year, month, day, 12, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
-      gridDays.add(
-        CalendarDayData(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(c),
-          epochMillis = start,
-          isCurrentMonth = true,
-          isToday = DateUtils.getDayKey(c) == todayKey,
-          hasIncome = inc > 0,
-          hasExpense = exp > 0,
-          totalIncome = inc,
-          totalExpense = exp,
-          transactions = dayTx
-        )
-      )
-    }
-
-    // Trailing days to fill 35 or 42 grid cells
-    val remaining = (7 - (gridDays.size % 7)) % 7
-    val nextMonthCal = (firstDayCal.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
-    for (day in 1..remaining) {
-      val c = (nextMonthCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
-      val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
-      gridDays.add(
-        CalendarDayData(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(c),
-          epochMillis = start,
-          isCurrentMonth = false,
-          isToday = DateUtils.getDayKey(c) == todayKey,
-          hasIncome = inc > 0,
-          hasExpense = exp > 0,
-          totalIncome = inc,
-          totalExpense = exp,
-          transactions = dayTx
-        )
-      )
-    }
-
-    gridDays
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
-
-  val calendarDateTransactions: StateFlow<List<TransactionItem>> = combine(
-    allTransactions,
-    _calendarSelectedDayMillis
-  ) { transactions, dayMillis ->
-    val start = DateUtils.getStartOfDay(dayMillis)
-    val end = DateUtils.getEndOfDay(dayMillis)
-    transactions.filter { it.timestamp in start..end }
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
-
-  // ----------------- 3. Budget Screen Flows (Scoped to _budgetCalendar) -----------------
-
-  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
-    allTransactions,
-    allBudgets,
-    _budgetCalendar
-  ) { transactions, budgets, cal ->
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
+  // ---------------- Category Detail Data for Selected Month ----------------
+  fun getCategoryDetailData(category: TransactionCategory): CategoryDetailData {
+    val cal = _selectedCalendar.value
     val startOfMonth = DateUtils.getStartOfMonth(cal)
     val endOfMonth = DateUtils.getEndOfMonth(cal)
+    val monthKey = DateUtils.getMonthKey(cal)
+    val monthLabel = DateUtils.getMonthLabel(cal)
 
-    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
+    val txList = allTransactions.value.filter {
+      it.category == category && it.timestamp in startOfMonth..endOfMonth
+    }.sortedByDescending { it.timestamp }
 
-    val budgetObj = budgets.find { it.monthKey == monthKey }
-    val budgetLimit = budgetObj?.totalBudget ?: 0.0
-    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
-    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
+    val totalExpense = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val totalIncome = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
 
-    MonthlyFinancialSummary(
+    return CategoryDetailData(
+      category = category,
       monthKey = monthKey,
       monthLabel = monthLabel,
-      totalIncome = totalIncome,
       totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      budgetLimit = budgetLimit,
-      budgetUsed = totalExpense,
-      budgetRemaining = budgetRemaining,
-      budgetUsagePercent = budgetUsagePercent,
-      transactionCount = monthTransactions.size
+      totalIncome = totalIncome,
+      netAmount = totalIncome - totalExpense,
+      transactionCount = txList.size,
+      transactions = txList
     )
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = MonthlyFinancialSummary(
-      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
-      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
-    )
-  )
+  }
 
-  // Aliases for compatibility
-  val currentMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
-  val currentYearSummary: StateFlow<YearlyFinancialSummary> = dashboardYearSummary
-  val categorySpendingList: StateFlow<List<CategorySpending>> = dashboardCategorySpending
-  val dailySpendingTrend: StateFlow<List<DailySpendingPoint>> = dashboardDailyTrend
-  val selectedDateTransactions: StateFlow<List<TransactionItem>> = calendarDateTransactions
-
-  // Filtered Transactions for Transactions Screen
-  val filteredTransactions: StateFlow<List<TransactionItem>> = combine(
+  // ---------------- Calendar Days Flow ----------------
+  val calendarDays: StateFlow<List<CalendarDayData>> = combine(
     allTransactions,
-    _searchQuery,
-    _filterType,
-    _filterCategory
-  ) { transactions, query, type, cat ->
-    transactions.filter { item ->
-      val matchesQuery = query.isBlank() ||
-          item.title.contains(query, ignoreCase = true) ||
-          item.category.displayName.contains(query, ignoreCase = true) ||
-          item.note.contains(query, ignoreCase = true) ||
-          item.amount.toString().contains(query)
-      val matchesType = type == null || item.type == type
-      val matchesCat = cat == null || item.category == cat
-      matchesQuery && matchesType && matchesCat
-    }
+    _selectedCalendar
+  ) { transactions, cal ->
+    DateUtils.buildMonthCalendarDays(cal, transactions)
   }.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
   )
 
-  init {
-    // Check and process due recurring transactions idempotently on startup
-    processRecurringRules()
-  }
+  val selectedDayTransactions: StateFlow<List<TransactionItem>> = combine(
+    allTransactions,
+    _calendarSelectedDayMillis
+  ) { transactions, selectedMillis ->
+    val startOfDay = DateUtils.getStartOfDay(selectedMillis)
+    val endOfDay = DateUtils.getEndOfDay(selectedMillis)
+    transactions.filter { it.timestamp in startOfDay..endOfDay }.sortedByDescending { it.timestamp }
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = emptyList()
+  )
 
-  // ================= Navigation & Period =================
+  // ---------------- Budget Screen Flows ----------------
+  val currentMonthBudget: StateFlow<BudgetModel?> = combine(
+    allBudgets,
+    _selectedCalendar
+  ) { budgets, cal ->
+    val monthKey = DateUtils.getMonthKey(cal)
+    budgets.find { it.monthKey == monthKey }
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = null
+  )
 
-  // --- Dashboard Navigation ---
-  fun previousDashboardMonth() {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, -1)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  fun nextDashboardMonth() {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, 1)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  fun previousDashboardYear() {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      add(Calendar.YEAR, -1)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  fun nextDashboardYear() {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      add(Calendar.YEAR, 1)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  fun setDashboardYear(year: Int) {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  fun setDashboardMonthAndYear(year: Int, month: Int) {
-    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-      set(Calendar.MONTH, month)
-    }
-    _dashboardCalendar.value = cal
-  }
-
-  // --- Calendar Screen Navigation ---
-  fun previousCalendarMonth() {
-    val cal = (_calendarMonth.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, -1)
-    }
-    _calendarMonth.value = cal
-  }
-
-  fun nextCalendarMonth() {
-    val cal = (_calendarMonth.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, 1)
-    }
-    _calendarMonth.value = cal
-  }
-
-  fun setCalendarMonthAndYear(year: Int, month: Int) {
-    val cal = (_calendarMonth.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-      set(Calendar.MONTH, month)
-    }
-    _calendarMonth.value = cal
-  }
-
-  fun selectCalendarDate(timestamp: Long) {
-    _calendarSelectedDayMillis.value = timestamp
-    val cal = Calendar.getInstance().apply {
-      timeInMillis = timestamp
-      set(Calendar.HOUR_OF_DAY, 12)
-      set(Calendar.MINUTE, 0)
-      set(Calendar.SECOND, 0)
-      set(Calendar.MILLISECOND, 0)
-    }
-    _calendarMonth.value = cal
-  }
-
-  // --- Budget Screen Navigation ---
-  fun previousBudgetMonth() {
-    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, -1)
-    }
-    _budgetCalendar.value = cal
-  }
-
-  fun nextBudgetMonth() {
-    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
-      add(Calendar.MONTH, 1)
-    }
-    _budgetCalendar.value = cal
-  }
-
-  fun setBudgetMonthAndYear(year: Int, month: Int) {
-    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-      set(Calendar.MONTH, month)
-    }
-    _budgetCalendar.value = cal
-  }
-
-  // --- Aliases for Legacy / General Navigation ---
-  fun previousMonth() = previousDashboardMonth()
-  fun nextMonth() = nextDashboardMonth()
-  fun previousYear() = previousDashboardYear()
-  fun nextYear() = nextDashboardYear()
-  fun setYear(year: Int) = setDashboardYear(year)
-  fun setMonthAndYear(year: Int, month: Int) = setDashboardMonthAndYear(year, month)
-
-  // ================= Filters =================
-
-  fun setSearchQuery(query: String) {
-    _searchQuery.value = query
-  }
-
-  fun setFilterType(type: TransactionType?) {
-    _filterType.value = type
-  }
-
-  fun setFilterCategory(category: TransactionCategory?) {
-    _filterCategory.value = category
-  }
-
-  // ================= User Profile =================
-
-  fun completeOnboarding(name: String) {
-    val updated = _userProfile.value.copy(
-      name = name.trim(),
-      hasCompletedOnboarding = true
+  // ---------------- Intelligent Financial Recommendations Flow ----------------
+  val intelligentRecommendations: StateFlow<List<FinancialRecommendation>> = combine(
+    dashboardMonthSummary,
+    allTransactions,
+    currentMonthBudget,
+    _scheduledOccurrences,
+    _selectedCalendar
+  ) { monthSummary, txs, budget, occurrences, cal ->
+    RecommendationEngine.evaluate(
+      currentMonthSummary = monthSummary,
+      historicalTransactions = txs,
+      currentBudget = budget,
+      recurringOccurrences = occurrences,
+      selectedCalendar = cal
     )
-    _userProfile.value = updated
-    repository.saveUserProfile(updated)
-    syncCurrentStateToDrive()
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = emptyList()
+  )
+
+  // ---------------- Lifecycle & Init ----------------
+  init {
+    initGoogleDriveState()
+    refreshScheduledOccurrences()
+    triggerAutoSyncOnResume(force = true)
   }
 
-  // ================= Transaction Operations =================
+  private fun initGoogleDriveState() {
+    val account = driveService.getLastSignedInAccount()
+    val savedEmail = driveService.getSavedEmail()
+    val lastBackup = driveService.getLastBackupTimestamp()
 
-  fun addTransaction(
+    if (account != null && account.email != null) {
+      _googleDriveState.value = GoogleDriveState.Connected(
+        email = account.email ?: savedEmail ?: "Connected",
+        lastBackupTimestampMillis = lastBackup
+      )
+      val currentProfile = repository.getUserProfile()
+      if (currentProfile.email.isBlank() || currentProfile.googleId == null) {
+        val updated = currentProfile.copy(
+          name = account.displayName ?: currentProfile.name.ifBlank { "User" },
+          email = account.email ?: "",
+          photoUrl = account.photoUrl?.toString(),
+          googleId = account.id,
+          hasCompletedOnboarding = true
+        )
+        _userProfile.value = updated
+        repository.saveUserProfile(updated)
+      }
+      refreshDriveStorageQuota(account)
+    } else if (!savedEmail.isNullOrBlank()) {
+      _googleDriveState.value = GoogleDriveState.Connected(
+        email = savedEmail,
+        lastBackupTimestampMillis = lastBackup
+      )
+    } else {
+      _googleDriveState.value = GoogleDriveState.NotConnected
+    }
+  }
+
+  fun refreshDriveStorageQuota(account: GoogleSignInAccount? = driveService.getLastSignedInAccount()) {
+    if (account == null) return
+    viewModelScope.launch {
+      val quota = driveService.fetchStorageQuota(account)
+      _driveStorageInfo.value = quota
+    }
+  }
+
+  private var lastAutoSyncCheckTime = 0L
+
+  fun triggerAutoSyncOnResume(force: Boolean = false) {
+    val now = System.currentTimeMillis()
+    if (!force && (now - lastAutoSyncCheckTime < 25_000L)) {
+      return
+    }
+    lastAutoSyncCheckTime = now
+
+    viewModelScope.launch {
+      val account = driveService.getLastSignedInAccount()
+      if (account != null && account.email != null) {
+        pullFromDriveAndMerge(account)
+        refreshDriveStorageQuota(account)
+      }
+      refreshScheduledOccurrences()
+    }
+  }
+
+  /**
+   * Manual Sync Now action: cohesive and immediate UI state transition.
+   */
+  fun syncNow(
+    onSuccessMessage: (String) -> Unit = {},
+    onErrorMessage: (String) -> Unit = {}
+  ) {
+    val account = driveService.getLastSignedInAccount()
+    if (account == null) {
+      _syncErrorMessage.value = "Google Drive account not connected."
+      onErrorMessage("Google Drive account not connected.")
+      return
+    }
+
+    viewModelScope.launch {
+      _isSyncing.value = true
+      _syncErrorMessage.value = null
+      try {
+        val bundle = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "4.0.0",
+          exportTimestamp = System.currentTimeMillis(),
+          userProfile = _userProfile.value,
+          transactions = bundle.transactions,
+          budgets = bundle.budgets,
+          recurringRules = bundle.recurringRules,
+          paidOccurrences = bundle.paidOccurrences,
+          secureNotes = bundle.secureNotes
+        )
+        val ts = driveService.saveCloudData(account, payload)
+        _lastSyncTimestamp.value = ts
+        _googleDriveState.value = GoogleDriveState.BackupSuccess(
+          email = account.email ?: "Google Drive",
+          timestampMillis = ts
+        )
+        _syncStatusToast.value = "Synced just now"
+        refreshDriveStorageQuota(account)
+        onSuccessMessage("Successfully synchronized with Google Drive!")
+      } catch (e: Exception) {
+        _syncErrorMessage.value = e.localizedMessage ?: "Sync failed"
+        onErrorMessage(e.localizedMessage ?: "Sync failed")
+      } finally {
+        _isSyncing.value = false
+      }
+    }
+  }
+
+  fun syncCurrentStateToDrive() {
+    viewModelScope.launch {
+      val account = driveService.getLastSignedInAccount() ?: return@launch
+      try {
+        val bundle = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "4.0.0",
+          exportTimestamp = System.currentTimeMillis(),
+          userProfile = _userProfile.value,
+          transactions = bundle.transactions,
+          budgets = bundle.budgets,
+          recurringRules = bundle.recurringRules,
+          paidOccurrences = bundle.paidOccurrences,
+          secureNotes = bundle.secureNotes
+        )
+        val ts = driveService.saveCloudData(account, payload)
+        _lastSyncTimestamp.value = ts
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Drive",
+          lastBackupTimestampMillis = ts
+        )
+      } catch (ignored: Exception) {
+        // Safe offline fallback
+      }
+    }
+  }
+
+  private suspend fun pullFromDriveAndMerge(account: GoogleSignInAccount): Boolean {
+    _isSyncing.value = true
+    _syncErrorMessage.value = null
+    return try {
+      val cloudPayload = driveService.fetchCloudData(account)
+      _driveConsentIntent.value = null
+      if (cloudPayload != null) {
+        repository.replaceCacheWithCloudData(
+          transactions = cloudPayload.transactions,
+          budgets = cloudPayload.budgets,
+          recurringRules = cloudPayload.recurringRules,
+          paidOccurrences = cloudPayload.paidOccurrences,
+          secureNotes = cloudPayload.secureNotes
+        )
+        _lastSyncTimestamp.value = cloudPayload.exportTimestamp
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Drive",
+          lastBackupTimestampMillis = cloudPayload.exportTimestamp
+        )
+      } else {
+        val bundle = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "4.0.0",
+          exportTimestamp = System.currentTimeMillis(),
+          userProfile = _userProfile.value,
+          transactions = bundle.transactions,
+          budgets = bundle.budgets,
+          recurringRules = bundle.recurringRules,
+          paidOccurrences = bundle.paidOccurrences,
+          secureNotes = bundle.secureNotes
+        )
+        val ts = driveService.saveCloudData(account, payload)
+        _lastSyncTimestamp.value = ts
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Drive",
+          lastBackupTimestampMillis = ts
+        )
+      }
+      true
+    } catch (e: ConsentRequiredException) {
+      _driveConsentIntent.value = e.consentIntent
+      _syncErrorMessage.value = "Google Drive access requires permission."
+      false
+    } catch (e: Exception) {
+      _syncErrorMessage.value = e.localizedMessage ?: "Sync error"
+      false
+    } finally {
+      _isSyncing.value = false
+    }
+  }
+
+  // ---------------- Transaction CRUD & Actions ----------------
+  fun saveTransaction(
     title: String,
     amount: Double,
     type: TransactionType,
     category: TransactionCategory,
     timestamp: Long,
-    note: String,
-    paymentMethod: PaymentMethod,
+    note: String = "",
+    paymentMethod: PaymentMethod = PaymentMethod.UPI,
     isRecurring: Boolean = false,
-    recurringRuleId: Long? = null
+    recurringRuleId: Long? = null,
+    onComplete: (Long) -> Unit = {}
   ) {
     viewModelScope.launch {
       val item = TransactionItem(
@@ -807,72 +778,81 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         isRecurring = isRecurring,
         recurringRuleId = recurringRuleId
       )
-      repository.insertTransaction(item)
+      val id = repository.insertTransaction(item)
       syncCurrentStateToDrive()
+      onComplete(id)
     }
   }
 
-  fun updateTransaction(item: TransactionItem) {
+  fun addTransaction(
+    title: String,
+    amount: Double,
+    type: TransactionType,
+    category: TransactionCategory,
+    timestamp: Long,
+    note: String = "",
+    paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    isRecurring: Boolean = false,
+    recurringRuleId: Long? = null,
+    onComplete: (Long) -> Unit = {}
+  ) = saveTransaction(title, amount, type, category, timestamp, note, paymentMethod, isRecurring, recurringRuleId, onComplete)
+
+  fun updateTransaction(item: TransactionItem, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
-      repository.updateTransaction(item)
+      repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
       syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
-  fun deleteTransaction(item: TransactionItem) {
+  fun deleteTransaction(item: TransactionItem, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
       repository.deleteTransaction(item)
       syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
-  fun deleteTransactionById(id: Long) {
+  fun bulkDeleteTransactions(ids: List<Long>, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
-      repository.deleteTransactionById(id)
+      repository.deleteTransactionsByIds(ids)
       syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
-  // ================= Budget Operations =================
+  fun deleteTransactionsByRange(startTime: Long, endTime: Long, onComplete: (Int) -> Unit = {}) {
+    viewModelScope.launch {
+      val count = repository.deleteTransactionsBetween(startTime, endTime)
+      syncCurrentStateToDrive()
+      onComplete(count)
+    }
+  }
 
-  fun saveMonthlyBudget(
-    monthKey: String,
-    totalBudget: Double,
-    categoryBudgets: Map<TransactionCategory, Double>
+  // ---------------- Recurring Payments & "Mark as Paid" Flow ----------------
+  fun markRecurringOccurrenceAsPaid(
+    occurrence: ScheduledRecurringOccurrence,
+    onComplete: (TransactionItem) -> Unit = {}
   ) {
     viewModelScope.launch {
-      val existing = allBudgets.value.find { it.monthKey == monthKey }
-      val budget = BudgetModel(
-        id = existing?.id ?: 0,
-        monthKey = monthKey,
-        totalBudget = totalBudget,
-        categoryBudgets = categoryBudgets,
-        updatedAt = System.currentTimeMillis()
-      )
-      repository.saveBudget(budget)
+      val createdTx = repository.markRecurringOccurrenceAsPaid(occurrence)
+      refreshScheduledOccurrences()
       syncCurrentStateToDrive()
+      onComplete(createdTx)
     }
   }
 
-  fun deleteBudget(monthKey: String) {
-    viewModelScope.launch {
-      repository.deleteBudgetForMonth(monthKey)
-      syncCurrentStateToDrive()
-    }
-  }
-
-  // ================= Recurring Rule Operations =================
-
-  fun addRecurringRule(
+  fun saveRecurringRule(
     title: String,
     amount: Double,
     type: TransactionType,
     category: TransactionCategory,
     interval: RecurrenceInterval,
     startDate: Long,
-    endDate: Long?,
-    paymentMethod: PaymentMethod,
-    note: String
+    endDate: Long? = null,
+    paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    note: String = "",
+    onComplete: () -> Unit = {}
   ) {
     viewModelScope.launch {
       val rule = RecurringRule(
@@ -883,302 +863,371 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         interval = interval,
         startDate = startDate,
         endDate = endDate,
-        lastGeneratedDate = 0,
         paymentMethod = paymentMethod,
-        note = note.trim(),
-        isActive = true
+        note = note.trim()
       )
       repository.insertRecurringRule(rule)
-      repository.processDueRecurringRules()
+      refreshScheduledOccurrences()
       syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
-  fun updateRecurringRule(rule: RecurringRule) {
+  fun addRecurringRule(
+    title: String,
+    amount: Double,
+    type: TransactionType,
+    category: TransactionCategory,
+    interval: RecurrenceInterval,
+    startDate: Long,
+    endDate: Long? = null,
+    paymentMethod: PaymentMethod = PaymentMethod.UPI,
+    note: String = "",
+    onComplete: () -> Unit = {}
+  ) = saveRecurringRule(title, amount, type, category, interval, startDate, endDate, paymentMethod, note, onComplete)
+
+  fun updateRecurringRule(rule: RecurringRule, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
       repository.updateRecurringRule(rule)
-      repository.processDueRecurringRules()
+      refreshScheduledOccurrences()
       syncCurrentStateToDrive()
+      onComplete()
+    }
+  }
+
+  fun deleteRecurringRule(id: Long, onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      repository.deleteRecurringRule(id)
+      refreshScheduledOccurrences()
+      syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
   fun toggleRecurringRule(id: Long, isActive: Boolean) {
     viewModelScope.launch {
       repository.toggleRecurringRule(id, isActive)
-      if (isActive) {
-        repository.processDueRecurringRules()
-      }
+      refreshScheduledOccurrences()
       syncCurrentStateToDrive()
     }
   }
 
-  fun deleteRecurringRule(id: Long) {
+  fun sendPaymentReminderNotification(occurrence: ScheduledRecurringOccurrence) {
+    NotificationHelper.showDuePaymentReminder(getApplication(), occurrence)
+  }
+
+  // ---------------- Budgets ----------------
+  fun saveBudget(
+    monthKey: String,
+    totalBudget: Double,
+    categoryBudgets: Map<TransactionCategory, Double>,
+    onComplete: () -> Unit = {}
+  ) {
     viewModelScope.launch {
-      repository.deleteRecurringRule(id)
+      val model = BudgetModel(
+        monthKey = monthKey,
+        totalBudget = totalBudget,
+        categoryBudgets = categoryBudgets,
+        updatedAt = System.currentTimeMillis()
+      )
+      repository.saveBudget(model)
       syncCurrentStateToDrive()
+      onComplete()
     }
   }
 
-  fun processRecurringRules() {
+  fun saveMonthlyBudget(
+    monthKey: String,
+    totalBudget: Double,
+    categoryBudgets: Map<TransactionCategory, Double>,
+    onComplete: () -> Unit = {}
+  ) = saveBudget(monthKey, totalBudget, categoryBudgets, onComplete)
+
+  fun deleteBudgetForMonth(monthKey: String, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
-      val generated = repository.processDueRecurringRules()
-      if (generated > 0) {
-        syncCurrentStateToDrive()
+      repository.deleteBudgetForMonth(monthKey)
+      syncCurrentStateToDrive()
+      onComplete()
+    }
+  }
+
+  fun deleteBudget(monthKey: String, onComplete: () -> Unit = {}) = deleteBudgetForMonth(monthKey, onComplete)
+
+  // ---------------- Secure Notes Vault ----------------
+  fun saveSecureNote(note: SecureNote, onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      if (note.id > 0) {
+        repository.updateSecureNote(note.copy(updatedAt = System.currentTimeMillis()))
+      } else {
+        repository.insertSecureNote(note)
+      }
+      syncCurrentStateToDrive()
+      onComplete()
+    }
+  }
+
+  fun deleteSecureNote(id: Long, onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      repository.deleteSecureNote(id)
+      syncCurrentStateToDrive()
+      onComplete()
+    }
+  }
+
+  // ---------------- Profile & Account ----------------
+  fun saveUserProfile(name: String, email: String) {
+    val updated = _userProfile.value.copy(
+      name = name.trim(),
+      email = email.trim(),
+      hasCompletedOnboarding = true
+    )
+    _userProfile.value = updated
+    repository.saveUserProfile(updated)
+  }
+
+  fun onGoogleSignInSuccess(
+    account: GoogleSignInAccount,
+    onResult: (Boolean, String?) -> Unit = { _, _ -> }
+  ) = handleGoogleSignInSuccess(account, onResult)
+
+  fun handleGoogleSignInSuccess(
+    account: GoogleSignInAccount,
+    onResult: (Boolean, String?) -> Unit = { _, _ -> }
+  ) {
+    viewModelScope.launch {
+      try {
+        val updated = _userProfile.value.copy(
+          name = account.displayName ?: _userProfile.value.name.ifBlank { "User" },
+          email = account.email ?: "",
+          photoUrl = account.photoUrl?.toString(),
+          googleId = account.id,
+          hasCompletedOnboarding = true
+        )
+        _userProfile.value = updated
+        repository.saveUserProfile(updated)
+
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Account",
+          lastBackupTimestampMillis = driveService.getLastBackupTimestamp()
+        )
+
+        pullFromDriveAndMerge(account)
+        refreshDriveStorageQuota(account)
+        refreshScheduledOccurrences()
+        onResult(true, null)
+      } catch (e: Exception) {
+        onResult(false, e.localizedMessage)
       }
     }
   }
 
-  // ================= PDF Export & Sharing =================
+  fun signOut(onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      driveService.signOut()
+      _googleDriveState.value = GoogleDriveState.NotConnected
+      _driveStorageInfo.value = DriveStorageInfo()
+      onComplete()
+    }
+  }
+
+  fun clearAllData(onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+      repository.clearAllData()
+      syncCurrentStateToDrive()
+      refreshScheduledOccurrences()
+      onComplete()
+    }
+  }
+
+  fun disconnectGoogleDrive() {
+    viewModelScope.launch {
+      driveService.signOut()
+      _googleDriveState.value = GoogleDriveState.NotConnected
+      _driveStorageInfo.value = DriveStorageInfo()
+    }
+  }
+
+  // ---------------- PDF & JSON Export Flows ----------------
+  fun exportToPdfFile(
+    period: ExportPeriod,
+    specificYear: Int? = null,
+    specificMonthCalendar: Calendar? = null,
+    customStart: Long? = null,
+    customEnd: Long? = null,
+    onSuccess: (File) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    viewModelScope.launch {
+      try {
+        val file = repository.exportToPdf(
+          period = period,
+          selectedCalendar = _selectedCalendar.value,
+          customStart = customStart,
+          customEnd = customEnd,
+          specificYear = specificYear,
+          specificMonthCalendar = specificMonthCalendar
+        )
+        onSuccess(file)
+      } catch (e: Exception) {
+        onError(e.localizedMessage ?: "Failed to generate PDF report.")
+      }
+    }
+  }
 
   fun exportToPdf(
     context: Context,
     period: ExportPeriod,
+    specificYear: Int? = null,
+    specificMonthCalendar: Calendar? = null,
     customStart: Long? = null,
     customEnd: Long? = null,
     onSuccess: (String) -> Unit,
     onError: (String) -> Unit
   ) {
-    viewModelScope.launch {
-      try {
-        val file = repository.exportToPdf(period, _dashboardCalendar.value, customStart, customEnd)
-
-        val uri: Uri = FileProvider.getUriForFile(
-          context,
-          "${context.packageName}.fileprovider",
-          file
-        )
-
-        val intent = Intent(Intent.ACTION_SEND).apply {
-          type = "application/pdf"
-          putExtra(Intent.EXTRA_STREAM, uri)
-          putExtra(Intent.EXTRA_SUBJECT, "Paisa Financial Statement (${file.name})")
-          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    exportToPdfFile(
+      period = period,
+      specificYear = specificYear,
+      specificMonthCalendar = specificMonthCalendar,
+      customStart = customStart,
+      customEnd = customEnd,
+      onSuccess = { file ->
+        try {
+          val shareIntent = Intent(Intent.ACTION_SEND).apply {
+            type = "application/pdf"
+            val uri = FileProvider.getUriForFile(
+              context,
+              "${context.packageName}.fileprovider",
+              file
+            )
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+          }
+          context.startActivity(Intent.createChooser(shareIntent, "Share PDF Report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+          onSuccess("PDF Report generated and shared successfully!")
+        } catch (e: Exception) {
+          onSuccess("PDF saved to ${file.name}")
         }
-
-        val chooser = Intent.createChooser(intent, "Share or Save Financial PDF")
-        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(chooser)
-
-        onSuccess("PDF Statement generated: ${file.name}")
-      } catch (e: Exception) {
-        e.printStackTrace()
-        onError(e.localizedMessage ?: "Failed to generate PDF report")
-      }
-    }
+      },
+      onError = onError
+    )
   }
 
-  /**
-   * Generates a complete machine-readable Paisa JSON backup file and opens the Android native Share flow.
-   */
-  fun exportJson(
-    context: Context,
-    onSuccess: (String) -> Unit,
+  fun exportToJsonFile(
+    period: ExportPeriod = ExportPeriod.ALL_TIME,
+    specificYear: Int? = null,
+    specificMonthCalendar: Calendar? = null,
+    customStart: Long? = null,
+    customEnd: Long? = null,
+    includeSecureNotes: Boolean = false,
+    onSuccess: (File) -> Unit,
     onError: (String) -> Unit
   ) {
     viewModelScope.launch {
       try {
-        val (txs, bgs, rcs) = repository.getAllLocalData()
+        val bundle = repository.getAllLocalData()
         val file = JsonPortabilityManager.exportToJsonFile(
-          context = context,
+          context = getApplication(),
           profile = _userProfile.value,
-          transactions = txs,
-          budgets = bgs,
-          recurringRules = rcs
+          allTransactions = bundle.transactions,
+          budgets = bundle.budgets,
+          recurringRules = bundle.recurringRules,
+          secureNotes = bundle.secureNotes,
+          period = period,
+          specificYear = specificYear,
+          specificMonthCalendar = specificMonthCalendar,
+          customStart = customStart,
+          customEnd = customEnd,
+          includeSecureNotes = includeSecureNotes
         )
-        val shareIntent = JsonPortabilityManager.createShareIntent(context, file)
-        val chooser = Intent.createChooser(shareIntent, "Share or Save Paisa JSON Backup")
-        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(chooser)
-        onSuccess("JSON Backup created: ${file.name}")
+        onSuccess(file)
       } catch (e: Exception) {
-        e.printStackTrace()
-        onError(e.localizedMessage ?: "Failed to export JSON data")
+        onError(e.localizedMessage ?: "Failed to export JSON backup.")
       }
     }
   }
 
-  /**
-   * Validates a selected JSON file for proper Paisa schema and valid records.
-   */
-  suspend fun validateImportFile(
+  fun exportJson(
     context: Context,
-    uri: Uri
-  ): JsonValidationResult {
+    period: ExportPeriod = ExportPeriod.ALL_TIME,
+    specificYear: Int? = null,
+    specificMonthCalendar: Calendar? = null,
+    customStart: Long? = null,
+    customEnd: Long? = null,
+    includeSecureNotes: Boolean = false,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    exportToJsonFile(
+      period = period,
+      specificYear = specificYear,
+      specificMonthCalendar = specificMonthCalendar,
+      customStart = customStart,
+      customEnd = customEnd,
+      includeSecureNotes = includeSecureNotes,
+      onSuccess = { file ->
+        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+          type = "application/json"
+          val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            file
+          )
+          putExtra(Intent.EXTRA_STREAM, uri)
+          addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(shareIntent, "Share JSON Backup").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        onSuccess("JSON Backup exported successfully (${(file.length() / 1024).coerceAtLeast(1)} KB)")
+      },
+      onError = onError
+    )
+  }
+
+  suspend fun validateImportFile(context: Context, uri: Uri): JsonValidationResult {
     return JsonPortabilityManager.validateImportFile(context, uri)
   }
 
-  /**
-   * Idempotently merges imported backup records, replaces local Room cache, and pushes to Google Drive.
-   */
+  suspend fun validateJsonImport(uri: Uri): JsonValidationResult {
+    return JsonPortabilityManager.validateImportFile(getApplication(), uri)
+  }
+
   fun confirmAndApplyImport(
+    backup: PaisaJsonBackup,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+  ) = applyJsonImport(backup, onSuccess, onError)
+
+  fun applyJsonImport(
     backup: PaisaJsonBackup,
     onSuccess: (String) -> Unit,
     onError: (String) -> Unit
   ) {
     viewModelScope.launch {
       try {
-        val (currentTxs, currentBgs, currentRcs) = repository.getAllLocalData()
-        val (mergedTxs, mergedBgs, mergedRcs) = JsonPortabilityManager.mergeData(
-          currentTransactions = currentTxs,
-          currentBudgets = currentBgs,
-          currentRecurringRules = currentRcs,
+        val currentBundle = repository.getAllLocalData()
+        val (mergedTxs, mergedBgs, mergedRcs, mergedNts) = JsonPortabilityManager.mergeData(
+          currentTransactions = currentBundle.transactions,
+          currentBudgets = currentBundle.budgets,
+          currentRecurringRules = currentBundle.recurringRules,
+          currentSecureNotes = currentBundle.secureNotes,
           importBackup = backup
         )
 
-        // 1. Atomically update local Room tables
         repository.replaceCacheWithCloudData(
           transactions = mergedTxs,
           budgets = mergedBgs,
-          recurringRules = mergedRcs
+          recurringRules = mergedRcs,
+          paidOccurrences = currentBundle.paidOccurrences,
+          secureNotes = mergedNts
         )
-        repository.processDueRecurringRules()
 
-        // 2. Persist merged data to Google Drive
-        val account = driveService.getLastSignedInAccount()
-        if (account != null && account.email != null) {
-          val payload = com.example.data.drive.BackupPayload(
-            version = "3.0.0",
-            exportTimestamp = System.currentTimeMillis(),
-            userProfile = _userProfile.value,
-            transactions = mergedTxs,
-            budgets = mergedBgs,
-            recurringRules = mergedRcs
-          )
-          val ts = driveService.saveCloudData(account, payload)
-          _lastSyncTimestamp.value = ts
-          _googleDriveState.value = GoogleDriveState.BackupSuccess(
-            email = account.email ?: "Google Drive",
-            timestampMillis = ts
-          )
-        }
-        onSuccess("Successfully imported ${backup.transactions.size} transactions and synced with Cloud.")
+        refreshScheduledOccurrences()
+        syncCurrentStateToDrive()
+
+        val msg = "Successfully imported ${backup.transactions.size} transactions, ${backup.budgets.size} budgets, and ${backup.recurringTransactions.size} recurring rules."
+        onSuccess(msg)
       } catch (e: Exception) {
-        e.printStackTrace()
-        onError(e.localizedMessage ?: "Failed to apply JSON import.")
+        onError("Import failed: ${e.localizedMessage ?: "Unknown error"}")
       }
-    }
-  }
-
-  fun clearAllData(onComplete: () -> Unit) {
-    viewModelScope.launch {
-      repository.clearAllTransactions()
-      syncCurrentStateToDrive()
-      onComplete()
-    }
-  }
-
-  // ================= Google Sign-In & Drive Sync Actions =================
-
-  fun getDriveSignInIntent(): Intent = driveService.getSignInIntent()
-
-  fun onGoogleSignInSuccess(
-    account: GoogleSignInAccount,
-    onResult: ((Boolean, String?) -> Unit)? = null
-  ) {
-    val email = account.email ?: ""
-    val name = account.displayName ?: email.substringBefore("@").ifBlank { "User" }
-    val photo = account.photoUrl?.toString()
-    val id = account.id
-
-    val profile = UserProfile(
-      name = name,
-      email = email,
-      photoUrl = photo,
-      googleId = id,
-      hasCompletedOnboarding = true
-    )
-    _userProfile.value = profile
-    repository.saveUserProfile(profile)
-
-    driveService.saveConnectedEmail(email)
-
-    viewModelScope.launch {
-      _isSyncing.value = true
-      _googleDriveState.value = GoogleDriveState.Connecting
-      val success = pullFromDriveAndMerge(account)
-      repository.processDueRecurringRules()
-      if (success) {
-        onResult?.invoke(true, null)
-      } else {
-        onResult?.invoke(false, _syncErrorMessage.value)
-      }
-    }
-  }
-
-  fun onDriveSignInFailure(errorMessage: String) {
-    val savedEmail = driveService.getSavedEmail()
-    _googleDriveState.value = GoogleDriveState.BackupFailed(
-      email = savedEmail,
-      errorMessage = errorMessage
-    )
-    _syncErrorMessage.value = errorMessage
-  }
-
-  fun syncNow(onSuccessMessage: (String) -> Unit, onErrorMessage: (String) -> Unit) {
-    viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount()
-      if (account == null) {
-        onErrorMessage("Not signed in to Google Drive")
-        return@launch
-      }
-      _isSyncing.value = true
-      _googleDriveState.value = GoogleDriveState.BackingUp
-      val success = pullFromDriveAndMerge(account)
-      if (success) {
-        val (txs, bgs, rcs) = repository.getAllLocalData()
-        val payload = com.example.data.drive.BackupPayload(
-          version = "3.0.0",
-          exportTimestamp = System.currentTimeMillis(),
-          userProfile = _userProfile.value,
-          transactions = txs,
-          budgets = bgs,
-          recurringRules = rcs
-        )
-        try {
-          val ts = driveService.saveCloudData(account, payload)
-          _lastSyncTimestamp.value = ts
-          _googleDriveState.value = GoogleDriveState.BackupSuccess(
-            email = account.email ?: "Google Drive",
-            timestampMillis = ts
-          )
-          onSuccessMessage("Successfully synchronized with Google Drive")
-        } catch (e: Exception) {
-          val msg = e.localizedMessage ?: "Sync error"
-          _syncErrorMessage.value = msg
-          _googleDriveState.value = GoogleDriveState.BackupFailed(email = account.email, errorMessage = msg)
-          onErrorMessage(msg)
-        }
-      } else {
-        val msg = _syncErrorMessage.value ?: "Failed to connect to Google Drive"
-        onErrorMessage(msg)
-      }
-      _isSyncing.value = false
-    }
-  }
-
-  fun signOut(onComplete: () -> Unit) {
-    viewModelScope.launch {
-      driveService.signOut()
-      repository.clearLocalCache()
-      repository.clearUserProfile()
-      _userProfile.value = UserProfile()
-      _googleDriveState.value = GoogleDriveState.NotConnected
-      _lastSyncTimestamp.value = null
-      onComplete()
-    }
-  }
-
-  fun resetDriveStateToConnected() {
-    val account = driveService.getLastSignedInAccount()
-    val savedEmail = driveService.getSavedEmail()
-    val lastBackup = driveService.getLastBackupTimestamp()
-    if (account != null || !savedEmail.isNullOrBlank()) {
-      _googleDriveState.value = GoogleDriveState.Connected(
-        email = account?.email ?: savedEmail ?: "Google Drive",
-        lastBackupTimestampMillis = lastBackup
-      )
-    } else {
-      _googleDriveState.value = GoogleDriveState.NotConnected
     }
   }
 }

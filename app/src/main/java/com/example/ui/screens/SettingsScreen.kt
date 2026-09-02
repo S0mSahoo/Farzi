@@ -24,20 +24,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.BrightnessAuto
+import androidx.compose.material.icons.filled.BrightnessLow
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.FileDownload
-import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.rounded.AccountBalance
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -49,7 +56,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -66,16 +76,19 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
-import com.example.data.drive.GoogleDriveState
+import com.example.data.model.ThemeMode
 import com.example.ui.components.ConfirmationDialog
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
+import com.example.ui.theme.MinimalEmerald
+import com.example.ui.theme.MinimalIndigo
+import com.example.ui.theme.MinimalRose
 import com.example.ui.viewmodel.FinanceViewModel
 import com.example.util.JsonValidationResult
 import com.example.util.PaisaJsonBackup
@@ -88,16 +101,19 @@ import java.util.Locale
 @Composable
 fun SettingsScreen(
   viewModel: FinanceViewModel,
-  onOpenExportModal: () -> Unit
+  onOpenExportModal: () -> Unit,
+  onNavigateToVault: () -> Unit
 ) {
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
   val userProfile by viewModel.userProfile.collectAsState()
-  val googleDriveState by viewModel.googleDriveState.collectAsState()
   val isSyncing by viewModel.isSyncing.collectAsState()
   val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
   val syncErrorMessage by viewModel.syncErrorMessage.collectAsState()
   val driveConsentIntent by viewModel.driveConsentIntent.collectAsState()
+  val themeMode by viewModel.themeMode.collectAsState()
+  val isAppLockConfigured by viewModel.isAppLockConfigured.collectAsState()
+  val driveStorageBytes by viewModel.driveStorageUsageBytes.collectAsState()
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -270,7 +286,7 @@ fun SettingsScreen(
   if (showClearDataDialog) {
     ConfirmationDialog(
       title = "Clear All Financial Data?",
-      message = "This will permanently erase all transactions, budgets, and recurring rules from your device and cloud storage.",
+      message = "This will permanently erase all transactions, budgets, recurring rules, and secure notes from your device and cloud storage.",
       confirmButtonText = "Erase Everything",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
@@ -294,11 +310,12 @@ fun SettingsScreen(
     // Header
     item {
       Text(
-        text = "Settings",
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+        text = "Settings & Vault",
+        style = MaterialTheme.typography.headlineMedium.copy(
+          fontWeight = FontWeight.Bold,
+          letterSpacing = (-0.5).sp
+        ),
+        color = MaterialTheme.colorScheme.onBackground
       )
     }
 
@@ -308,7 +325,7 @@ fun SettingsScreen(
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -317,14 +334,13 @@ fun SettingsScreen(
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-              // Profile Photo / Avatar
               if (!userProfile.photoUrl.isNullOrBlank()) {
                 AsyncImage(
                   model = userProfile.photoUrl,
                   contentDescription = "Google Profile Picture",
                   contentScale = ContentScale.Crop,
                   modifier = Modifier
-                    .size(54.dp)
+                    .size(52.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                 )
@@ -332,7 +348,7 @@ fun SettingsScreen(
                 Surface(
                   shape = CircleShape,
                   color = MaterialTheme.colorScheme.primaryContainer,
-                  modifier = Modifier.size(54.dp)
+                  modifier = Modifier.size(52.dp)
                 ) {
                   Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -367,43 +383,156 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sign Out Button
             OutlinedButton(
               onClick = { showSignOutDialog = true },
               shape = RoundedCornerShape(12.dp),
-              colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = ExpenseRed
-              ),
+              colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed),
               border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.5f)),
               modifier = Modifier
                 .fillMaxWidth()
                 .height(44.dp)
                 .testTag("google_sign_out_button")
             ) {
-              Icon(
-                Icons.AutoMirrored.Filled.ExitToApp,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-              )
+              Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(modifier = Modifier.width(8.dp))
-              Text(
-                text = "Sign Out of Account",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-              )
+              Text("Sign Out of Account", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
             }
           }
         }
       }
     }
 
-    // 2. Google Drive Primary Cloud Storage Card
+    // 2. Security & Biometrics (Requirements 35-38, 49-53)
+    item {
+      SettingsSection(title = "Security & Protection") {
+        Card(
+          shape = RoundedCornerShape(18.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // Biometric App Lock Toggle
+            SettingsRow(
+              icon = Icons.Default.Fingerprint,
+              iconTint = MinimalEmerald,
+              iconBg = MinimalEmerald.copy(alpha = 0.15f),
+              title = "Biometric App Lock",
+              subtitle = "Require fingerprint / face to open Paisa",
+              action = {
+                Switch(
+                  checked = isAppLockConfigured,
+                  onCheckedChange = { enable ->
+                    val act = context as? FragmentActivity
+                    if (act != null) {
+                      viewModel.setAppLockEnabled(act, enable)
+                    }
+                  },
+                  colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = MinimalEmerald
+                  )
+                )
+              }
+            )
+
+            HorizontalDivider(
+              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
+              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
+            )
+
+            // Private Notes Vault
+            SettingsRow(
+              icon = Icons.Rounded.Security,
+              iconTint = MinimalIndigo,
+              iconBg = MinimalIndigo.copy(alpha = 0.15f),
+              title = "Private Notes Vault",
+              subtitle = "AES-256 encrypted cards, bank accounts & PINs",
+              action = {
+                Surface(
+                  shape = RoundedCornerShape(8.dp),
+                  color = MinimalIndigo.copy(alpha = 0.12f),
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onNavigateToVault() }
+                ) {
+                  Text(
+                    text = "Open Vault",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MinimalIndigo,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                  )
+                }
+              }
+            )
+          }
+        }
+      }
+    }
+
+    // 3. Theme & Appearance
+    item {
+      SettingsSection(title = "Appearance & Theme") {
+        Card(
+          shape = RoundedCornerShape(18.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            listOf(
+              Triple(ThemeMode.SYSTEM, "System", Icons.Default.BrightnessAuto),
+              Triple(ThemeMode.LIGHT, "Light", Icons.Default.LightMode),
+              Triple(ThemeMode.DARK, "AMOLED Dark", Icons.Default.DarkMode)
+            ).forEach { (mode, label, icon) ->
+              val selected = themeMode == mode
+              Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                  .weight(1f)
+                  .clip(RoundedCornerShape(12.dp))
+                  .clickable { viewModel.setThemeMode(mode) }
+              ) {
+                Column(
+                  modifier = Modifier.padding(vertical = 12.dp, horizontal = 6.dp),
+                  horizontalAlignment = Alignment.CenterHorizontally,
+                  verticalArrangement = Arrangement.Center
+                ) {
+                  Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                  )
+                  Spacer(modifier = Modifier.height(4.dp))
+                  Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall.copy(
+                      fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+                    ),
+                    color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Google Drive Cloud Storage Card
     item {
       SettingsSection(title = "Cloud Synchronization") {
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -423,25 +552,11 @@ fun SettingsScreen(
                 ) {
                   Box(contentAlignment = Alignment.Center) {
                     if (isSyncing) {
-                      CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = MinimalBlue
-                      )
+                      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MinimalBlue)
                     } else if (syncErrorMessage != null) {
-                      Icon(
-                        Icons.Default.CloudOff,
-                        contentDescription = null,
-                        tint = ExpenseRed,
-                        modifier = Modifier.size(22.dp)
-                      )
+                      Icon(Icons.Default.CloudOff, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(22.dp))
                     } else {
-                      Icon(
-                        Icons.Default.CloudDone,
-                        contentDescription = null,
-                        tint = IncomeGreen,
-                        modifier = Modifier.size(22.dp)
-                      )
+                      Icon(Icons.Default.CloudDone, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(22.dp))
                     }
                   }
                 }
@@ -449,12 +564,11 @@ fun SettingsScreen(
                 Column {
                   Text(
                     text = "Google Drive Sync",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                   )
                   Text(
-                    text = if (isSyncing) "Syncing cloud records..." else if (syncErrorMessage != null) "Sync Error" else "Synced & Secure",
+                    text = if (isSyncing) "Syncing encrypted cloud records..." else if (syncErrorMessage != null) "Sync Error" else "Synced & Hardware Encrypted",
                     style = MaterialTheme.typography.bodySmall,
                     color = if (isSyncing) MinimalBlue else if (syncErrorMessage != null) ExpenseRed else IncomeGreen,
                     fontWeight = FontWeight.Medium
@@ -462,15 +576,13 @@ fun SettingsScreen(
                 }
               }
 
-              // Status Pill
               Surface(
                 shape = RoundedCornerShape(8.dp),
                 color = if (isSyncing) MinimalBlue.copy(alpha = 0.12f) else if (syncErrorMessage != null) ExpenseRed.copy(alpha = 0.12f) else IncomeGreen.copy(alpha = 0.12f)
               ) {
                 Text(
                   text = if (isSyncing) "SYNCING" else if (syncErrorMessage != null) "OFFLINE" else "ACTIVE",
-                  style = MaterialTheme.typography.labelSmall,
-                  fontWeight = FontWeight.Black,
+                  style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
                   color = if (isSyncing) MinimalBlue else if (syncErrorMessage != null) ExpenseRed else IncomeGreen,
                   modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
@@ -479,26 +591,21 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Last Synced details
             val lastSyncText = formatLastSync(lastSyncTimestamp)
+            val storageText = if (driveStorageBytes > 0) "Storage: ${(driveStorageBytes / 1024.0).toInt().coerceAtLeast(1)} KB used" else "Storage: Active"
             Text(
-              text = "Last synced: $lastSyncText",
+              text = "Last synced: $lastSyncText • $storageText",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             if (syncErrorMessage != null) {
               Spacer(modifier = Modifier.height(6.dp))
-              Text(
-                text = syncErrorMessage ?: "",
-                style = MaterialTheme.typography.labelSmall,
-                color = ExpenseRed
-              )
+              Text(text = syncErrorMessage ?: "", style = MaterialTheme.typography.labelSmall, color = ExpenseRed)
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Sync / Grant Permission Button
             Button(
               onClick = {
                 val currentConsent = driveConsentIntent
@@ -526,16 +633,11 @@ fun SettingsScreen(
                 .height(44.dp)
                 .testTag("sync_now_button")
             ) {
-              Icon(
-                if (driveConsentIntent != null) Icons.Default.CloudSync else Icons.Default.Sync,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-              )
+              Icon(if (driveConsentIntent != null) Icons.Default.CloudSync else Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(modifier = Modifier.width(8.dp))
               Text(
                 text = if (driveConsentIntent != null) "Grant Drive Permission" else "Sync Now",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
               )
             }
           }
@@ -543,49 +645,13 @@ fun SettingsScreen(
       }
     }
 
-    // 3. Currency & Preferences Section
-    item {
-      SettingsSection(title = "Regional & Display") {
-        Card(
-          shape = RoundedCornerShape(18.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Column(modifier = Modifier.padding(vertical = 4.dp)) {
-            SettingsRow(
-              icon = Icons.Default.Language,
-              iconTint = MaterialTheme.colorScheme.primary,
-              iconBg = MaterialTheme.colorScheme.primaryContainer,
-              title = "${userProfile.currencySymbol} (${userProfile.currencyCode})",
-              subtitle = "Device Locale Currency",
-              action = {
-                Surface(
-                  shape = RoundedCornerShape(6.dp),
-                  color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                ) {
-                  Text(
-                    text = "System Default",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                  )
-                }
-              }
-            )
-          }
-        }
-      }
-    }
-
-    // 4. Data Management & Export Section
+    // 5. Data Management & Export Section
     item {
       SettingsSection(title = "Data & Reports") {
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -606,8 +672,7 @@ fun SettingsScreen(
                 ) {
                   Text(
                     text = "PDF",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                   )
@@ -615,10 +680,7 @@ fun SettingsScreen(
               }
             )
 
-            HorizontalDivider(
-              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
-              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
             // JSON Backup Export
             SettingsRow(
@@ -649,34 +711,19 @@ fun SettingsScreen(
                     }
                 ) {
                   if (isExportingJson) {
-                    CircularProgressIndicator(
-                      modifier = Modifier
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .size(16.dp),
-                      color = MinimalBlue,
-                      strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).size(16.dp), color = MinimalBlue, strokeWidth = 2.dp)
                   } else {
-                    Text(
-                      text = "JSON",
-                      style = MaterialTheme.typography.labelSmall,
-                      fontWeight = FontWeight.Bold,
-                      color = MinimalBlue,
-                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
+                    Text(text = "JSON", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = MinimalBlue, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                   }
                 }
               }
             )
 
-            HorizontalDivider(
-              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
-              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
             // JSON Backup Import
             SettingsRow(
-              icon = Icons.Default.FileUpload,
+              icon = Icons.Default.CloudUpload,
               iconTint = IncomeGreen,
               iconBg = IncomeGreen.copy(alpha = 0.15f),
               title = "Import JSON Backup",
@@ -696,30 +743,15 @@ fun SettingsScreen(
                     }
                 ) {
                   if (isValidatingImport) {
-                    CircularProgressIndicator(
-                      modifier = Modifier
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .size(16.dp),
-                      color = IncomeGreen,
-                      strokeWidth = 2.dp
-                    )
+                    CircularProgressIndicator(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp).size(16.dp), color = IncomeGreen, strokeWidth = 2.dp)
                   } else {
-                    Text(
-                      text = "Import",
-                      style = MaterialTheme.typography.labelSmall,
-                      fontWeight = FontWeight.Bold,
-                      color = IncomeGreen,
-                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                    )
+                    Text(text = "Import", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = IncomeGreen, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                   }
                 }
               }
             )
 
-            HorizontalDivider(
-              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
-              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
 
             // Clear Records
             SettingsRow(
@@ -736,13 +768,7 @@ fun SettingsScreen(
                     .clip(RoundedCornerShape(8.dp))
                     .clickable { showClearDataDialog = true }
                 ) {
-                  Text(
-                    text = "Erase",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = ExpenseRed,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                  )
+                  Text(text = "Erase", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = ExpenseRed, modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
               }
             )
@@ -760,18 +786,9 @@ fun SettingsScreen(
         contentAlignment = Alignment.Center
       ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          Text(
-            text = "Paisa v3.0.0",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
+          Text(text = "Paisa v3.0.0", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurfaceVariant)
           Spacer(modifier = Modifier.height(2.dp))
-          Text(
-            text = "Connected with Google Drive Cloud Storage",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-          )
+          Text(text = "Hardware Encrypted • Offline & Private", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
         }
       }
     }
@@ -783,14 +800,10 @@ private fun SettingsSection(
   title: String,
   content: @Composable () -> Unit
 ) {
-  Column(
-    modifier = Modifier.fillMaxWidth(),
-    verticalArrangement = Arrangement.spacedBy(8.dp)
-  ) {
+  Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
     Text(
       text = title,
-      style = MaterialTheme.typography.titleSmall,
-      fontWeight = FontWeight.Bold,
+      style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
       color = MaterialTheme.colorScheme.primary,
       modifier = Modifier.padding(start = 4.dp)
     )
@@ -825,20 +838,14 @@ private fun SettingsRow(
         modifier = Modifier.size(38.dp)
       ) {
         Box(contentAlignment = Alignment.Center) {
-          Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-          )
+          Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
         }
       }
 
       Column {
         Text(
           text = title,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.SemiBold,
+          style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
           color = MaterialTheme.colorScheme.onSurface,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis
