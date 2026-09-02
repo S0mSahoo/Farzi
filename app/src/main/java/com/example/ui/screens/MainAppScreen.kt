@@ -100,7 +100,8 @@ fun MainAppScreen(
   viewModel: FinanceViewModel
 ) {
   val userProfile by viewModel.userProfile.collectAsState()
-  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
+  val dashboardCalendar by viewModel.dashboardCalendar.collectAsState()
+  val budgetCalendar by viewModel.budgetCalendar.collectAsState()
   val allBudgets by viewModel.allBudgets.collectAsState()
 
   var selectedTab by remember { mutableIntStateOf(0) }
@@ -119,6 +120,9 @@ fun MainAppScreen(
   var editingRecurringRule by remember { mutableStateOf<RecurringRule?>(null) }
 
   var showSetBudgetSheet by remember { mutableStateOf(false) }
+  var targetBudgetMonthKey by remember { mutableStateOf<String?>(null) }
+  var targetBudgetMonthLabel by remember { mutableStateOf<String?>(null) }
+
   var showExportModal by remember { mutableStateOf(false) }
 
   val transactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -126,8 +130,9 @@ fun MainAppScreen(
   val budgetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-  val monthKey = DateUtils.getMonthKey(selectedCalendar)
-  val currentBudget = allBudgets.find { it.monthKey == monthKey }
+  val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(budgetCalendar)
+  val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(budgetCalendar)
+  val currentBudget = allBudgets.find { it.monthKey == activeBudgetMonthKey }
 
   // Sheets
   if (showAddEditTransactionSheet) {
@@ -218,11 +223,15 @@ fun MainAppScreen(
   if (showSetBudgetSheet) {
     SetBudgetSheet(
       sheetState = budgetSheetState,
-      monthKey = monthKey,
-      monthLabel = DateUtils.getMonthLabel(selectedCalendar),
+      monthKey = activeBudgetMonthKey,
+      monthLabel = activeBudgetMonthLabel,
       currentBudget = currentBudget,
       currencySymbol = userProfile.currencySymbol,
-      onDismiss = { showSetBudgetSheet = false },
+      onDismiss = {
+        showSetBudgetSheet = false
+        targetBudgetMonthKey = null
+        targetBudgetMonthLabel = null
+      },
       onSave = { key, totalLimit, catLimits ->
         viewModel.saveMonthlyBudget(key, totalLimit, catLimits)
       }
@@ -553,7 +562,11 @@ fun MainAppScreen(
                 prefilledTxType = prefilledType
                 showAddEditTransactionSheet = true
               },
-              onOpenSetBudget = { showSetBudgetSheet = true }
+              onOpenSetBudget = {
+                targetBudgetMonthKey = DateUtils.getMonthKey(dashboardCalendar)
+                targetBudgetMonthLabel = DateUtils.getMonthLabel(dashboardCalendar)
+                showSetBudgetSheet = true
+              }
             )
             1 -> CalendarScreen(
               viewModel = viewModel,
@@ -577,7 +590,11 @@ fun MainAppScreen(
             )
             3 -> BudgetScreen(
               viewModel = viewModel,
-              onOpenSetBudget = { showSetBudgetSheet = true }
+              onOpenSetBudget = {
+                targetBudgetMonthKey = DateUtils.getMonthKey(budgetCalendar)
+                targetBudgetMonthLabel = DateUtils.getMonthLabel(budgetCalendar)
+                showSetBudgetSheet = true
+              }
             )
             4 -> RecurringScreen(
               viewModel = viewModel,

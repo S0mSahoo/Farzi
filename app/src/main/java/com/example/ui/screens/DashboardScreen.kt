@@ -82,11 +82,11 @@ fun DashboardScreen(
   onOpenSetBudget: () -> Unit
 ) {
   val userProfile by viewModel.userProfile.collectAsState()
-  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
-  val monthlySummary by viewModel.currentMonthSummary.collectAsState()
-  val yearlySummary by viewModel.currentYearSummary.collectAsState()
-  val categorySpending by viewModel.categorySpendingList.collectAsState()
-  val dailyPoints by viewModel.dailySpendingTrend.collectAsState()
+  val selectedCalendar by viewModel.dashboardCalendar.collectAsState()
+  val monthlySummary by viewModel.dashboardMonthSummary.collectAsState()
+  val yearlySummary by viewModel.dashboardYearSummary.collectAsState()
+  val categorySpending by viewModel.dashboardCategorySpending.collectAsState()
+  val dailyPoints by viewModel.dashboardDailyTrend.collectAsState()
 
   var isAnnualView by remember { mutableStateOf(false) }
   var showMonthPicker by remember { mutableStateOf(false) }
@@ -106,7 +106,7 @@ fun DashboardScreen(
       currentCalendar = selectedCalendar,
       onDismiss = { showMonthPicker = false },
       onMonthYearSelected = { year, month ->
-        viewModel.setMonthAndYear(year, month)
+        viewModel.setDashboardMonthAndYear(year, month)
       }
     )
   }
@@ -116,7 +116,7 @@ fun DashboardScreen(
       currentYear = currentYear,
       onDismiss = { showYearPicker = false },
       onYearSelected = { year ->
-        viewModel.setYear(year)
+        viewModel.setDashboardYear(year)
       }
     )
   }
@@ -198,7 +198,7 @@ fun DashboardScreen(
         ) {
           IconButton(
             onClick = {
-              if (isAnnualView) viewModel.previousYear() else viewModel.previousMonth()
+              if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth()
             },
             modifier = Modifier.testTag("prev_period_button")
           ) {
@@ -236,7 +236,7 @@ fun DashboardScreen(
 
           IconButton(
             onClick = {
-              if (isAnnualView) viewModel.nextYear() else viewModel.nextMonth()
+              if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth()
             },
             modifier = Modifier.testTag("next_period_button")
           ) {

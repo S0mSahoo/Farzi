@@ -72,10 +72,10 @@ fun CalendarScreen(
   onAddTransactionForDate: (timestamp: Long) -> Unit,
   onEditTransaction: (item: TransactionItem) -> Unit
 ) {
-  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
+  val selectedCalendar by viewModel.calendarMonth.collectAsState()
   val calendarDays by viewModel.calendarDaysData.collectAsState()
-  val selectedDayMillis by viewModel.selectedDayTimestamp.collectAsState()
-  val selectedDayTransactions by viewModel.selectedDateTransactions.collectAsState()
+  val selectedDayMillis by viewModel.calendarSelectedDayMillis.collectAsState()
+  val selectedDayTransactions by viewModel.calendarDateTransactions.collectAsState()
   val userProfile by viewModel.userProfile.collectAsState()
 
   var showDatePicker by remember { mutableStateOf(false) }
@@ -135,7 +135,7 @@ fun CalendarScreen(
           verticalAlignment = Alignment.CenterVertically
         ) {
           IconButton(
-            onClick = { viewModel.previousMonth() },
+            onClick = { viewModel.previousCalendarMonth() },
             modifier = Modifier.testTag("cal_prev_month_btn")
           ) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
@@ -165,7 +165,7 @@ fun CalendarScreen(
           }
 
           IconButton(
-            onClick = { viewModel.nextMonth() },
+            onClick = { viewModel.nextCalendarMonth() },
             modifier = Modifier.testTag("cal_next_month_btn")
           ) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")

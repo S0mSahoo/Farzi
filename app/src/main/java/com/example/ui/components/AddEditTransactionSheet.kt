@@ -7,6 +7,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -224,7 +225,10 @@ fun AddEditTransactionSheet(
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(10.dp))
-              .clickable { transactionType = TransactionType.EXPENSE }
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { transactionType = TransactionType.EXPENSE }
               .testTag("type_toggle_expense"),
             contentAlignment = Alignment.Center
           ) {
@@ -242,7 +246,10 @@ fun AddEditTransactionSheet(
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(10.dp))
-              .clickable { transactionType = TransactionType.INCOME }
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { transactionType = TransactionType.INCOME }
               .testTag("type_toggle_income"),
             contentAlignment = Alignment.Center
           ) {

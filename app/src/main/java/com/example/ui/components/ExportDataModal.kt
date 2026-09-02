@@ -99,7 +99,7 @@ fun ExportDataModal(
 ) {
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
-  val selectedCal by viewModel.selectedCalendar.collectAsState()
+  val exportCal = remember { Calendar.getInstance() }
 
   var selectedTab by remember { mutableIntStateOf(0) } // 0: PDF Report, 1: JSON Portability
   var selectedPeriod by remember { mutableStateOf(ExportPeriod.CURRENT_MONTH) }
@@ -107,8 +107,8 @@ fun ExportDataModal(
   var isValidatingImport by remember { mutableStateOf(false) }
 
   // Custom date range state
-  var customStartDateMillis by remember { mutableStateOf(DateUtils.getStartOfMonth(selectedCal)) }
-  var customEndDateMillis by remember { mutableStateOf(DateUtils.getEndOfMonth(selectedCal)) }
+  var customStartDateMillis by remember { mutableStateOf(DateUtils.getStartOfMonth(exportCal)) }
+  var customEndDateMillis by remember { mutableStateOf(DateUtils.getEndOfMonth(exportCal)) }
 
   var showStartDatePicker by remember { mutableStateOf(false) }
   var showEndDatePicker by remember { mutableStateOf(false) }
@@ -367,8 +367,8 @@ fun ExportDataModal(
         // Period Selection Options
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
           val periods = listOf(
-            Triple(ExportPeriod.CURRENT_MONTH, "Selected Month (${monthFormat.format(selectedCal.time)})", Icons.Default.CalendarMonth),
-            Triple(ExportPeriod.SELECTED_YEAR, "Selected Year (${selectedCal.get(Calendar.YEAR)})", Icons.Default.CalendarToday),
+            Triple(ExportPeriod.CURRENT_MONTH, "Selected Month (${monthFormat.format(exportCal.time)})", Icons.Default.CalendarMonth),
+            Triple(ExportPeriod.SELECTED_YEAR, "Selected Year (${exportCal.get(Calendar.YEAR)})", Icons.Default.CalendarToday),
             Triple(ExportPeriod.CUSTOM_RANGE, "Custom Date Range", Icons.Default.DateRange),
             Triple(ExportPeriod.ALL_TIME, "All Time Records (Lifetime)", Icons.Default.History)
           )

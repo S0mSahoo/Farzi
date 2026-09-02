@@ -7,6 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -213,7 +214,10 @@ fun AddEditRecurringSheet(
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(12.dp))
-              .clickable { ruleType = TransactionType.EXPENSE }
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { ruleType = TransactionType.EXPENSE }
               .testTag("recurring_type_expense"),
             contentAlignment = Alignment.Center
           ) {
@@ -230,7 +234,10 @@ fun AddEditRecurringSheet(
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(12.dp))
-              .clickable { ruleType = TransactionType.INCOME }
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { ruleType = TransactionType.INCOME }
               .testTag("recurring_type_income"),
             contentAlignment = Alignment.Center
           ) {

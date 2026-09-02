@@ -212,18 +212,39 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  // Selected Month & Year for Dashboard & Analysis
-  private val _selectedCalendar = MutableStateFlow(Calendar.getInstance().apply {
+  // 1. Dashboard Scoped Date State
+  private val _dashboardCalendar = MutableStateFlow(Calendar.getInstance().apply {
     set(Calendar.HOUR_OF_DAY, 12)
     set(Calendar.MINUTE, 0)
     set(Calendar.SECOND, 0)
     set(Calendar.MILLISECOND, 0)
   })
-  val selectedCalendar: StateFlow<Calendar> = _selectedCalendar.asStateFlow()
+  val dashboardCalendar: StateFlow<Calendar> = _dashboardCalendar.asStateFlow()
 
-  // Selected Day in Calendar Screen
-  private val _selectedDayTimestamp = MutableStateFlow(System.currentTimeMillis())
-  val selectedDayTimestamp: StateFlow<Long> = _selectedDayTimestamp.asStateFlow()
+  // 2. Calendar Screen Scoped Date State
+  private val _calendarMonth = MutableStateFlow(Calendar.getInstance().apply {
+    set(Calendar.HOUR_OF_DAY, 12)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+  })
+  val calendarMonth: StateFlow<Calendar> = _calendarMonth.asStateFlow()
+
+  private val _calendarSelectedDayMillis = MutableStateFlow(System.currentTimeMillis())
+  val calendarSelectedDayMillis: StateFlow<Long> = _calendarSelectedDayMillis.asStateFlow()
+
+  // 3. Budget Screen Scoped Date State
+  private val _budgetCalendar = MutableStateFlow(Calendar.getInstance().apply {
+    set(Calendar.HOUR_OF_DAY, 12)
+    set(Calendar.MINUTE, 0)
+    set(Calendar.SECOND, 0)
+    set(Calendar.MILLISECOND, 0)
+  })
+  val budgetCalendar: StateFlow<Calendar> = _budgetCalendar.asStateFlow()
+
+  // Backward compatibility alias for global observers
+  val selectedCalendar: StateFlow<Calendar> = _dashboardCalendar.asStateFlow()
+  val selectedDayTimestamp: StateFlow<Long> = _calendarSelectedDayMillis.asStateFlow()
 
   // Search & Filter in Transactions Screen
   private val _searchQuery = MutableStateFlow("")
@@ -260,11 +281,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  // Current Month Summary: Income, Expenses, Savings, Budget
-  val currentMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+  // ----------------- 1. Dashboard Flows (Scoped to _dashboardCalendar) -----------------
+
+  val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
     allTransactions,
     allBudgets,
-    _selectedCalendar
+    _dashboardCalendar
   ) { transactions, budgets, cal ->
     val monthKey = DateUtils.getMonthKey(cal)
     val monthLabel = DateUtils.getMonthLabel(cal)
@@ -304,10 +326,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     )
   )
 
-  // Current Year Summary
-  val currentYearSummary: StateFlow<YearlyFinancialSummary> = combine(
+  val dashboardYearSummary: StateFlow<YearlyFinancialSummary> = combine(
     allTransactions,
-    _selectedCalendar
+    _dashboardCalendar
   ) { transactions, cal ->
     val year = cal.get(Calendar.YEAR)
     val startOfYear = DateUtils.getStartOfYear(year)
@@ -319,7 +340,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val savings = totalIncome - totalExpense
     val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
 
-    // Monthly breakdown
     val monthlyList = (0..11).map { monthIdx ->
       val monthCal = Calendar.getInstance().apply {
         set(year, monthIdx, 1, 0, 0, 0)
@@ -354,10 +374,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = YearlyFinancialSummary(year = Calendar.getInstance().get(Calendar.YEAR))
   )
 
-  // Category-wise Spending in Selected Month
-  val categorySpendingList: StateFlow<List<CategorySpending>> = combine(
+  val dashboardCategorySpending: StateFlow<List<CategorySpending>> = combine(
     allTransactions,
-    _selectedCalendar
+    _dashboardCalendar
   ) { transactions, cal ->
     val startOfMonth = DateUtils.getStartOfMonth(cal)
     val endOfMonth = DateUtils.getEndOfMonth(cal)
@@ -385,10 +404,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  // Daily Spending Trend in Selected Month
-  val dailySpendingTrend: StateFlow<List<DailySpendingPoint>> = combine(
+  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = combine(
     allTransactions,
-    _selectedCalendar
+    _dashboardCalendar
   ) { transactions, cal ->
     val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     val year = cal.get(Calendar.YEAR)
@@ -424,10 +442,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  // Calendar Grid Data for Calendar Screen
+  // ----------------- 2. Calendar Screen Flows (Scoped to _calendarMonth & _calendarSelectedDayMillis) -----------------
+
   val calendarDaysData: StateFlow<List<CalendarDayData>> = combine(
     allTransactions,
-    _selectedCalendar
+    _calendarMonth
   ) { transactions, cal ->
     val year = cal.get(Calendar.YEAR)
     val month = cal.get(Calendar.MONTH)
@@ -437,7 +456,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       set(year, month, 1, 0, 0, 0)
       set(Calendar.MILLISECOND, 0)
     }
-    // Sunday = 1, Monday = 2, etc. Offset for grid alignment
     val firstDayOfWeek = firstDayCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 7=Sat
     val leadDays = firstDayOfWeek - 1
 
@@ -533,10 +551,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  // Transactions on the specifically selected calendar date
-  val selectedDateTransactions: StateFlow<List<TransactionItem>> = combine(
+  val calendarDateTransactions: StateFlow<List<TransactionItem>> = combine(
     allTransactions,
-    _selectedDayTimestamp
+    _calendarSelectedDayMillis
   ) { transactions, dayMillis ->
     val start = DateUtils.getStartOfDay(dayMillis)
     val end = DateUtils.getEndOfDay(dayMillis)
@@ -546,6 +563,58 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
   )
+
+  // ----------------- 3. Budget Screen Flows (Scoped to _budgetCalendar) -----------------
+
+  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+    allTransactions,
+    allBudgets,
+    _budgetCalendar
+  ) { transactions, budgets, cal ->
+    val monthKey = DateUtils.getMonthKey(cal)
+    val monthLabel = DateUtils.getMonthLabel(cal)
+    val startOfMonth = DateUtils.getStartOfMonth(cal)
+    val endOfMonth = DateUtils.getEndOfMonth(cal)
+
+    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
+    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+    val savings = totalIncome - totalExpense
+    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
+
+    val budgetObj = budgets.find { it.monthKey == monthKey }
+    val budgetLimit = budgetObj?.totalBudget ?: 0.0
+    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
+    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
+
+    MonthlyFinancialSummary(
+      monthKey = monthKey,
+      monthLabel = monthLabel,
+      totalIncome = totalIncome,
+      totalExpense = totalExpense,
+      savings = savings,
+      savingsRate = savingsRate,
+      budgetLimit = budgetLimit,
+      budgetUsed = totalExpense,
+      budgetRemaining = budgetRemaining,
+      budgetUsagePercent = budgetUsagePercent,
+      transactionCount = monthTransactions.size
+    )
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = MonthlyFinancialSummary(
+      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
+      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
+    )
+  )
+
+  // Aliases for compatibility
+  val currentMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
+  val currentYearSummary: StateFlow<YearlyFinancialSummary> = dashboardYearSummary
+  val categorySpendingList: StateFlow<List<CategorySpending>> = dashboardCategorySpending
+  val dailySpendingTrend: StateFlow<List<DailySpendingPoint>> = dashboardDailyTrend
+  val selectedDateTransactions: StateFlow<List<TransactionItem>> = calendarDateTransactions
 
   // Filtered Transactions for Transactions Screen
   val filteredTransactions: StateFlow<List<TransactionItem>> = combine(
@@ -577,54 +646,115 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Navigation & Period =================
 
-  fun previousMonth() {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  // --- Dashboard Navigation ---
+  fun previousDashboardMonth() {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       add(Calendar.MONTH, -1)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
   }
 
-  fun nextMonth() {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  fun nextDashboardMonth() {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       add(Calendar.MONTH, 1)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
   }
 
-  fun previousYear() {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  fun previousDashboardYear() {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       add(Calendar.YEAR, -1)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
   }
 
-  fun nextYear() {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  fun nextDashboardYear() {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       add(Calendar.YEAR, 1)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
   }
 
-  fun setYear(year: Int) {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  fun setDashboardYear(year: Int) {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       set(Calendar.YEAR, year)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
   }
 
-  fun setMonthAndYear(year: Int, month: Int) {
-    val cal = (_selectedCalendar.value.clone() as Calendar).apply {
+  fun setDashboardMonthAndYear(year: Int, month: Int) {
+    val cal = (_dashboardCalendar.value.clone() as Calendar).apply {
       set(Calendar.YEAR, year)
       set(Calendar.MONTH, month)
     }
-    _selectedCalendar.value = cal
+    _dashboardCalendar.value = cal
+  }
+
+  // --- Calendar Screen Navigation ---
+  fun previousCalendarMonth() {
+    val cal = (_calendarMonth.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, -1)
+    }
+    _calendarMonth.value = cal
+  }
+
+  fun nextCalendarMonth() {
+    val cal = (_calendarMonth.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, 1)
+    }
+    _calendarMonth.value = cal
+  }
+
+  fun setCalendarMonthAndYear(year: Int, month: Int) {
+    val cal = (_calendarMonth.value.clone() as Calendar).apply {
+      set(Calendar.YEAR, year)
+      set(Calendar.MONTH, month)
+    }
+    _calendarMonth.value = cal
   }
 
   fun selectCalendarDate(timestamp: Long) {
-    _selectedDayTimestamp.value = timestamp
-    val cal = Calendar.getInstance().apply { timeInMillis = timestamp }
-    _selectedCalendar.value = cal
+    _calendarSelectedDayMillis.value = timestamp
+    val cal = Calendar.getInstance().apply {
+      timeInMillis = timestamp
+      set(Calendar.HOUR_OF_DAY, 12)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    _calendarMonth.value = cal
   }
+
+  // --- Budget Screen Navigation ---
+  fun previousBudgetMonth() {
+    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, -1)
+    }
+    _budgetCalendar.value = cal
+  }
+
+  fun nextBudgetMonth() {
+    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
+      add(Calendar.MONTH, 1)
+    }
+    _budgetCalendar.value = cal
+  }
+
+  fun setBudgetMonthAndYear(year: Int, month: Int) {
+    val cal = (_budgetCalendar.value.clone() as Calendar).apply {
+      set(Calendar.YEAR, year)
+      set(Calendar.MONTH, month)
+    }
+    _budgetCalendar.value = cal
+  }
+
+  // --- Aliases for Legacy / General Navigation ---
+  fun previousMonth() = previousDashboardMonth()
+  fun nextMonth() = nextDashboardMonth()
+  fun previousYear() = previousDashboardYear()
+  fun nextYear() = nextDashboardYear()
+  fun setYear(year: Int) = setDashboardYear(year)
+  fun setMonthAndYear(year: Int, month: Int) = setDashboardMonthAndYear(year, month)
 
   // ================= Filters =================
 
@@ -810,7 +940,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   ) {
     viewModelScope.launch {
       try {
-        val file = repository.exportToPdf(period, _selectedCalendar.value, customStart, customEnd)
+        val file = repository.exportToPdf(period, _dashboardCalendar.value, customStart, customEnd)
 
         val uri: Uri = FileProvider.getUriForFile(
           context,

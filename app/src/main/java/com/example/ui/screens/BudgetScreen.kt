@@ -70,10 +70,10 @@ fun BudgetScreen(
   viewModel: FinanceViewModel,
   onOpenSetBudget: () -> Unit
 ) {
-  val selectedCalendar by viewModel.selectedCalendar.collectAsState()
+  val selectedCalendar by viewModel.budgetCalendar.collectAsState()
   val allBudgets by viewModel.allBudgets.collectAsState()
   val allTransactions by viewModel.allTransactions.collectAsState()
-  val monthlySummary by viewModel.currentMonthSummary.collectAsState()
+  val monthlySummary by viewModel.budgetMonthSummary.collectAsState()
   val userProfile by viewModel.userProfile.collectAsState()
 
   var showMonthPicker by remember { mutableStateOf(false) }
@@ -100,7 +100,7 @@ fun BudgetScreen(
       currentCalendar = selectedCalendar,
       onDismiss = { showMonthPicker = false },
       onMonthYearSelected = { year, month ->
-        viewModel.setMonthAndYear(year, month)
+        viewModel.setBudgetMonthAndYear(year, month)
       }
     )
   }
@@ -141,7 +141,7 @@ fun BudgetScreen(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          IconButton(onClick = { viewModel.previousMonth() }) {
+          IconButton(onClick = { viewModel.previousBudgetMonth() }) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Month")
           }
 
@@ -164,7 +164,7 @@ fun BudgetScreen(
             }
           }
 
-          IconButton(onClick = { viewModel.nextMonth() }) {
+          IconButton(onClick = { viewModel.nextBudgetMonth() }) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Next Month")
           }
         }
