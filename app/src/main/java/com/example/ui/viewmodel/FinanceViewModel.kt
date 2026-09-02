@@ -7,6 +7,7 @@ import android.net.Uri
 import androidx.core.content.FileProvider
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.drive.ConsentRequiredException
 import com.example.data.drive.GoogleDriveBackupService
 import com.example.data.drive.GoogleDriveState
 import com.example.data.model.BudgetModel
@@ -25,6 +26,9 @@ import com.example.data.model.UserProfile
 import com.example.data.model.YearlyFinancialSummary
 import com.example.data.repository.FinanceRepository
 import com.example.ui.components.DateUtils
+import com.example.util.JsonPortabilityManager
+import com.example.util.JsonValidationResult
+import com.example.util.PaisaJsonBackup
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,8 +47,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private val _googleDriveState = MutableStateFlow<GoogleDriveState>(GoogleDriveState.NotConnected)
   val googleDriveState: StateFlow<GoogleDriveState> = _googleDriveState.asStateFlow()
 
+  // Cloud Sync Status Flows
+  private val _isSyncing = MutableStateFlow(false)
+  val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+
+  private val _lastSyncTimestamp = MutableStateFlow<Long?>(driveService.getLastBackupTimestamp())
+  val lastSyncTimestamp: StateFlow<Long?> = _lastSyncTimestamp.asStateFlow()
+
+  private val _syncErrorMessage = MutableStateFlow<String?>(null)
+  val syncErrorMessage: StateFlow<String?> = _syncErrorMessage.asStateFlow()
+
+  private val _driveConsentIntent = MutableStateFlow<Intent?>(null)
+  val driveConsentIntent: StateFlow<Intent?> = _driveConsentIntent.asStateFlow()
+
+  fun clearConsentIntent() {
+    _driveConsentIntent.value = null
+  }
+
   init {
     initGoogleDriveState()
+    checkAndAutoSync()
   }
 
   private fun initGoogleDriveState() {
@@ -57,6 +79,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         email = account.email ?: savedEmail ?: "Connected",
         lastBackupTimestampMillis = lastBackup
       )
+      val currentProfile = repository.getUserProfile()
+      if (currentProfile.email.isBlank() || currentProfile.googleId == null) {
+        val updated = currentProfile.copy(
+          name = account.displayName ?: currentProfile.name.ifBlank { "User" },
+          email = account.email ?: "",
+          photoUrl = account.photoUrl?.toString(),
+          googleId = account.id,
+          hasCompletedOnboarding = true
+        )
+        _userProfile.value = updated
+        repository.saveUserProfile(updated)
+      }
     } else if (!savedEmail.isNullOrBlank()) {
       _googleDriveState.value = GoogleDriveState.Connected(
         email = savedEmail,
@@ -64,6 +98,117 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       )
     } else {
       _googleDriveState.value = GoogleDriveState.NotConnected
+    }
+  }
+
+  private var lastAutoSyncCheckTime = 0L
+
+  private fun checkAndAutoSync() {
+    triggerAutoSyncOnResume(force = true)
+  }
+
+  /**
+   * Automatically synchronizes with Google Drive on app open or when returning to foreground.
+   * Throttled to avoid excessive calls within 30 seconds.
+   */
+  fun triggerAutoSyncOnResume(force: Boolean = false) {
+    val now = System.currentTimeMillis()
+    if (!force && (now - lastAutoSyncCheckTime < 30_000L)) {
+      return
+    }
+    lastAutoSyncCheckTime = now
+
+    viewModelScope.launch {
+      val account = driveService.getLastSignedInAccount()
+      if (account != null && account.email != null) {
+        pullFromDriveAndMerge(account)
+        repository.processDueRecurringRules()
+      }
+    }
+  }
+
+  /**
+   * Persists the current local state to Google Drive automatically in background.
+   */
+  fun syncCurrentStateToDrive() {
+    viewModelScope.launch {
+      val account = driveService.getLastSignedInAccount() ?: return@launch
+      _isSyncing.value = true
+      _syncErrorMessage.value = null
+      try {
+        val (txs, bgs, rcs) = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "3.0.0",
+          exportTimestamp = System.currentTimeMillis(),
+          userProfile = _userProfile.value,
+          transactions = txs,
+          budgets = bgs,
+          recurringRules = rcs
+        )
+        val ts = driveService.saveCloudData(account, payload)
+        _lastSyncTimestamp.value = ts
+        _googleDriveState.value = GoogleDriveState.BackupSuccess(
+          email = account.email ?: "Google Drive",
+          timestampMillis = ts
+        )
+      } catch (e: Exception) {
+        _syncErrorMessage.value = "Offline: Changes saved locally and will sync when reconnected."
+      } finally {
+        _isSyncing.value = false
+      }
+    }
+  }
+
+  private suspend fun pullFromDriveAndMerge(account: GoogleSignInAccount): Boolean {
+    _isSyncing.value = true
+    _syncErrorMessage.value = null
+    return try {
+      val cloudPayload = driveService.fetchCloudData(account)
+      _driveConsentIntent.value = null
+      if (cloudPayload != null) {
+        // Cloud has existing authoritative data
+        repository.replaceCacheWithCloudData(
+          transactions = cloudPayload.transactions,
+          budgets = cloudPayload.budgets,
+          recurringRules = cloudPayload.recurringRules
+        )
+        _lastSyncTimestamp.value = cloudPayload.exportTimestamp
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Drive",
+          lastBackupTimestampMillis = cloudPayload.exportTimestamp
+        )
+      } else {
+        // Cloud has no data yet: migrate existing local database data to Drive
+        val (txs, bgs, rcs) = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "3.0.0",
+          exportTimestamp = System.currentTimeMillis(),
+          userProfile = _userProfile.value,
+          transactions = txs,
+          budgets = bgs,
+          recurringRules = rcs
+        )
+        val ts = driveService.saveCloudData(account, payload)
+        _lastSyncTimestamp.value = ts
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email ?: "Google Drive",
+          lastBackupTimestampMillis = ts
+        )
+      }
+      true
+    } catch (e: ConsentRequiredException) {
+      _driveConsentIntent.value = e.consentIntent
+      _syncErrorMessage.value = "Google Drive access requires permission. Tap 'Grant Permission' below."
+      _googleDriveState.value = GoogleDriveState.BackupFailed(
+        email = account.email,
+        errorMessage = "Permission required"
+      )
+      false
+    } catch (e: Exception) {
+      _syncErrorMessage.value = e.localizedMessage ?: "Failed to sync with Google Drive"
+      false
+    } finally {
+      _isSyncing.value = false
     }
   }
 
@@ -495,7 +640,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _filterCategory.value = category
   }
 
-  // ================= User Profile & Onboarding =================
+  // ================= User Profile =================
 
   fun completeOnboarding(name: String) {
     val updated = _userProfile.value.copy(
@@ -504,12 +649,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     )
     _userProfile.value = updated
     repository.saveUserProfile(updated)
-  }
-
-  fun updateUserName(name: String) {
-    val updated = _userProfile.value.copy(name = name.trim())
-    _userProfile.value = updated
-    repository.saveUserProfile(updated)
+    syncCurrentStateToDrive()
   }
 
   // ================= Transaction Operations =================
@@ -538,24 +678,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         recurringRuleId = recurringRuleId
       )
       repository.insertTransaction(item)
+      syncCurrentStateToDrive()
     }
   }
 
   fun updateTransaction(item: TransactionItem) {
     viewModelScope.launch {
       repository.updateTransaction(item)
+      syncCurrentStateToDrive()
     }
   }
 
   fun deleteTransaction(item: TransactionItem) {
     viewModelScope.launch {
       repository.deleteTransaction(item)
+      syncCurrentStateToDrive()
     }
   }
 
   fun deleteTransactionById(id: Long) {
     viewModelScope.launch {
       repository.deleteTransactionById(id)
+      syncCurrentStateToDrive()
     }
   }
 
@@ -576,12 +720,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         updatedAt = System.currentTimeMillis()
       )
       repository.saveBudget(budget)
+      syncCurrentStateToDrive()
     }
   }
 
   fun deleteBudget(monthKey: String) {
     viewModelScope.launch {
       repository.deleteBudgetForMonth(monthKey)
+      syncCurrentStateToDrive()
     }
   }
 
@@ -613,8 +759,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         isActive = true
       )
       repository.insertRecurringRule(rule)
-      // Automatically process and generate first occurrence if needed
       repository.processDueRecurringRules()
+      syncCurrentStateToDrive()
     }
   }
 
@@ -622,6 +768,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       repository.updateRecurringRule(rule)
       repository.processDueRecurringRules()
+      syncCurrentStateToDrive()
     }
   }
 
@@ -631,18 +778,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       if (isActive) {
         repository.processDueRecurringRules()
       }
+      syncCurrentStateToDrive()
     }
   }
 
   fun deleteRecurringRule(id: Long) {
     viewModelScope.launch {
       repository.deleteRecurringRule(id)
+      syncCurrentStateToDrive()
     }
   }
 
   fun processRecurringRules() {
     viewModelScope.launch {
-      repository.processDueRecurringRules()
+      val generated = repository.processDueRecurringRules()
+      if (generated > 0) {
+        syncCurrentStateToDrive()
+      }
     }
   }
 
@@ -685,29 +837,142 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  /**
+   * Generates a complete machine-readable Paisa JSON backup file and opens the Android native Share flow.
+   */
+  fun exportJson(
+    context: Context,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    viewModelScope.launch {
+      try {
+        val (txs, bgs, rcs) = repository.getAllLocalData()
+        val file = JsonPortabilityManager.exportToJsonFile(
+          context = context,
+          profile = _userProfile.value,
+          transactions = txs,
+          budgets = bgs,
+          recurringRules = rcs
+        )
+        val shareIntent = JsonPortabilityManager.createShareIntent(context, file)
+        val chooser = Intent.createChooser(shareIntent, "Share or Save Paisa JSON Backup")
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        context.startActivity(chooser)
+        onSuccess("JSON Backup created: ${file.name}")
+      } catch (e: Exception) {
+        e.printStackTrace()
+        onError(e.localizedMessage ?: "Failed to export JSON data")
+      }
+    }
+  }
+
+  /**
+   * Validates a selected JSON file for proper Paisa schema and valid records.
+   */
+  suspend fun validateImportFile(
+    context: Context,
+    uri: Uri
+  ): JsonValidationResult {
+    return JsonPortabilityManager.validateImportFile(context, uri)
+  }
+
+  /**
+   * Idempotently merges imported backup records, replaces local Room cache, and pushes to Google Drive.
+   */
+  fun confirmAndApplyImport(
+    backup: PaisaJsonBackup,
+    onSuccess: (String) -> Unit,
+    onError: (String) -> Unit
+  ) {
+    viewModelScope.launch {
+      try {
+        val (currentTxs, currentBgs, currentRcs) = repository.getAllLocalData()
+        val (mergedTxs, mergedBgs, mergedRcs) = JsonPortabilityManager.mergeData(
+          currentTransactions = currentTxs,
+          currentBudgets = currentBgs,
+          currentRecurringRules = currentRcs,
+          importBackup = backup
+        )
+
+        // 1. Atomically update local Room tables
+        repository.replaceCacheWithCloudData(
+          transactions = mergedTxs,
+          budgets = mergedBgs,
+          recurringRules = mergedRcs
+        )
+        repository.processDueRecurringRules()
+
+        // 2. Persist merged data to Google Drive
+        val account = driveService.getLastSignedInAccount()
+        if (account != null && account.email != null) {
+          val payload = com.example.data.drive.BackupPayload(
+            version = "3.0.0",
+            exportTimestamp = System.currentTimeMillis(),
+            userProfile = _userProfile.value,
+            transactions = mergedTxs,
+            budgets = mergedBgs,
+            recurringRules = mergedRcs
+          )
+          val ts = driveService.saveCloudData(account, payload)
+          _lastSyncTimestamp.value = ts
+          _googleDriveState.value = GoogleDriveState.BackupSuccess(
+            email = account.email ?: "Google Drive",
+            timestampMillis = ts
+          )
+        }
+        onSuccess("Successfully imported ${backup.transactions.size} transactions and synced with Cloud.")
+      } catch (e: Exception) {
+        e.printStackTrace()
+        onError(e.localizedMessage ?: "Failed to apply JSON import.")
+      }
+    }
+  }
+
   fun clearAllData(onComplete: () -> Unit) {
     viewModelScope.launch {
       repository.clearAllTransactions()
+      syncCurrentStateToDrive()
       onComplete()
     }
   }
 
-  // ================= Google Drive Actions =================
+  // ================= Google Sign-In & Drive Sync Actions =================
 
   fun getDriveSignInIntent(): Intent = driveService.getSignInIntent()
 
-  fun startDriveConnecting() {
-    _googleDriveState.value = GoogleDriveState.Connecting
-  }
+  fun onGoogleSignInSuccess(
+    account: GoogleSignInAccount,
+    onResult: ((Boolean, String?) -> Unit)? = null
+  ) {
+    val email = account.email ?: ""
+    val name = account.displayName ?: email.substringBefore("@").ifBlank { "User" }
+    val photo = account.photoUrl?.toString()
+    val id = account.id
 
-  fun onDriveSignInSuccess(account: GoogleSignInAccount) {
-    val email = account.email ?: "Google Drive"
-    driveService.saveConnectedEmail(email)
-    val lastBackup = driveService.getLastBackupTimestamp()
-    _googleDriveState.value = GoogleDriveState.Connected(
+    val profile = UserProfile(
+      name = name,
       email = email,
-      lastBackupTimestampMillis = lastBackup
+      photoUrl = photo,
+      googleId = id,
+      hasCompletedOnboarding = true
     )
+    _userProfile.value = profile
+    repository.saveUserProfile(profile)
+
+    driveService.saveConnectedEmail(email)
+
+    viewModelScope.launch {
+      _isSyncing.value = true
+      _googleDriveState.value = GoogleDriveState.Connecting
+      val success = pullFromDriveAndMerge(account)
+      repository.processDueRecurringRules()
+      if (success) {
+        onResult?.invoke(true, null)
+      } else {
+        onResult?.invoke(false, _syncErrorMessage.value)
+      }
+    }
   }
 
   fun onDriveSignInFailure(errorMessage: String) {
@@ -716,49 +981,59 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       email = savedEmail,
       errorMessage = errorMessage
     )
+    _syncErrorMessage.value = errorMessage
   }
 
-  fun performDriveBackup(onSuccessMessage: (String) -> Unit, onErrorMessage: (String) -> Unit) {
+  fun syncNow(onSuccessMessage: (String) -> Unit, onErrorMessage: (String) -> Unit) {
     viewModelScope.launch {
       val account = driveService.getLastSignedInAccount()
-      val savedEmail = driveService.getSavedEmail()
-
       if (account == null) {
-        onErrorMessage("Google Drive is not connected. Please connect your account first.")
-        _googleDriveState.value = GoogleDriveState.NotConnected
+        onErrorMessage("Not signed in to Google Drive")
         return@launch
       }
-
+      _isSyncing.value = true
       _googleDriveState.value = GoogleDriveState.BackingUp
-      try {
-        val timestamp = driveService.performBackup(
-          account = account,
+      val success = pullFromDriveAndMerge(account)
+      if (success) {
+        val (txs, bgs, rcs) = repository.getAllLocalData()
+        val payload = com.example.data.drive.BackupPayload(
+          version = "3.0.0",
+          exportTimestamp = System.currentTimeMillis(),
           userProfile = _userProfile.value,
-          transactions = allTransactions.value,
-          budgets = allBudgets.value,
-          recurringRules = allRecurringRules.value
+          transactions = txs,
+          budgets = bgs,
+          recurringRules = rcs
         )
-        _googleDriveState.value = GoogleDriveState.BackupSuccess(
-          email = account.email ?: savedEmail ?: "Google Drive",
-          timestampMillis = timestamp
-        )
-        onSuccessMessage("Successfully backed up financial data to Google Drive")
-      } catch (e: Exception) {
-        e.printStackTrace()
-        val errorMsg = e.localizedMessage ?: "Failed to upload backup to Google Drive"
-        _googleDriveState.value = GoogleDriveState.BackupFailed(
-          email = account.email ?: savedEmail,
-          errorMessage = errorMsg
-        )
-        onErrorMessage(errorMsg)
+        try {
+          val ts = driveService.saveCloudData(account, payload)
+          _lastSyncTimestamp.value = ts
+          _googleDriveState.value = GoogleDriveState.BackupSuccess(
+            email = account.email ?: "Google Drive",
+            timestampMillis = ts
+          )
+          onSuccessMessage("Successfully synchronized with Google Drive")
+        } catch (e: Exception) {
+          val msg = e.localizedMessage ?: "Sync error"
+          _syncErrorMessage.value = msg
+          _googleDriveState.value = GoogleDriveState.BackupFailed(email = account.email, errorMessage = msg)
+          onErrorMessage(msg)
+        }
+      } else {
+        val msg = _syncErrorMessage.value ?: "Failed to connect to Google Drive"
+        onErrorMessage(msg)
       }
+      _isSyncing.value = false
     }
   }
 
-  fun disconnectDrive(onComplete: () -> Unit) {
+  fun signOut(onComplete: () -> Unit) {
     viewModelScope.launch {
       driveService.signOut()
+      repository.clearLocalCache()
+      repository.clearUserProfile()
+      _userProfile.value = UserProfile()
       _googleDriveState.value = GoogleDriveState.NotConnected
+      _lastSyncTimestamp.value = null
       onComplete()
     }
   }

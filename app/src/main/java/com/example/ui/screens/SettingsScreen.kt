@@ -23,17 +23,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudOff
-import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.CloudSync
 import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -46,24 +46,23 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -71,16 +70,17 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.drive.GoogleDriveState
-import com.example.ui.components.AppBrandLogo
 import com.example.ui.components.ConfirmationDialog
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
-import com.example.ui.theme.MinimalIndigo
 import com.example.ui.viewmodel.FinanceViewModel
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.common.api.ApiException
+import com.example.util.JsonValidationResult
+import com.example.util.PaisaJsonBackup
+import com.example.util.ValidationSummary
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -91,69 +91,178 @@ fun SettingsScreen(
   onOpenExportModal: () -> Unit
 ) {
   val context = LocalContext.current
+  val coroutineScope = rememberCoroutineScope()
   val userProfile by viewModel.userProfile.collectAsState()
   val googleDriveState by viewModel.googleDriveState.collectAsState()
+  val isSyncing by viewModel.isSyncing.collectAsState()
+  val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
+  val syncErrorMessage by viewModel.syncErrorMessage.collectAsState()
+  val driveConsentIntent by viewModel.driveConsentIntent.collectAsState()
 
-  var showEditNameDialog by remember { mutableStateOf(false) }
-  var showClearDataDialog by remember { mutableStateOf(false) }
-  var showDisconnectDialog by remember { mutableStateOf(false) }
-  var editedName by remember { mutableStateOf(userProfile.name) }
+  var isExportingJson by remember { mutableStateOf(false) }
+  var isValidatingImport by remember { mutableStateOf(false) }
 
-  // Google Sign-In Activity Result Launcher
-  val driveSignInLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.StartActivityForResult()
-  ) { result ->
-    if (result.resultCode == Activity.RESULT_OK) {
-      val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-      try {
-        val account = task.getResult(ApiException::class.java)
-        if (account != null) {
-          viewModel.onDriveSignInSuccess(account)
-          Toast.makeText(context, "Connected to Google Drive as ${account.email}", Toast.LENGTH_SHORT).show()
-        } else {
-          viewModel.onDriveSignInFailure("Unable to get account from Google Sign-In.")
+  // Import Dialog Confirmation State
+  var pendingBackupToImport by remember { mutableStateOf<PaisaJsonBackup?>(null) }
+  var importValidationSummary by remember { mutableStateOf<ValidationSummary?>(null) }
+  var showImportConfirmDialog by remember { mutableStateOf(false) }
+
+  val jsonPickerLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.GetContent()
+  ) { uri: android.net.Uri? ->
+    if (uri != null) {
+      isValidatingImport = true
+      coroutineScope.launch {
+        when (val result = viewModel.validateImportFile(context, uri)) {
+          is JsonValidationResult.Success -> {
+            isValidatingImport = false
+            pendingBackupToImport = result.backup
+            importValidationSummary = result.summary
+            showImportConfirmDialog = true
+          }
+          is JsonValidationResult.Error -> {
+            isValidatingImport = false
+            Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+          }
         }
-      } catch (e: ApiException) {
-        viewModel.onDriveSignInFailure("Google Sign-In failed (${e.statusCode}): ${e.localizedMessage ?: "Unknown error"}")
       }
-    } else {
-      viewModel.resetDriveStateToConnected()
     }
   }
 
-  // Dialog to Edit Name
-  if (showEditNameDialog) {
+  val consentLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.StartActivityForResult()
+  ) { _ ->
+    viewModel.clearConsentIntent()
+    viewModel.syncNow(
+      onSuccessMessage = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() },
+      onErrorMessage = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+    )
+  }
+
+  var showSignOutDialog by remember { mutableStateOf(false) }
+  var showClearDataDialog by remember { mutableStateOf(false) }
+
+  // Import Confirmation Dialog
+  if (showImportConfirmDialog && importValidationSummary != null && pendingBackupToImport != null) {
+    val summary = importValidationSummary!!
+    val backup = pendingBackupToImport!!
+
     AlertDialog(
-      onDismissRequest = { showEditNameDialog = false },
-      title = { Text("Edit Display Name", fontWeight = FontWeight.Bold) },
-      text = {
-        OutlinedTextField(
-          value = editedName,
-          onValueChange = { editedName = it },
-          placeholder = { Text("Enter your name") },
-          singleLine = true,
-          shape = RoundedCornerShape(12.dp),
-          modifier = Modifier.fillMaxWidth()
+      onDismissRequest = {
+        showImportConfirmDialog = false
+        pendingBackupToImport = null
+        importValidationSummary = null
+      },
+      icon = {
+        Icon(
+          Icons.Default.CloudUpload,
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(32.dp)
         )
+      },
+      title = {
+        Text(
+          text = "Import Paisa Backup?",
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold
+        )
+      },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(
+            text = "Valid backup identified. Existing data will be preserved and merged safely without duplicates.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+
+          Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(
+              modifier = Modifier.padding(12.dp),
+              verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+              Text(
+                text = "• Transactions: ${summary.transactionCount} records",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = "• Budget Plans: ${summary.budgetCount} months",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = "• Recurring Rules: ${summary.recurringCount} rules",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.SemiBold
+              )
+              if (summary.accountName.isNotBlank()) {
+                Text(
+                  text = "• Export Source: ${summary.accountName}",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+            }
+          }
+        }
       },
       confirmButton = {
         Button(
           onClick = {
-            if (editedName.trim().isNotEmpty()) {
-              viewModel.updateUserName(editedName.trim())
-              showEditNameDialog = false
-            }
-          }
+            showImportConfirmDialog = false
+            viewModel.confirmAndApplyImport(
+              backup = backup,
+              onSuccess = { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                pendingBackupToImport = null
+                importValidationSummary = null
+              },
+              onError = { err ->
+                Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                pendingBackupToImport = null
+                importValidationSummary = null
+              }
+            )
+          },
+          shape = RoundedCornerShape(12.dp)
         ) {
-          Text("Save")
+          Text("Merge & Restore")
         }
       },
       dismissButton = {
-        TextButton(onClick = { showEditNameDialog = false }) {
+        OutlinedButton(
+          onClick = {
+            showImportConfirmDialog = false
+            pendingBackupToImport = null
+            importValidationSummary = null
+          },
+          shape = RoundedCornerShape(12.dp)
+        ) {
           Text("Cancel")
         }
+      }
+    )
+  }
+
+  // Sign Out confirmation dialog
+  if (showSignOutDialog) {
+    ConfirmationDialog(
+      title = "Sign Out from Google Account?",
+      message = "Signing out will end your session and clear local device cache. Your financial data is securely preserved on Google Drive and will reload when you sign in again.",
+      confirmButtonText = "Sign Out",
+      confirmButtonColor = ExpenseRed,
+      onConfirm = {
+        viewModel.signOut {
+          Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+        }
+        showSignOutDialog = false
       },
-      shape = RoundedCornerShape(20.dp)
+      onDismiss = { showSignOutDialog = false }
     )
   }
 
@@ -161,7 +270,7 @@ fun SettingsScreen(
   if (showClearDataDialog) {
     ConfirmationDialog(
       title = "Clear All Financial Data?",
-      message = "This will permanently erase all transactions, budgets, and recurring rules from your device.",
+      message = "This will permanently erase all transactions, budgets, and recurring rules from your device and cloud storage.",
       confirmButtonText = "Erase Everything",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
@@ -174,29 +283,12 @@ fun SettingsScreen(
     )
   }
 
-  // Disconnect Drive dialog
-  if (showDisconnectDialog) {
-    ConfirmationDialog(
-      title = "Disconnect Google Drive?",
-      message = "Your local records will remain intact. Cloud backups will stop until you connect again.",
-      confirmButtonText = "Disconnect",
-      confirmButtonColor = ExpenseRed,
-      onConfirm = {
-        viewModel.disconnectDrive {
-          Toast.makeText(context, "Google Drive disconnected", Toast.LENGTH_SHORT).show()
-        }
-        showDisconnectDialog = false
-      },
-      onDismiss = { showDisconnectDialog = false }
-    )
-  }
-
   LazyColumn(
     modifier = Modifier
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("settings_screen"),
-    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
     verticalArrangement = Arrangement.spacedBy(20.dp)
   ) {
     // Header
@@ -210,65 +302,270 @@ fun SettingsScreen(
       )
     }
 
-    // 1. User Profile Section
+    // 1. Google Account Identity Card
     item {
-      SettingsSection(title = "User Profile") {
+      SettingsSection(title = "Google Account") {
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
           modifier = Modifier.fillMaxWidth()
         ) {
-          Column(modifier = Modifier.padding(vertical = 6.dp)) {
-            // Display Name Row
-            SettingsRow(
-              icon = Icons.Default.Person,
-              iconTint = MaterialTheme.colorScheme.primary,
-              iconBg = MaterialTheme.colorScheme.primaryContainer,
-              title = if (userProfile.name.isNotBlank()) userProfile.name else "Self",
-              subtitle = "Display Name",
-              action = {
+          Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+              // Profile Photo / Avatar
+              if (!userProfile.photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                  model = userProfile.photoUrl,
+                  contentDescription = "Google Profile Picture",
+                  contentScale = ContentScale.Crop,
+                  modifier = Modifier
+                    .size(54.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
+              } else {
                 Surface(
                   shape = CircleShape,
-                  color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                  modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable {
-                      editedName = userProfile.name
-                      showEditNameDialog = true
-                    }
+                  color = MaterialTheme.colorScheme.primaryContainer,
+                  modifier = Modifier.size(54.dp)
                 ) {
-                  Box(modifier = Modifier.padding(8.dp), contentAlignment = Alignment.Center) {
-                    Icon(
-                      Icons.Default.Edit,
-                      contentDescription = "Edit Name",
-                      tint = MaterialTheme.colorScheme.primary,
-                      modifier = Modifier.size(18.dp)
+                  Box(contentAlignment = Alignment.Center) {
+                    Text(
+                      text = userProfile.name.take(1).uppercase().ifBlank { "U" },
+                      style = MaterialTheme.typography.titleLarge,
+                      fontWeight = FontWeight.Bold,
+                      color = MaterialTheme.colorScheme.primary
                     )
                   }
                 }
               }
+
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = userProfile.name.ifBlank { "Google User" },
+                  style = MaterialTheme.typography.titleMedium,
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                  text = userProfile.email.ifBlank { "Connected via Google Sign-In" },
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sign Out Button
+            OutlinedButton(
+              onClick = { showSignOutDialog = true },
+              shape = RoundedCornerShape(12.dp),
+              colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = ExpenseRed
+              ),
+              border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.5f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .testTag("google_sign_out_button")
+            ) {
+              Icon(
+                Icons.AutoMirrored.Filled.ExitToApp,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "Sign Out of Account",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+              )
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Google Drive Primary Cloud Storage Card
+    item {
+      SettingsSection(title = "Cloud Synchronization") {
+        Card(
+          shape = RoundedCornerShape(18.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+              ) {
+                Surface(
+                  shape = CircleShape,
+                  color = if (isSyncing) MinimalBlue.copy(alpha = 0.15f) else if (syncErrorMessage != null) ExpenseRed.copy(alpha = 0.15f) else IncomeGreen.copy(alpha = 0.15f),
+                  modifier = Modifier.size(42.dp)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    if (isSyncing) {
+                      CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = MinimalBlue
+                      )
+                    } else if (syncErrorMessage != null) {
+                      Icon(
+                        Icons.Default.CloudOff,
+                        contentDescription = null,
+                        tint = ExpenseRed,
+                        modifier = Modifier.size(22.dp)
+                      )
+                    } else {
+                      Icon(
+                        Icons.Default.CloudDone,
+                        contentDescription = null,
+                        tint = IncomeGreen,
+                        modifier = Modifier.size(22.dp)
+                      )
+                    }
+                  }
+                }
+
+                Column {
+                  Text(
+                    text = "Google Drive Sync",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Text(
+                    text = if (isSyncing) "Syncing cloud records..." else if (syncErrorMessage != null) "Sync Error" else "Synced & Secure",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isSyncing) MinimalBlue else if (syncErrorMessage != null) ExpenseRed else IncomeGreen,
+                    fontWeight = FontWeight.Medium
+                  )
+                }
+              }
+
+              // Status Pill
+              Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isSyncing) MinimalBlue.copy(alpha = 0.12f) else if (syncErrorMessage != null) ExpenseRed.copy(alpha = 0.12f) else IncomeGreen.copy(alpha = 0.12f)
+              ) {
+                Text(
+                  text = if (isSyncing) "SYNCING" else if (syncErrorMessage != null) "OFFLINE" else "ACTIVE",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Black,
+                  color = if (isSyncing) MinimalBlue else if (syncErrorMessage != null) ExpenseRed else IncomeGreen,
+                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+              }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Last Synced details
+            val lastSyncText = formatLastSync(lastSyncTimestamp)
+            Text(
+              text = "Last synced: $lastSyncText",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            HorizontalDivider(
-              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
-              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-            )
+            if (syncErrorMessage != null) {
+              Spacer(modifier = Modifier.height(6.dp))
+              Text(
+                text = syncErrorMessage ?: "",
+                style = MaterialTheme.typography.labelSmall,
+                color = ExpenseRed
+              )
+            }
 
-            // Currency Row
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Sync / Grant Permission Button
+            Button(
+              onClick = {
+                val currentConsent = driveConsentIntent
+                if (currentConsent != null) {
+                  try {
+                    consentLauncher.launch(currentConsent)
+                  } catch (e: Exception) {
+                    consentLauncher.launch(viewModel.getDriveSignInIntent())
+                  }
+                } else {
+                  viewModel.syncNow(
+                    onSuccessMessage = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() },
+                    onErrorMessage = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
+                  )
+                }
+              },
+              enabled = !isSyncing,
+              shape = RoundedCornerShape(12.dp),
+              colors = ButtonDefaults.buttonColors(
+                containerColor = if (driveConsentIntent != null) MinimalBlue else MaterialTheme.colorScheme.primary,
+                contentColor = Color.White
+              ),
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .testTag("sync_now_button")
+            ) {
+              Icon(
+                if (driveConsentIntent != null) Icons.Default.CloudSync else Icons.Default.Sync,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+              )
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = if (driveConsentIntent != null) "Grant Drive Permission" else "Sync Now",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Currency & Preferences Section
+    item {
+      SettingsSection(title = "Regional & Display") {
+        Card(
+          shape = RoundedCornerShape(18.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(vertical = 4.dp)) {
             SettingsRow(
               icon = Icons.Default.Language,
               iconTint = MaterialTheme.colorScheme.primary,
               iconBg = MaterialTheme.colorScheme.primaryContainer,
               title = "${userProfile.currencySymbol} (${userProfile.currencyCode})",
-              subtitle = "Auto-detected from Device Locale",
+              subtitle = "Device Locale Currency",
               action = {
                 Surface(
                   shape = RoundedCornerShape(6.dp),
                   color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
                 ) {
                   Text(
-                    text = "System",
+                    text = "System Default",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -282,258 +579,39 @@ fun SettingsScreen(
       }
     }
 
-    // 2. Cloud Storage Section (Real Google Drive)
-    item {
-      SettingsSection(title = "Cloud Storage") {
-        Card(
-          shape = RoundedCornerShape(18.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Column(modifier = Modifier.padding(18.dp)) {
-            // Google Drive status & header row
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.weight(1f)
-              ) {
-                Surface(
-                  shape = CircleShape,
-                  color = when (googleDriveState) {
-                    is GoogleDriveState.Connected, is GoogleDriveState.BackupSuccess -> IncomeGreen.copy(alpha = 0.15f)
-                    is GoogleDriveState.BackingUp, is GoogleDriveState.Connecting -> MinimalIndigo.copy(alpha = 0.15f)
-                    is GoogleDriveState.BackupFailed -> ExpenseRed.copy(alpha = 0.15f)
-                    else -> MaterialTheme.colorScheme.surfaceVariant
-                  },
-                  modifier = Modifier.size(40.dp)
-                ) {
-                  Box(contentAlignment = Alignment.Center) {
-                    val icon = when (googleDriveState) {
-                      is GoogleDriveState.Connected, is GoogleDriveState.BackupSuccess -> Icons.Default.CloudDone
-                      is GoogleDriveState.BackingUp, is GoogleDriveState.Connecting -> Icons.Default.CloudSync
-                      is GoogleDriveState.BackupFailed -> Icons.Default.ErrorOutline
-                      else -> Icons.Default.CloudQueue
-                    }
-                    val tint = when (googleDriveState) {
-                      is GoogleDriveState.Connected, is GoogleDriveState.BackupSuccess -> IncomeGreen
-                      is GoogleDriveState.BackingUp, is GoogleDriveState.Connecting -> MinimalIndigo
-                      is GoogleDriveState.BackupFailed -> ExpenseRed
-                      else -> MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
-                  }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                  Text(
-                    text = "Google Drive Backup",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                  )
-                  val statusSubtitle = when (val state = googleDriveState) {
-                    is GoogleDriveState.Connected -> "Connected: ${state.email}"
-                    is GoogleDriveState.BackupSuccess -> "Connected: ${state.email}"
-                    is GoogleDriveState.BackingUp -> "Uploading backup to Google Drive..."
-                    is GoogleDriveState.Connecting -> "Authenticating with Google..."
-                    is GoogleDriveState.BackupFailed -> "Backup failed • Retry available"
-                    is GoogleDriveState.NotConnected -> "Optional private cloud backup"
-                  }
-                  Text(
-                    text = statusSubtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                  )
-                }
-              }
-
-              // Status chip or indicator
-              when (googleDriveState) {
-                is GoogleDriveState.BackingUp, is GoogleDriveState.Connecting -> {
-                  CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp, color = MaterialTheme.colorScheme.primary)
-                }
-                is GoogleDriveState.Connected, is GoogleDriveState.BackupSuccess -> {
-                  Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = IncomeGreen.copy(alpha = 0.15f)
-                  ) {
-                    Text(
-                      text = "Connected",
-                      style = MaterialTheme.typography.labelSmall,
-                      fontWeight = FontWeight.Bold,
-                      color = IncomeGreen,
-                      modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                  }
-                }
-                else -> {}
-              }
-            }
-
-            // Backup Timestamp Info
-            val lastBackupTs = when (val state = googleDriveState) {
-              is GoogleDriveState.Connected -> state.lastBackupTimestampMillis
-              is GoogleDriveState.BackupSuccess -> state.timestampMillis
-              else -> viewModel.driveService.getLastBackupTimestamp()
-            }
-
-            if (googleDriveState !is GoogleDriveState.NotConnected && googleDriveState !is GoogleDriveState.Connecting) {
-              Spacer(modifier = Modifier.height(12.dp))
-              Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                Row(
-                  modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                  Text(
-                    text = "Last Successful Backup",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                  )
-                  Text(
-                    text = if (lastBackupTs != null && lastBackupTs > 0L) {
-                      val sdf = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
-                      sdf.format(Date(lastBackupTs))
-                    } else "Never",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                  )
-                }
-              }
-            }
-
-            // Error notice if failed
-            if (googleDriveState is GoogleDriveState.BackupFailed) {
-              val errMsg = (googleDriveState as GoogleDriveState.BackupFailed).errorMessage
-              Spacer(modifier = Modifier.height(10.dp))
-              Surface(
-                shape = RoundedCornerShape(10.dp),
-                color = ExpenseRed.copy(alpha = 0.12f),
-                border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.25f)),
-                modifier = Modifier.fillMaxWidth()
-              ) {
-                Text(
-                  text = errMsg,
-                  style = MaterialTheme.typography.bodySmall,
-                  color = ExpenseRed,
-                  modifier = Modifier.padding(10.dp)
-                )
-              }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Action Buttons
-            when (googleDriveState) {
-              is GoogleDriveState.NotConnected -> {
-                Button(
-                  onClick = {
-                    viewModel.startDriveConnecting()
-                    driveSignInLauncher.launch(viewModel.getDriveSignInIntent())
-                  },
-                  modifier = Modifier.fillMaxWidth(),
-                  shape = RoundedCornerShape(12.dp),
-                  colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                  Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp))
-                  Spacer(modifier = Modifier.width(8.dp))
-                  Text("Connect Google Drive", fontWeight = FontWeight.SemiBold)
-                }
-              }
-              is GoogleDriveState.Connecting -> {
-                OutlinedButton(
-                  onClick = {},
-                  enabled = false,
-                  modifier = Modifier.fillMaxWidth(),
-                  shape = RoundedCornerShape(12.dp)
-                ) {
-                  Text("Authenticating...")
-                }
-              }
-              else -> {
-                Row(
-                  modifier = Modifier.fillMaxWidth(),
-                  horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                  Button(
-                    onClick = {
-                      viewModel.performDriveBackup(
-                        onSuccessMessage = { msg ->
-                          Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                        },
-                        onErrorMessage = { err ->
-                          Toast.makeText(context, err, Toast.LENGTH_LONG).show()
-                        }
-                      )
-                    },
-                    enabled = googleDriveState !is GoogleDriveState.BackingUp,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
-                  ) {
-                    if (googleDriveState is GoogleDriveState.BackingUp) {
-                      CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
-                      Spacer(modifier = Modifier.width(8.dp))
-                      Text("Backing Up...")
-                    } else {
-                      Icon(Icons.Default.Sync, contentDescription = null, modifier = Modifier.size(18.dp))
-                      Spacer(modifier = Modifier.width(8.dp))
-                      Text("Back Up Now", fontWeight = FontWeight.SemiBold)
-                    }
-                  }
-
-                  OutlinedButton(
-                    onClick = { showDisconnectDialog = true },
-                    modifier = Modifier.weight(0.7f),
-                    shape = RoundedCornerShape(12.dp)
-                  ) {
-                    Text("Disconnect", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 3. Data & Reports Section
+    // 4. Data Management & Export Section
     item {
       SettingsSection(title = "Data & Reports") {
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
           modifier = Modifier.fillMaxWidth()
         ) {
-          Column(modifier = Modifier.padding(vertical = 6.dp)) {
-            // Export PDF Row
+          Column(modifier = Modifier.padding(vertical = 4.dp)) {
+            // PDF Export
             SettingsRow(
               icon = Icons.Default.PictureAsPdf,
               iconTint = MaterialTheme.colorScheme.primary,
               iconBg = MaterialTheme.colorScheme.primaryContainer,
               title = "Export PDF Statement",
-              subtitle = "Monthly, Yearly, Custom Range, or All-Time",
-              onClick = { onOpenExportModal() },
+              subtitle = "Generate human-readable financial statements",
               action = {
-                Icon(
-                  Icons.Default.ChevronRight,
-                  contentDescription = null,
-                  tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                  modifier = Modifier.size(20.dp)
-                )
+                Surface(
+                  shape = RoundedCornerShape(8.dp),
+                  color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onOpenExportModal() }
+                ) {
+                  Text(
+                    text = "PDF",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                  )
+                }
               }
             )
 
@@ -542,77 +620,164 @@ fun SettingsScreen(
               color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
             )
 
-            // Erase All Data Row
+            // JSON Backup Export
+            SettingsRow(
+              icon = Icons.Default.Code,
+              iconTint = MinimalBlue,
+              iconBg = MinimalBlue.copy(alpha = 0.15f),
+              title = "Export JSON Backup",
+              subtitle = "Complete machine-readable application data portability",
+              action = {
+                Surface(
+                  shape = RoundedCornerShape(8.dp),
+                  color = MinimalBlue.copy(alpha = 0.12f),
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                      isExportingJson = true
+                      viewModel.exportJson(
+                        context = context,
+                        onSuccess = { msg ->
+                          isExportingJson = false
+                          Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        },
+                        onError = { err ->
+                          isExportingJson = false
+                          Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                        }
+                      )
+                    }
+                ) {
+                  if (isExportingJson) {
+                    CircularProgressIndicator(
+                      modifier = Modifier
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .size(16.dp),
+                      color = MinimalBlue,
+                      strokeWidth = 2.dp
+                    )
+                  } else {
+                    Text(
+                      text = "JSON",
+                      style = MaterialTheme.typography.labelSmall,
+                      fontWeight = FontWeight.Bold,
+                      color = MinimalBlue,
+                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                  }
+                }
+              }
+            )
+
+            HorizontalDivider(
+              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
+              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+
+            // JSON Backup Import
+            SettingsRow(
+              icon = Icons.Default.FileUpload,
+              iconTint = IncomeGreen,
+              iconBg = IncomeGreen.copy(alpha = 0.15f),
+              title = "Import JSON Backup",
+              subtitle = "Validate and merge Paisa data files safely",
+              action = {
+                Surface(
+                  shape = RoundedCornerShape(8.dp),
+                  color = IncomeGreen.copy(alpha = 0.12f),
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable {
+                      try {
+                        jsonPickerLauncher.launch("*/*")
+                      } catch (e: Exception) {
+                        Toast.makeText(context, "Cannot open file picker", Toast.LENGTH_SHORT).show()
+                      }
+                    }
+                ) {
+                  if (isValidatingImport) {
+                    CircularProgressIndicator(
+                      modifier = Modifier
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .size(16.dp),
+                      color = IncomeGreen,
+                      strokeWidth = 2.dp
+                    )
+                  } else {
+                    Text(
+                      text = "Import",
+                      style = MaterialTheme.typography.labelSmall,
+                      fontWeight = FontWeight.Bold,
+                      color = IncomeGreen,
+                      modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    )
+                  }
+                }
+              }
+            )
+
+            HorizontalDivider(
+              modifier = Modifier.padding(horizontal = 18.dp, vertical = 2.dp),
+              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+            )
+
+            // Clear Records
             SettingsRow(
               icon = Icons.Default.DeleteForever,
               iconTint = ExpenseRed,
-              iconBg = ExpenseRed.copy(alpha = 0.12f),
-              title = "Erase All Data",
-              titleColor = ExpenseRed,
-              subtitle = "Permanently delete local database",
-              onClick = { showClearDataDialog = true }
+              iconBg = ExpenseRed.copy(alpha = 0.15f),
+              title = "Clear All Records",
+              subtitle = "Permanently erase local and cloud financial records",
+              action = {
+                Surface(
+                  shape = RoundedCornerShape(8.dp),
+                  color = ExpenseRed.copy(alpha = 0.12f),
+                  modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { showClearDataDialog = true }
+                ) {
+                  Text(
+                    text = "Erase",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = ExpenseRed,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                  )
+                }
+              }
             )
           }
         }
       }
     }
 
-    // 4. Application Information Card
+    // App Version Footer
     item {
-      SettingsSection(title = "Application") {
-        Card(
-          shape = RoundedCornerShape(18.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-          ) {
-            AppBrandLogo(size = 44.dp)
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-              text = "Paisa",
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Text(
-              text = "Version 3.0.0",
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.primary,
-              fontWeight = FontWeight.SemiBold
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-              text = "100% Offline-First • Zero Ads • Zero Telemetry\nYour financial data remains strictly under your control.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              textAlign = TextAlign.Center,
-              lineHeight = 18.sp
-            )
-          }
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(vertical = 12.dp),
+        contentAlignment = Alignment.Center
+      ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          Text(
+            text = "Paisa v3.0.0",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Spacer(modifier = Modifier.height(2.dp))
+          Text(
+            text = "Connected with Google Drive Cloud Storage",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+          )
         }
       }
-    }
-
-    item {
-      Spacer(modifier = Modifier.height(32.dp))
     }
   }
 }
 
-/**
- * Standardized Section Heading with unified left margin and typography.
- */
 @Composable
 private fun SettingsSection(
   title: String,
@@ -624,19 +789,15 @@ private fun SettingsSection(
   ) {
     Text(
       text = title,
-      style = MaterialTheme.typography.labelLarge,
+      style = MaterialTheme.typography.titleSmall,
       fontWeight = FontWeight.Bold,
       color = MaterialTheme.colorScheme.primary,
-      modifier = Modifier.padding(horizontal = 4.dp)
+      modifier = Modifier.padding(start = 4.dp)
     )
     content()
   }
 }
 
-/**
- * Standardized Settings Item Row adhering to a unified layout grid:
- * [Icon (40dp)] [Title / Subtitle] [Action]
- */
 @Composable
 private fun SettingsRow(
   icon: ImageVector,
@@ -644,29 +805,24 @@ private fun SettingsRow(
   iconBg: Color,
   title: String,
   subtitle: String,
-  titleColor: Color = MaterialTheme.colorScheme.onSurface,
-  onClick: (() -> Unit)? = null,
-  action: @Composable (() -> Unit)? = null
+  action: @Composable () -> Unit
 ) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .then(
-        if (onClick != null) Modifier.clickable { onClick() } else Modifier
-      )
       .padding(horizontal = 16.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.SpaceBetween
   ) {
     Row(
-      modifier = Modifier.weight(1f),
       verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(14.dp)
+      horizontalArrangement = Arrangement.spacedBy(14.dp),
+      modifier = Modifier.weight(1f)
     ) {
       Surface(
         shape = CircleShape,
         color = iconBg,
-        modifier = Modifier.size(40.dp)
+        modifier = Modifier.size(38.dp)
       ) {
         Box(contentAlignment = Alignment.Center) {
           Icon(
@@ -678,12 +834,12 @@ private fun SettingsRow(
         }
       }
 
-      Column(modifier = Modifier.weight(1f)) {
+      Column {
         Text(
           text = title,
-          style = MaterialTheme.typography.bodyLarge,
+          style = MaterialTheme.typography.bodyMedium,
           fontWeight = FontWeight.SemiBold,
-          color = titleColor,
+          color = MaterialTheme.colorScheme.onSurface,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis
         )
@@ -691,15 +847,23 @@ private fun SettingsRow(
           text = subtitle,
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 2,
+          maxLines = 1,
           overflow = TextOverflow.Ellipsis
         )
       }
     }
 
-    if (action != null) {
-      Spacer(modifier = Modifier.width(8.dp))
-      action()
-    }
+    action()
+  }
+}
+
+private fun formatLastSync(timestamp: Long?): String {
+  if (timestamp == null || timestamp <= 0L) return "Never"
+  val diff = System.currentTimeMillis() - timestamp
+  return when {
+    diff < 60_000L -> "Just now"
+    diff < 3600_000L -> "${diff / 60_000L} min ago"
+    diff < 86400_000L -> "${diff / 3600_000L} hours ago"
+    else -> SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault()).format(Date(timestamp))
   }
 }

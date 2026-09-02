@@ -63,10 +63,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.example.data.model.BudgetModel
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionCategory
@@ -247,7 +250,7 @@ fun MainAppScreen(
             .fillMaxSize()
             .padding(16.dp)
         ) {
-          // Header: Profile & App Branding
+          // Header: Google Account Profile & App Identity
           Surface(
             shape = RoundedCornerShape(20.dp),
             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
@@ -258,32 +261,48 @@ fun MainAppScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
               ) {
-                Surface(
-                  shape = CircleShape,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.size(44.dp)
-                ) {
-                  Box(contentAlignment = Alignment.Center) {
-                    Text(
-                      text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "P",
-                      style = MaterialTheme.typography.titleMedium,
-                      fontWeight = FontWeight.Bold,
-                      color = Color.White
-                    )
+                if (!userProfile.photoUrl.isNullOrBlank()) {
+                  AsyncImage(
+                    model = userProfile.photoUrl,
+                    contentDescription = "Google Profile Picture",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                      .size(46.dp)
+                      .clip(CircleShape)
+                      .background(MaterialTheme.colorScheme.surfaceVariant)
+                  )
+                } else {
+                  Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(46.dp)
+                  ) {
+                    Box(contentAlignment = Alignment.Center) {
+                      Text(
+                        text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "G",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                      )
+                    }
                   }
                 }
 
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                   Text(
-                    text = if (userProfile.name.isNotBlank()) userProfile.name else "Paisa User",
+                    text = userProfile.name.ifBlank { "Google User" },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                   )
                   Text(
-                    text = "Currency: ${userProfile.currencySymbol} (${userProfile.currencyCode})",
+                    text = userProfile.email.ifBlank { "Google Account" },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                   )
                 }
               }
@@ -328,10 +347,10 @@ fun MainAppScreen(
           HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
           Spacer(modifier = Modifier.height(8.dp))
 
-          // PDF Export Quick Action
+          // Export & Portability Quick Action
           NavigationDrawerItem(
             icon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) },
-            label = { Text("Export PDF Statement", fontWeight = FontWeight.Medium) },
+            label = { Text("Export & Portability", fontWeight = FontWeight.Medium) },
             selected = false,
             onClick = {
               scope.launch { drawerState.close() }

@@ -95,6 +95,12 @@ fun DashboardScreen(
   val currencySymbol = userProfile.currencySymbol
   val currentYear = selectedCalendar.get(Calendar.YEAR)
 
+  val firstName = remember(userProfile.name) {
+    if (userProfile.name.isNotBlank()) {
+      userProfile.name.trim().split("\\s+".toRegex()).firstOrNull() ?: userProfile.name
+    } else ""
+  }
+
   if (showMonthPicker) {
     MonthYearPickerDialog(
       currentCalendar = selectedCalendar,
@@ -120,10 +126,10 @@ fun DashboardScreen(
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("dashboard_screen"),
-    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-    verticalArrangement = Arrangement.spacedBy(20.dp)
+    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp)
   ) {
-    // 1. Header with Greeting & Name
+    // 1. Compact Header with First-Name Greeting
     item {
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -132,14 +138,14 @@ fun DashboardScreen(
       ) {
         Column {
           Text(
-            text = if (userProfile.name.isNotBlank()) "Namaste, ${userProfile.name}" else "Namaste",
-            style = MaterialTheme.typography.headlineSmall,
+            text = if (firstName.isNotBlank()) "Namaste, $firstName 👋" else "Namaste 👋",
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
           )
           Text(
             text = "Track your income, expenses & savings",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
         }

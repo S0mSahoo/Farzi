@@ -7,6 +7,7 @@ import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionItem
 import com.example.data.model.UserProfile
 import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -24,6 +25,10 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+
+class ConsentRequiredException(
+  val consentIntent: Intent
+) : IOException("Google Drive permission required. Please grant permission to sync.")
 
 sealed class GoogleDriveState {
   object NotConnected : GoogleDriveState()
@@ -56,7 +61,6 @@ class GoogleDriveBackupService(private val context: Context) {
 
   companion object {
     const val SCOPE_DRIVE_APPDATA = "https://www.googleapis.com/auth/drive.appdata"
-    const val SCOPE_DRIVE_FILE = "https://www.googleapis.com/auth/drive.file"
     const val BACKUP_FILE_NAME = "paisa_financial_backup.json"
     private const val PREFS_NAME = "paisa_drive_prefs"
     private const val KEY_LAST_BACKUP = "key_last_backup_timestamp"
@@ -79,7 +83,8 @@ class GoogleDriveBackupService(private val context: Context) {
     get() {
       val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
         .requestEmail()
-        .requestScopes(Scope(SCOPE_DRIVE_APPDATA), Scope(SCOPE_DRIVE_FILE))
+        .requestProfile()
+        .requestScopes(Scope(SCOPE_DRIVE_APPDATA))
         .build()
       return GoogleSignIn.getClient(context, gso)
     }
@@ -88,6 +93,11 @@ class GoogleDriveBackupService(private val context: Context) {
 
   fun getLastSignedInAccount(): GoogleSignInAccount? {
     return GoogleSignIn.getLastSignedInAccount(context)
+  }
+
+  fun hasDrivePermission(account: GoogleSignInAccount?): Boolean {
+    if (account == null) return false
+    return GoogleSignIn.hasPermissions(account, Scope(SCOPE_DRIVE_APPDATA))
   }
 
   fun getSavedEmail(): String? {
@@ -117,6 +127,94 @@ class GoogleDriveBackupService(private val context: Context) {
     }
   }
 
+  private fun getAccessToken(account: GoogleSignInAccount): String {
+    val androidAccount = account.account
+      ?: throw IllegalStateException("Google Account credential not found. Please reconnect.")
+
+    val oauthScope = "oauth2:$SCOPE_DRIVE_APPDATA"
+    return try {
+      val token = GoogleAuthUtil.getToken(context, androidAccount, oauthScope)
+      if (token.isNullOrBlank()) {
+        throw IOException("Failed to obtain a valid access token from Google Play Services.")
+      }
+      token
+    } catch (e: UserRecoverableAuthException) {
+      val intent = e.intent ?: signInClient.signInIntent
+      throw ConsentRequiredException(intent)
+    } catch (e: Exception) {
+      if (e is IOException) throw e
+      throw IOException("Google Authentication error: ${e.localizedMessage ?: "Could not acquire access token"}", e)
+    }
+  }
+
+  /**
+   * Fetches the user's financial records from Google Drive AppData space.
+   * Returns the BackupPayload if found and parsed, or null if no cloud backup exists yet.
+   */
+  suspend fun fetchCloudData(account: GoogleSignInAccount): BackupPayload? = withContext(Dispatchers.IO) {
+    val accessToken = getAccessToken(account)
+    val existingFileId = findExistingBackupFileId(accessToken) ?: return@withContext null
+
+    try {
+      val url = "https://www.googleapis.com/drive/v3/files/$existingFileId?alt=media"
+      val request = Request.Builder()
+        .url(url)
+        .header("Authorization", "Bearer $accessToken")
+        .get()
+        .build()
+
+      val response = okHttpClient.newCall(request).execute()
+      if (!response.isSuccessful) {
+        response.close()
+        throw IOException("Failed to download cloud records from Google Drive (${response.code})")
+      }
+
+      val jsonContent = response.body?.string() ?: ""
+      if (jsonContent.isBlank()) return@withContext null
+
+      val adapter = moshi.adapter(BackupPayload::class.java)
+      val payload = adapter.fromJson(jsonContent)
+      if (payload != null) {
+        saveLastBackupTimestamp(payload.exportTimestamp)
+        account.email?.let { saveConnectedEmail(it) }
+      }
+      payload
+    } catch (e: Exception) {
+      if (e is IOException) throw e
+      throw IOException("Error parsing cloud financial backup: ${e.localizedMessage}", e)
+    }
+  }
+
+  /**
+   * Saves the user's complete financial payload to Google Drive AppData space.
+   * Returns the timestamp of successful save.
+   */
+  suspend fun saveCloudData(
+    account: GoogleSignInAccount,
+    payload: BackupPayload
+  ): Long = withContext(Dispatchers.IO) {
+    val accessToken = getAccessToken(account)
+    val adapter = moshi.adapter(BackupPayload::class.java)
+    val jsonContent = adapter.toJson(payload)
+
+    val existingFileId = findExistingBackupFileId(accessToken)
+
+    val uploadSuccess = if (existingFileId != null) {
+      updateFileContent(accessToken, existingFileId, jsonContent)
+    } else {
+      createNewFile(accessToken, jsonContent)
+    }
+
+    if (!uploadSuccess) {
+      throw IOException("Google Drive rejected the cloud save request. Please check your internet connection.")
+    }
+
+    val timestamp = payload.exportTimestamp
+    saveLastBackupTimestamp(timestamp)
+    account.email?.let { saveConnectedEmail(it) }
+    timestamp
+  }
+
   /**
    * Performs an actual backup upload to the user's Google Drive App Data / Files folder.
    * Returns the timestamp of successful backup or throws an Exception with a human-readable message.
@@ -128,50 +226,15 @@ class GoogleDriveBackupService(private val context: Context) {
     budgets: List<BudgetModel>,
     recurringRules: List<RecurringRule>
   ): Long = withContext(Dispatchers.IO) {
-    val androidAccount = account.account
-      ?: throw IllegalStateException("Google Account credential not found. Please reconnect.")
-
-    // 1. Retrieve OAuth2 access token for Drive scopes
-    val oauthScope = "oauth2:$SCOPE_DRIVE_APPDATA $SCOPE_DRIVE_FILE"
-    val accessToken = try {
-      GoogleAuthUtil.getToken(context, androidAccount, oauthScope)
-    } catch (e: Exception) {
-      throw IOException("Google Authentication error: ${e.localizedMessage ?: "Could not acquire access token"}", e)
-    }
-
-    if (accessToken.isNullOrBlank()) {
-      throw IOException("Failed to obtain a valid access token from Google Play Services.")
-    }
-
-    // 2. Serialize payload to JSON
     val payload = BackupPayload(
+      version = "3.0.0",
+      exportTimestamp = System.currentTimeMillis(),
       userProfile = userProfile,
       transactions = transactions,
       budgets = budgets,
       recurringRules = recurringRules
     )
-    val adapter = moshi.adapter(BackupPayload::class.java)
-    val jsonContent = adapter.toJson(payload)
-
-    // 3. Check if file already exists in AppDataFolder
-    val existingFileId = findExistingBackupFileId(accessToken)
-
-    val uploadSuccess = if (existingFileId != null) {
-      // Update existing file
-      updateFileContent(accessToken, existingFileId, jsonContent)
-    } else {
-      // Create new file
-      createNewFile(accessToken, jsonContent)
-    }
-
-    if (!uploadSuccess) {
-      throw IOException("Google Drive rejected the backup upload request. Please check your internet connection.")
-    }
-
-    val timestamp = System.currentTimeMillis()
-    saveLastBackupTimestamp(timestamp)
-    account.email?.let { saveConnectedEmail(it) }
-    timestamp
+    saveCloudData(account, payload)
   }
 
   private fun findExistingBackupFileId(accessToken: String): String? {

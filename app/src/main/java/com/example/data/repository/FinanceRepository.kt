@@ -173,14 +173,57 @@ class FinanceRepository(private val context: Context) {
     return cal.timeInMillis
   }
 
+  // ================= Cloud Cache Synchronization =================
+
+  suspend fun replaceCacheWithCloudData(
+    transactions: List<TransactionItem>,
+    budgets: List<BudgetModel>,
+    recurringRules: List<RecurringRule>
+  ) = withContext(Dispatchers.IO) {
+    // Atomically replace local tables with cloud authoritative data
+    transactionDao.clearAll()
+    if (transactions.isNotEmpty()) {
+      transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
+    }
+
+    budgetDao.clearAll()
+    if (budgets.isNotEmpty()) {
+      budgetDao.insertAll(budgets.map { BudgetEntity.fromModel(it) })
+    }
+
+    recurringRuleDao.clearAll()
+    if (recurringRules.isNotEmpty()) {
+      recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
+    }
+  }
+
+  suspend fun clearLocalCache() = withContext(Dispatchers.IO) {
+    transactionDao.clearAll()
+    budgetDao.clearAll()
+    recurringRuleDao.clearAll()
+  }
+
+  suspend fun getAllLocalData(): Triple<List<TransactionItem>, List<BudgetModel>, List<RecurringRule>> = withContext(Dispatchers.IO) {
+    val txs = transactionDao.getAllTransactions().map { it.toModel() }
+    val bgs = budgetDao.getAllBudgets().map { it.toModel() }
+    val rcs = recurringRuleDao.getAllRules().map { it.toModel() }
+    Triple(txs, bgs, rcs)
+  }
+
   // ================= User Profile & Preferences =================
 
   fun getUserProfile(): UserProfile {
     val name = prefs.getString("user_name", "") ?: ""
+    val email = prefs.getString("user_email", "") ?: ""
+    val photoUrl = prefs.getString("user_photo_url", null)
+    val googleId = prefs.getString("user_google_id", null)
     val completed = prefs.getBoolean("has_completed_onboarding", false)
 
     return UserProfile(
       name = name,
+      email = email,
+      photoUrl = photoUrl,
+      googleId = googleId,
       hasCompletedOnboarding = completed
     )
   }
@@ -188,8 +231,15 @@ class FinanceRepository(private val context: Context) {
   fun saveUserProfile(profile: UserProfile) {
     prefs.edit()
       .putString("user_name", profile.name)
+      .putString("user_email", profile.email)
+      .putString("user_photo_url", profile.photoUrl)
+      .putString("user_google_id", profile.googleId)
       .putBoolean("has_completed_onboarding", profile.hasCompletedOnboarding)
       .apply()
+  }
+
+  fun clearUserProfile() {
+    prefs.edit().clear().apply()
   }
 
   // ================= PDF Report Export =================

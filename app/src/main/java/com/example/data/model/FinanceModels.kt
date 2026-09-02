@@ -162,6 +162,9 @@ data class RecurringRule(
 @Immutable
 data class UserProfile(
   val name: String = "",
+  val email: String = "",
+  val photoUrl: String? = null,
+  val googleId: String? = null,
   val hasCompletedOnboarding: Boolean = false
 ) {
   val currencySymbol: String

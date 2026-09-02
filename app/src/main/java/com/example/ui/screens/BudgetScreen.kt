@@ -122,7 +122,7 @@ fun BudgetScreen(
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("budget_screen"),
-    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
+    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
     verticalArrangement = Arrangement.spacedBy(18.dp)
   ) {
     // 1. Month Navigation Header
