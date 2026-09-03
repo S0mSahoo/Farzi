@@ -32,7 +32,7 @@ interface SecureNoteDao {
   suspend fun deleteNote(note: SecureNoteEntity)
 
   @Query("DELETE FROM secure_notes WHERE id = :id")
-  suspend fun deleteNoteById(id: Long)
+  suspend fun deleteById(id: Long)
 
   @Query("DELETE FROM secure_notes")
   suspend fun clearAll()

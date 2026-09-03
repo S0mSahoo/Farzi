@@ -11,31 +11,37 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.MainActivity
-import com.example.data.model.ScheduledRecurringOccurrence
-import com.example.ui.components.IndianCurrencyFormatter
 
 object NotificationHelper {
-  private const val CHANNEL_ID = "paisa_payment_reminders"
-  private const val CHANNEL_NAME = "Payment Reminders"
-  private const val CHANNEL_DESC = "Notifications for due and scheduled recurring payments"
+  const val CHANNEL_ID = "paisa_payment_reminders"
+  const val CHANNEL_NAME = "Payment Reminders"
+  const val EXTRA_NAV_DESTINATION = "extra_nav_destination"
+  const val DESTINATION_RECURRING = "recurring"
 
   fun createNotificationChannel(context: Context) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-      val importance = NotificationManager.IMPORTANCE_DEFAULT
-      val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-        description = CHANNEL_DESC
+      val channel = NotificationChannel(
+        CHANNEL_ID,
+        CHANNEL_NAME,
+        NotificationManager.IMPORTANCE_DEFAULT
+      ).apply {
+        description = "Reminders for scheduled recurring bills and subscriptions"
       }
       val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
       notificationManager.createNotificationChannel(channel)
     }
   }
 
-  fun showDuePaymentReminder(context: Context, occurrence: ScheduledRecurringOccurrence) {
+  fun showPaymentDueReminder(
+    context: Context,
+    notificationId: Int,
+    title: String,
+    amountFormatted: String,
+    isOverdue: Boolean = false
+  ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-      if (ContextCompat.checkSelfPermission(
-          context,
-          android.Manifest.permission.POST_NOTIFICATIONS
-        ) != PackageManager.PERMISSION_GRANTED
+      if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS)
+        != PackageManager.PERMISSION_GRANTED
       ) {
         return
       }
@@ -44,44 +50,37 @@ object NotificationHelper {
     createNotificationChannel(context)
 
     val intent = Intent(context, MainActivity::class.java).apply {
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-      putExtra("navigate_to", "recurring")
+      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra(EXTRA_NAV_DESTINATION, DESTINATION_RECURRING)
     }
 
     val pendingIntent = PendingIntent.getActivity(
       context,
-      occurrence.ruleId.toInt(),
+      notificationId,
       intent,
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val amountStr = IndianCurrencyFormatter.format(occurrence.amount)
-    val title = if (occurrence.daysDiff < 0) {
-      "Overdue payment: ${occurrence.ruleTitle}"
+    val contentTitle = if (isOverdue) "Payment Overdue" else "Payment Due Today"
+    val contentText = if (isOverdue) {
+      "Your $title payment of $amountFormatted is overdue. Pay it and mark it as done."
     } else {
-      "Payment due today"
-    }
-
-    val body = if (occurrence.daysDiff < 0) {
-      "Your ${occurrence.ruleTitle} payment of $amountStr was due on ${occurrence.scheduledDateKey}. Tap to review and mark as paid."
-    } else {
-      "Your ${occurrence.ruleTitle} payment of $amountStr is scheduled for today. Pay it and mark it as done."
+      "Your $title payment of $amountFormatted is scheduled for today. Pay it and mark it as done."
     }
 
     val builder = NotificationCompat.Builder(context, CHANNEL_ID)
       .setSmallIcon(android.R.drawable.ic_dialog_info)
-      .setContentTitle(title)
-      .setContentText(body)
-      .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+      .setContentTitle(contentTitle)
+      .setContentText(contentText)
+      .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
       .setPriority(NotificationCompat.PRIORITY_DEFAULT)
       .setContentIntent(pendingIntent)
       .setAutoCancel(true)
 
     try {
-      NotificationManagerCompat.from(context).notify(
-        (occurrence.ruleId * 1000 + occurrence.scheduledDateKey.hashCode()).toInt(),
-        builder.build()
-      )
-    } catch (ignored: SecurityException) {}
+      NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+    } catch (e: SecurityException) {
+      // Permission might have been revoked in settings
+    }
   }
 }

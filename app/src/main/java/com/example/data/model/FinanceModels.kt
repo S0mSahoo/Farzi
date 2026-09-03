@@ -253,91 +253,119 @@ enum class ThemeMode(val displayName: String) {
   DARK("Dark (AMOLED)")
 }
 
-enum class OccurrenceStatus {
-  DUE_TODAY,
-  OVERDUE,
-  UPCOMING,
-  PAID
+@Immutable
+data class DriveStorageQuota(
+  val totalBytes: Long,
+  val usedBytes: Long,
+  val usageInDriveBytes: Long = 0L
+) {
+  val availableBytes: Long
+    get() = (totalBytes - usedBytes).coerceAtLeast(0L)
+
+  val percentUsed: Float
+    get() = if (totalBytes > 0) (usedBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f) else 0f
+
+  val formattedTotal: String get() = formatBytes(totalBytes)
+  val formattedUsed: String get() = formatBytes(usedBytes)
+  val formattedAvailable: String get() = formatBytes(availableBytes)
+
+  companion object {
+    fun formatBytes(bytes: Long): String {
+      val gb = bytes.toDouble() / (1024.0 * 1024.0 * 1024.0)
+      return if (gb >= 1.0) {
+        String.format(Locale.getDefault(), "%.1f GB", gb)
+      } else {
+        val mb = bytes.toDouble() / (1024.0 * 1024.0)
+        String.format(Locale.getDefault(), "%.0f MB", mb)
+      }
+    }
+  }
+}
+
+enum class OccurrenceStatus(val displayName: String) {
+  SCHEDULED("Scheduled"),
+  DUE_TODAY("Due Today"),
+  OVERDUE("Overdue"),
+  PAID("Paid"),
+  CANCELLED("Cancelled");
+
+  companion object {
+    val UPCOMING = SCHEDULED
+  }
 }
 
 @Immutable
-data class ScheduledRecurringOccurrence(
-  val ruleId: Long,
-  val ruleTitle: String,
-  val amount: Double,
-  val type: TransactionType,
-  val category: TransactionCategory,
-  val interval: RecurrenceInterval,
-  val paymentMethod: PaymentMethod,
-  val note: String,
-  val scheduledDateKey: String, // "YYYY-MM-DD"
-  val scheduledEpochMillis: Long,
+data class RecurringOccurrence(
+  val rule: RecurringRule,
+  val occurrenceTimestamp: Long,
+  val occurrenceDateKey: String, // "YYYY-MM-DD"
   val status: OccurrenceStatus,
-  val daysDiff: Int, // 0 = today, < 0 = overdue, > 0 = upcoming
-  val relativeLabel: String,
-  val isPaid: Boolean = false,
+  val daysRelative: Int, // 0 = today, -1 = 1 day ago, 2 = in 2 days
   val paidTransactionId: Long? = null
 )
 
-@Immutable
-data class CategoryDetailData(
-  val category: TransactionCategory,
-  val monthKey: String,
-  val monthLabel: String,
-  val totalExpense: Double = 0.0,
-  val totalIncome: Double = 0.0,
-  val netAmount: Double = 0.0,
-  val transactionCount: Int = 0,
-  val transactions: List<TransactionItem> = emptyList()
-)
-
-enum class RecommendationSeverity {
-  INFO,
-  WARNING,
-  SUCCESS,
-  ALERT
-}
-
-@Immutable
-data class FinancialRecommendation(
-  val id: String,
-  val title: String,
-  val message: String,
-  val severity: RecommendationSeverity = RecommendationSeverity.INFO,
-  val category: TransactionCategory? = null,
-  val actionLabel: String? = null
-)
-
 enum class SecureNoteType(val displayName: String) {
-  GENERIC("Secure Note"),
-  CREDIT_DEBIT_CARD("Card Details"),
   BANK_ACCOUNT("Bank Account"),
-  CREDENTIAL("Credential / PIN")
+  CREDIT_CARD("Credit Card"),
+  DEBIT_CARD("Debit Card"),
+  PASSWORD("Password / Credential"),
+  GENERAL_NOTE("Private Note")
 }
 
 @Immutable
-data class SecureNote(
+data class SecureNoteItem(
   val id: Long = 0,
   val title: String,
-  val content: String = "",
-  val type: SecureNoteType = SecureNoteType.GENERIC,
-  val maskedNumber: String? = null,
-  val expiryDate: String? = null,
-  val cvv: String? = null,
-  val ifscCode: String? = null,
-  val accountNumber: String? = null,
-  val additionalFields: Map<String, String> = emptyMap(),
-  val createdAt: Long = System.currentTimeMillis(),
+  val type: SecureNoteType,
+  val notes: String = "",
+  // Bank fields
+  val bankName: String = "",
+  val accountNumber: String = "",
+  val ifscCode: String = "",
+  val holderName: String = "",
+  // Card fields
+  val cardNumber: String = "",
+  val cardExpiry: String = "",
+  val cardCvv: String = "",
+  // Credentials
+  val username: String = "",
+  val passwordSecret: String = "",
   val updatedAt: Long = System.currentTimeMillis()
 )
 
+enum class InsightType {
+  ALERT,
+  WARNING,
+  INFO,
+  POSITIVE
+}
+
 @Immutable
-data class DriveStorageInfo(
-  val totalBytes: Long = 0L,
-  val usedBytes: Long = 0L,
-  val availableBytes: Long = 0L,
-  val formattedSummary: String = "Storage information unavailable",
-  val isAvailable: Boolean = false
+data class FinancialInsight(
+  val id: String,
+  val title: String,
+  val description: String,
+  val type: InsightType,
+  val category: TransactionCategory? = null
 )
 
+@Immutable
+data class CategorySpendingDetail(
+  val category: TransactionCategory,
+  val monthKey: String,
+  val monthLabel: String,
+  val totalSpent: Double,
+  val transactionCount: Int,
+  val totalIncome: Double,
+  val netAmount: Double, // totalIncome - totalSpent
+  val transactions: List<TransactionItem>
+)
+
+data class LocalDataDump(
+  val transactions: List<TransactionItem>,
+  val budgets: List<BudgetModel>,
+  val recurringRules: List<RecurringRule>,
+  val secureNotes: List<SecureNoteItem>,
+  val paidOccurrences: List<com.example.data.local.PaidRecurringOccurrenceEntity>
+)
 

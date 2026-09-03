@@ -1,19 +1,15 @@
 package com.example.data.local
 
 import androidx.room.Entity
-import androidx.room.Index
 
 @Entity(
   tableName = "paid_recurring_occurrences",
-  primaryKeys = ["ruleId", "occurrenceDate"],
-  indices = [
-    Index(value = ["ruleId"]),
-    Index(value = ["occurrenceDate"])
-  ]
+  primaryKeys = ["ruleId", "occurrenceDateKey"]
 )
 data class PaidRecurringOccurrenceEntity(
   val ruleId: Long,
-  val occurrenceDate: String, // "YYYY-MM-DD"
-  val transactionId: Long,
-  val paidAt: Long = System.currentTimeMillis()
+  val occurrenceDateKey: String, // e.g. "2026-09-05"
+  val paidTransactionId: Long = -1L,
+  val paidTimestamp: Long = System.currentTimeMillis(),
+  val isCancelled: Boolean = false
 )

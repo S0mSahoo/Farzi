@@ -141,6 +141,9 @@ fun AddEditRecurringSheet(
     sheetState = sheetState,
     containerColor = MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+    modifier = Modifier
+      .fillMaxWidth()
+      .fillMaxHeight(0.9f),
     dragHandle = {
       Box(
         modifier = Modifier
@@ -153,7 +156,7 @@ fun AddEditRecurringSheet(
   ) {
     Column(
       modifier = Modifier
-        .fillMaxWidth()
+        .fillMaxSize()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp)
         .navigationBarsPadding()
@@ -177,75 +180,57 @@ fun AddEditRecurringSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Type Toggle (Expense / Income) with Sliding Pill Animation
-      BoxWithConstraints(
+      // Clean stable Segmented Control (Expense / Income) without jittery highlight animation
+      Row(
         modifier = Modifier
           .fillMaxWidth()
-          .height(52.dp)
-          .clip(RoundedCornerShape(16.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-          .padding(4.dp)
+          .height(48.dp)
+          .clip(RoundedCornerShape(14.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+          .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
       ) {
-        val segmentWidth = maxWidth / 2
-        val pillOffset by animateDpAsState(
-          targetValue = if (ruleType == TransactionType.EXPENSE) 0.dp else segmentWidth,
-          animationSpec = tween(durationMillis = 250, easing = FastOutSlowInEasing),
-          label = "pill_offset_recurring"
-        )
-        val pillColor by animateColorAsState(
-          targetValue = if (ruleType == TransactionType.EXPENSE) ExpenseRed else IncomeGreen,
-          animationSpec = tween(durationMillis = 250),
-          label = "pill_color_recurring"
-        )
-
-        // Sliding background pill
-        Box(
+        val isExpense = ruleType == TransactionType.EXPENSE
+        Surface(
+          shape = RoundedCornerShape(10.dp),
+          color = if (isExpense) ExpenseRed else Color.Transparent,
           modifier = Modifier
-            .offset(x = pillOffset)
-            .width(segmentWidth)
+            .weight(1f)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(12.dp))
-            .background(pillColor)
-        )
-
-        Row(modifier = Modifier.fillMaxSize()) {
-          Box(
-            modifier = Modifier
-              .weight(1f)
-              .fillMaxHeight()
-              .clip(RoundedCornerShape(12.dp))
-              .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-              ) { ruleType = TransactionType.EXPENSE }
-              .testTag("recurring_type_expense"),
-            contentAlignment = Alignment.Center
-          ) {
+            .clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null
+            ) { ruleType = TransactionType.EXPENSE }
+            .testTag("recurring_type_expense")
+        ) {
+          Box(contentAlignment = Alignment.Center) {
             Text(
               text = "Recurring Expense",
               style = MaterialTheme.typography.bodyMedium,
-              fontWeight = FontWeight.Bold,
-              color = if (ruleType == TransactionType.EXPENSE) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
+              color = if (isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
+        }
 
-          Box(
-            modifier = Modifier
-              .weight(1f)
-              .fillMaxHeight()
-              .clip(RoundedCornerShape(12.dp))
-              .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-              ) { ruleType = TransactionType.INCOME }
-              .testTag("recurring_type_income"),
-            contentAlignment = Alignment.Center
-          ) {
+        Surface(
+          shape = RoundedCornerShape(10.dp),
+          color = if (!isExpense) IncomeGreen else Color.Transparent,
+          modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .clickable(
+              interactionSource = remember { MutableInteractionSource() },
+              indication = null
+            ) { ruleType = TransactionType.INCOME }
+            .testTag("recurring_type_income")
+        ) {
+          Box(contentAlignment = Alignment.Center) {
             Text(
               text = "Recurring Income",
               style = MaterialTheme.typography.bodyMedium,
-              fontWeight = FontWeight.Bold,
-              color = if (ruleType == TransactionType.INCOME) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              fontWeight = if (!isExpense) FontWeight.Bold else FontWeight.Medium,
+              color = if (!isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }

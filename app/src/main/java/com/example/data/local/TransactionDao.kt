@@ -40,6 +40,12 @@ interface TransactionDao {
   @Query("DELETE FROM transactions WHERE id = :id")
   suspend fun deleteById(id: Long)
 
+  @Query("DELETE FROM transactions WHERE id IN (:ids)")
+  suspend fun deleteByIds(ids: List<Long>): Int
+
+  @Query("DELETE FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime")
+  suspend fun deleteBetween(startTime: Long, endTime: Long): Int
+
   @Query("DELETE FROM transactions")
   suspend fun clearAll()
 

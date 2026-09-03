@@ -208,7 +208,7 @@ fun IncomeExpenseComparisonBar(
 fun CategorySpendingBreakdown(
   categories: List<CategorySpending>,
   currencySymbol: String = "₹",
-  onCategoryClick: ((CategorySpending) -> Unit)? = null,
+  onCategoryClick: ((com.example.data.model.TransactionCategory) -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -218,11 +218,10 @@ fun CategorySpendingBreakdown(
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier
           .fillMaxWidth()
-          .then(
-            if (onCategoryClick != null) {
-              Modifier.clip(RoundedCornerShape(14.dp)).clickable { onCategoryClick(item) }
-            } else Modifier
-          )
+          .clip(RoundedCornerShape(14.dp))
+          .clickable(enabled = onCategoryClick != null) {
+            onCategoryClick?.invoke(item.category)
+          }
       ) {
         Column(modifier = Modifier.padding(12.dp)) {
           Row(
@@ -256,7 +255,7 @@ fun CategorySpendingBreakdown(
                   color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                  text = "${item.count} transaction${if (item.count != 1) "s" else ""} • Tap to view",
+                  text = "${item.count} transactions • Tap for details",
                   style = MaterialTheme.typography.labelSmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

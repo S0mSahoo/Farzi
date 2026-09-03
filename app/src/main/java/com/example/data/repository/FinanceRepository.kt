@@ -10,37 +10,48 @@ import com.example.data.local.SecureNoteEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.model.BudgetModel
 import com.example.data.model.ExportPeriod
+import com.example.data.model.LocalDataDump
 import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
+import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
-import com.example.data.model.ScheduledRecurringOccurrence
-import com.example.data.model.SecureNote
+import com.example.data.model.SecureNoteItem
+import com.example.data.model.SecureNoteType
+import com.example.data.model.ThemeMode
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.data.model.UserProfile
 import com.example.ui.components.DateUtils
+import com.example.util.CryptoManager
+import com.example.util.NotificationHelper
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 class FinanceRepository(private val context: Context) {
   private val database = AppDatabase.getDatabase(context)
   private val transactionDao = database.transactionDao()
   private val budgetDao = database.budgetDao()
   private val recurringRuleDao = database.recurringRuleDao()
-  private val paidOccurrenceDao = database.paidRecurringOccurrenceDao()
   private val secureNoteDao = database.secureNoteDao()
+  private val paidRecurringOccurrenceDao = database.paidRecurringOccurrenceDao()
 
   private val prefs: SharedPreferences =
     context.getSharedPreferences("paisa_user_preferences", Context.MODE_PRIVATE)
+
+  private val localKey = "paisa_vault_local_key_v1"
 
   // Reactive transaction flow
   val allTransactions: Flow<List<TransactionItem>> =
@@ -65,12 +76,12 @@ class FinanceRepository(private val context: Context) {
 
   // Reactive paid occurrences flow
   val allPaidOccurrences: Flow<List<PaidRecurringOccurrenceEntity>> =
-    paidOccurrenceDao.getAllPaidOccurrencesFlow()
+    paidRecurringOccurrenceDao.getAllPaidOccurrencesFlow()
 
   // Reactive secure notes flow
-  val allSecureNotes: Flow<List<SecureNote>> =
+  val allSecureNotes: Flow<List<SecureNoteItem>> =
     secureNoteDao.getAllNotesFlow().map { entities ->
-      entities.map { it.toModel() }
+      entities.mapNotNull { entity -> decryptNoteEntity(entity) }
     }
 
   // ================= Transactions CRUD =================
@@ -91,22 +102,19 @@ class FinanceRepository(private val context: Context) {
     transactionDao.deleteById(id)
   }
 
-  suspend fun deleteTransactionsByIds(ids: List<Long>) = withContext(Dispatchers.IO) {
-    for (id in ids) {
-      transactionDao.deleteById(id)
-    }
+  suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
+    transactionDao.clearAll()
+  }
+
+  // ================= Bulk Delete =================
+
+  suspend fun deleteTransactionsByIds(ids: List<Long>): Int = withContext(Dispatchers.IO) {
+    if (ids.isEmpty()) return@withContext 0
+    transactionDao.deleteByIds(ids)
   }
 
   suspend fun deleteTransactionsBetween(startTime: Long, endTime: Long): Int = withContext(Dispatchers.IO) {
-    val txs = transactionDao.getTransactionsBetween(startTime, endTime)
-    for (tx in txs) {
-      transactionDao.deleteById(tx.id)
-    }
-    txs.size
-  }
-
-  suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
-    transactionDao.clearAll()
+    transactionDao.deleteBetween(startTime, endTime)
   }
 
   // ================= Budgets CRUD =================
@@ -131,7 +139,7 @@ class FinanceRepository(private val context: Context) {
 
   suspend fun deleteRecurringRule(id: Long) = withContext(Dispatchers.IO) {
     recurringRuleDao.deleteRuleById(id)
-    paidOccurrenceDao.deleteOccurrencesByRule(id)
+    paidRecurringOccurrenceDao.deleteForRule(id)
   }
 
   suspend fun toggleRecurringRule(id: Long, isActive: Boolean) = withContext(Dispatchers.IO) {
@@ -139,155 +147,122 @@ class FinanceRepository(private val context: Context) {
     recurringRuleDao.updateRule(existing.copy(isActive = isActive))
   }
 
-  // ================= Scheduled Occurrences & Explicit Pay Flow =================
+  // ================= Scheduled Recurring Payments Logic =================
 
   /**
-   * Generates scheduled occurrences for all active recurring rules from 60 days in the past
-   * up to 60 days into the future.
-   * Does NOT auto-create transactions.
+   * Evaluates active recurring rules and triggers due payment notifications.
+   * CRITICAL: Recurring rules DO NOT automatically create transactions.
+   * Transactions are only created when the user explicitly taps "Mark as Paid".
    */
-  suspend fun getScheduledOccurrences(): List<ScheduledRecurringOccurrence> = withContext(Dispatchers.IO) {
-    val activeRules = recurringRuleDao.getActiveRules().map { it.toModel() }
-    if (activeRules.isEmpty()) return@withContext emptyList()
+  suspend fun processDueRecurringRules(): Int = withContext(Dispatchers.IO) {
+    val activeRules = recurringRuleDao.getActiveRules()
+    if (activeRules.isEmpty()) return@withContext 0
 
-    val paidList = paidOccurrenceDao.getAllPaidOccurrences()
-    val paidMap = paidList.associateBy { "${it.ruleId}_${it.occurrenceDate}" }
+    val now = Calendar.getInstance()
+    val todayKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now.time)
+    val startOfToday = DateUtils.getStartOfDay(now.timeInMillis)
+    val endOfToday = DateUtils.getEndOfDay(now.timeInMillis)
 
-    val calNow = Calendar.getInstance().apply {
-      set(Calendar.HOUR_OF_DAY, 0)
-      set(Calendar.MINUTE, 0)
-      set(Calendar.SECOND, 0)
-      set(Calendar.MILLISECOND, 0)
-    }
-    val todayMillis = calNow.timeInMillis
-    val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-    val todayKey = sdf.format(Date(todayMillis))
+    var dueTodayCount = 0
+    for (ruleEntity in activeRules) {
+      val rule = ruleEntity.toModel()
+      val occurrences = computeRuleOccurrencesInWindow(
+        rule = rule,
+        windowStart = startOfToday - (30L * 86400000L),
+        windowEnd = endOfToday + (30L * 86400000L)
+      )
 
-    val windowStartCal = (calNow.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, -60) }
-    val windowEndCal = (calNow.clone() as Calendar).apply { add(Calendar.DAY_OF_YEAR, 60) }
-    val windowStartMillis = windowStartCal.timeInMillis
-    val windowEndMillis = windowEndCal.timeInMillis
-
-    val occurrences = mutableListOf<ScheduledRecurringOccurrence>()
-
-    for (rule in activeRules) {
-      var currentOccurrence = rule.startDate
-      // Advance to reasonable start if rule started long ago
-      while (currentOccurrence < windowStartMillis && (rule.endDate == null || currentOccurrence <= rule.endDate)) {
-        currentOccurrence = getNextOccurrence(currentOccurrence, rule.interval)
-      }
-
-      while (currentOccurrence <= windowEndMillis && (rule.endDate == null || currentOccurrence <= rule.endDate)) {
-        val occKey = sdf.format(Date(currentOccurrence))
-        val paidRecord = paidMap["${rule.id}_$occKey"]
-        val isPaid = paidRecord != null
-
-        val occCal = Calendar.getInstance().apply {
-          timeInMillis = currentOccurrence
-          set(Calendar.HOUR_OF_DAY, 0)
-          set(Calendar.MINUTE, 0)
-          set(Calendar.SECOND, 0)
-          set(Calendar.MILLISECOND, 0)
-        }
-        val occMidnight = occCal.timeInMillis
-        val daysDiff = ((occMidnight - todayMillis) / (24 * 60 * 60 * 1000)).toInt()
-
-        val status = when {
-          isPaid -> OccurrenceStatus.PAID
-          daysDiff == 0 -> OccurrenceStatus.DUE_TODAY
-          daysDiff < 0 -> OccurrenceStatus.OVERDUE
-          else -> OccurrenceStatus.UPCOMING
-        }
-
-        val relativeLabel = when {
-          isPaid -> "Paid on ${sdf.format(Date(paidRecord.paidAt))}"
-          daysDiff == 0 -> "Due today"
-          daysDiff == -1 -> "Due yesterday"
-          daysDiff < -1 -> "Due ${-daysDiff} days ago"
-          daysDiff == 1 -> "Tomorrow"
-          daysDiff in 2..6 -> "In $daysDiff days"
-          else -> SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(currentOccurrence))
-        }
-
-        occurrences.add(
-          ScheduledRecurringOccurrence(
-            ruleId = rule.id,
-            ruleTitle = rule.title,
-            amount = rule.amount,
-            type = rule.type,
-            category = rule.category,
-            interval = rule.interval,
-            paymentMethod = rule.paymentMethod,
-            note = rule.note,
-            scheduledDateKey = occKey,
-            scheduledEpochMillis = currentOccurrence,
-            status = status,
-            daysDiff = daysDiff,
-            relativeLabel = relativeLabel,
-            isPaid = isPaid,
-            paidTransactionId = paidRecord?.transactionId
+      for (occTime in occurrences) {
+        val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(occTime))
+        val isPaid = paidRecurringOccurrenceDao.getPaidOccurrence(rule.id, dateKey) != null
+        if (!isPaid && dateKey == todayKey) {
+          dueTodayCount++
+          val notifId = (rule.id * 1000 + now.get(Calendar.DAY_OF_YEAR)).toInt()
+          NotificationHelper.showPaymentDueReminder(
+            context = context,
+            notificationId = notifId,
+            title = rule.title,
+            amountFormatted = "₹${rule.amount.toLong()}"
           )
-        )
-
-        currentOccurrence = getNextOccurrence(currentOccurrence, rule.interval)
+        }
       }
     }
 
-    occurrences.sortedWith(compareBy<ScheduledRecurringOccurrence> { it.daysDiff }.thenBy { it.ruleTitle })
+    dueTodayCount
   }
 
   /**
-   * Explicitly marks a scheduled recurring occurrence as paid.
-   * Creates the real transaction and records the occurrence as paid to prevent duplicate charges.
+   * Marks a scheduled recurring occurrence as paid.
+   * ONLY here is an actual transaction created in the database and counted towards expenses/budgets.
    */
-  suspend fun markRecurringOccurrenceAsPaid(
-    occurrence: ScheduledRecurringOccurrence
-  ): TransactionItem = withContext(Dispatchers.IO) {
-    // Check if already paid
-    if (paidOccurrenceDao.isOccurrencePaid(occurrence.ruleId, occurrence.scheduledDateKey)) {
-      val existingPaid = paidOccurrenceDao.getPaidOccurrencesByRule(occurrence.ruleId)
-        .firstOrNull { it.occurrenceDate == occurrence.scheduledDateKey }
-      if (existingPaid != null) {
-        val tx = transactionDao.getTransactionById(existingPaid.transactionId)
-        if (tx != null) return@withContext tx.toModel()
-      }
+  suspend fun markRecurringPaymentPaid(rule: RecurringRule, occurrenceTimestamp: Long): Long = withContext(Dispatchers.IO) {
+    val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(occurrenceTimestamp))
+    val existingPaid = paidRecurringOccurrenceDao.getPaidOccurrence(rule.id, dateKey)
+    if (existingPaid != null && !existingPaid.isCancelled && existingPaid.paidTransactionId > 0) {
+      return@withContext existingPaid.paidTransactionId
     }
 
-    // Create the actual transaction with the scheduled date
-    val newTxEntity = TransactionEntity(
-      title = occurrence.ruleTitle,
-      amount = occurrence.amount,
-      type = occurrence.type.name,
-      category = occurrence.category.name,
-      timestamp = occurrence.scheduledEpochMillis,
-      note = if (occurrence.note.isNotBlank()) occurrence.note else "Recurring (${occurrence.interval.displayName})",
-      paymentMethod = occurrence.paymentMethod.name,
+    val newTx = TransactionEntity(
+      title = rule.title,
+      amount = rule.amount,
+      type = rule.type.name,
+      category = rule.category.name,
+      timestamp = occurrenceTimestamp,
+      note = if (rule.note.isNotBlank()) rule.note else "Recurring (${rule.interval.displayName})",
+      paymentMethod = rule.paymentMethod.name,
       isRecurring = true,
-      recurringRuleId = occurrence.ruleId
+      recurringRuleId = rule.id
     )
 
-    val txId = transactionDao.insertTransaction(newTxEntity)
-
-    // Record the occurrence as paid
-    paidOccurrenceDao.markOccurrencePaid(
+    val txId = transactionDao.insertTransaction(newTx)
+    paidRecurringOccurrenceDao.markPaid(
       PaidRecurringOccurrenceEntity(
-        ruleId = occurrence.ruleId,
-        occurrenceDate = occurrence.scheduledDateKey,
-        transactionId = txId,
-        paidAt = System.currentTimeMillis()
+        ruleId = rule.id,
+        occurrenceDateKey = dateKey,
+        paidTransactionId = txId,
+        paidTimestamp = System.currentTimeMillis(),
+        isCancelled = false
       )
     )
-
-    // Update rule's lastGeneratedDate
-    val ruleEntity = recurringRuleDao.getRuleById(occurrence.ruleId)
-    if (ruleEntity != null && occurrence.scheduledEpochMillis > ruleEntity.lastGeneratedDate) {
-      recurringRuleDao.updateRule(ruleEntity.copy(lastGeneratedDate = occurrence.scheduledEpochMillis))
-    }
-
-    newTxEntity.copy(id = txId).toModel()
+    txId
   }
 
-  private fun getNextOccurrence(currentDateMillis: Long, interval: RecurrenceInterval): Long {
+  suspend fun cancelRecurringOccurrence(ruleId: Long, dateKey: String) = withContext(Dispatchers.IO) {
+    paidRecurringOccurrenceDao.markPaid(
+      PaidRecurringOccurrenceEntity(
+        ruleId = ruleId,
+        occurrenceDateKey = dateKey,
+        paidTransactionId = -1L,
+        paidTimestamp = System.currentTimeMillis(),
+        isCancelled = true
+      )
+    )
+  }
+
+  suspend fun restoreRecurringOccurrence(ruleId: Long, dateKey: String) = withContext(Dispatchers.IO) {
+    paidRecurringOccurrenceDao.unmarkPaid(ruleId, dateKey)
+  }
+
+  fun computeRuleOccurrencesInWindow(
+    rule: RecurringRule,
+    windowStart: Long,
+    windowEnd: Long
+  ): List<Long> {
+    val results = mutableListOf<Long>()
+    var current = rule.startDate
+    val maxLookahead = windowEnd
+
+    while (current <= maxLookahead && (rule.endDate == null || current <= rule.endDate)) {
+      if (current >= windowStart) {
+        results.add(current)
+      }
+      current = getNextOccurrence(current, rule.interval)
+      if (results.size > 200) break
+    }
+    return results
+  }
+
+  fun getNextOccurrence(currentDateMillis: Long, interval: RecurrenceInterval): Long {
     val cal = Calendar.getInstance()
     cal.timeInMillis = currentDateMillis
     when (interval) {
@@ -299,22 +274,67 @@ class FinanceRepository(private val context: Context) {
     return cal.timeInMillis
   }
 
-  // ================= Secure Notes CRUD =================
+  // ================= Secure Vault / Private Notes CRUD =================
 
-  suspend fun insertSecureNote(note: SecureNote): Long = withContext(Dispatchers.IO) {
-    secureNoteDao.insertNote(SecureNoteEntity.fromModel(note))
+  suspend fun insertSecureNote(note: SecureNoteItem): Long = withContext(Dispatchers.IO) {
+    val jsonPayload = JSONObject().apply {
+      put("notes", note.notes)
+      put("bankName", note.bankName)
+      put("accountNumber", note.accountNumber)
+      put("ifscCode", note.ifscCode)
+      put("holderName", note.holderName)
+      put("cardNumber", note.cardNumber)
+      put("cardExpiry", note.cardExpiry)
+      put("cardCvv", note.cardCvv)
+      put("username", note.username)
+      put("passwordSecret", note.passwordSecret)
+    }.toString()
+
+    val (ciphertext, iv) = CryptoManager.encryptLocal(jsonPayload, localKey)
+    val entity = SecureNoteEntity(
+      id = note.id,
+      title = note.title,
+      type = note.type.name,
+      encryptedContent = ciphertext,
+      iv = iv,
+      updatedAt = System.currentTimeMillis()
+    )
+    secureNoteDao.insertNote(entity)
   }
 
-  suspend fun updateSecureNote(note: SecureNote) = withContext(Dispatchers.IO) {
-    secureNoteDao.updateNote(SecureNoteEntity.fromModel(note))
+  suspend fun updateSecureNote(note: SecureNoteItem) = withContext(Dispatchers.IO) {
+    insertSecureNote(note)
   }
 
   suspend fun deleteSecureNote(id: Long) = withContext(Dispatchers.IO) {
-    secureNoteDao.deleteNoteById(id)
+    secureNoteDao.deleteById(id)
   }
 
-  suspend fun getAllSecureNotes(): List<SecureNote> = withContext(Dispatchers.IO) {
-    secureNoteDao.getAllNotes().map { it.toModel() }
+  private fun decryptNoteEntity(entity: SecureNoteEntity): SecureNoteItem? {
+    return try {
+      val plainJson = CryptoManager.decryptLocal(entity.encryptedContent, entity.iv, localKey)
+      val json = JSONObject(plainJson)
+      val noteType = try { SecureNoteType.valueOf(entity.type) } catch (e: Exception) { SecureNoteType.GENERAL_NOTE }
+
+      SecureNoteItem(
+        id = entity.id,
+        title = entity.title,
+        type = noteType,
+        notes = json.optString("notes", ""),
+        bankName = json.optString("bankName", ""),
+        accountNumber = json.optString("accountNumber", ""),
+        ifscCode = json.optString("ifscCode", ""),
+        holderName = json.optString("holderName", ""),
+        cardNumber = json.optString("cardNumber", ""),
+        cardExpiry = json.optString("cardExpiry", ""),
+        cardCvv = json.optString("cardCvv", ""),
+        username = json.optString("username", ""),
+        passwordSecret = json.optString("passwordSecret", ""),
+        updatedAt = entity.updatedAt
+      )
+    } catch (e: Exception) {
+      null
+    }
   }
 
   // ================= Cloud Cache Synchronization =================
@@ -323,9 +343,10 @@ class FinanceRepository(private val context: Context) {
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
     recurringRules: List<RecurringRule>,
-    paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList(),
-    secureNotes: List<SecureNote> = emptyList()
+    secureNotes: List<SecureNoteItem> = emptyList(),
+    paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
   ) = withContext(Dispatchers.IO) {
+    // Atomically replace local tables with cloud authoritative data
     transactionDao.clearAll()
     if (transactions.isNotEmpty()) {
       transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
@@ -341,14 +362,16 @@ class FinanceRepository(private val context: Context) {
       recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
     }
 
+    paidRecurringOccurrenceDao.clearAll()
     if (paidOccurrences.isNotEmpty()) {
-      paidOccurrenceDao.clearAll()
-      paidOccurrenceDao.insertAll(paidOccurrences)
+      paidRecurringOccurrenceDao.insertAll(paidOccurrences)
     }
 
     if (secureNotes.isNotEmpty()) {
       secureNoteDao.clearAll()
-      secureNoteDao.insertAll(secureNotes.map { SecureNoteEntity.fromModel(it) })
+      for (sn in secureNotes) {
+        insertSecureNote(sn)
+      }
     }
   }
 
@@ -356,22 +379,36 @@ class FinanceRepository(private val context: Context) {
     transactionDao.clearAll()
     budgetDao.clearAll()
     recurringRuleDao.clearAll()
-    paidOccurrenceDao.clearAll()
+    paidRecurringOccurrenceDao.clearAll()
     secureNoteDao.clearAll()
   }
 
-  suspend fun clearAllData() = withContext(Dispatchers.IO) {
-    clearLocalCache()
-    clearUserProfile()
-  }
-
-  suspend fun getAllLocalData(): LocalDataBundle = withContext(Dispatchers.IO) {
+  suspend fun getAllLocalData(): LocalDataDump = withContext(Dispatchers.IO) {
     val txs = transactionDao.getAllTransactions().map { it.toModel() }
     val bgs = budgetDao.getAllBudgets().map { it.toModel() }
     val rcs = recurringRuleDao.getAllRules().map { it.toModel() }
-    val pds = paidOccurrenceDao.getAllPaidOccurrences()
-    val nts = secureNoteDao.getAllNotes().map { it.toModel() }
-    LocalDataBundle(txs, bgs, rcs, pds, nts)
+    val paid = paidRecurringOccurrenceDao.getAllPaidOccurrences()
+    val notes = secureNoteDao.getAllNotes().mapNotNull { decryptNoteEntity(it) }
+    LocalDataDump(txs, bgs, rcs, notes, paid)
+  }
+
+  // ================= Theme & Security Preferences =================
+
+  fun getThemeMode(): ThemeMode {
+    val raw = prefs.getString("paisa_theme_mode", ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name
+    return try { ThemeMode.valueOf(raw) } catch (e: Exception) { ThemeMode.SYSTEM }
+  }
+
+  fun saveThemeMode(mode: ThemeMode) {
+    prefs.edit().putString("paisa_theme_mode", mode.name).apply()
+  }
+
+  fun isAppLockEnabled(): Boolean {
+    return prefs.getBoolean("paisa_app_lock_enabled", false)
+  }
+
+  fun setAppLockEnabled(enabled: Boolean) {
+    prefs.edit().putBoolean("paisa_app_lock_enabled", enabled).apply()
   }
 
   // ================= User Profile & Preferences =================
@@ -412,21 +449,18 @@ class FinanceRepository(private val context: Context) {
     period: ExportPeriod,
     selectedCalendar: Calendar,
     customStart: Long? = null,
-    customEnd: Long? = null,
-    specificYear: Int? = null,
-    specificMonthCalendar: Calendar? = null
+    customEnd: Long? = null
   ): File = withContext(Dispatchers.IO) {
     val (transactions, periodLabel) = when (period) {
       ExportPeriod.CURRENT_MONTH -> {
-        val targetCal = specificMonthCalendar ?: selectedCalendar
-        val start = DateUtils.getStartOfMonth(targetCal)
-        val end = DateUtils.getEndOfMonth(targetCal)
+        val start = DateUtils.getStartOfMonth(selectedCalendar)
+        val end = DateUtils.getEndOfMonth(selectedCalendar)
         val list = transactionDao.getTransactionsBetween(start, end)
-        val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(targetCal.time)
+        val label = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(selectedCalendar.time)
         Pair(list, label)
       }
       ExportPeriod.SELECTED_YEAR -> {
-        val year = specificYear ?: selectedCalendar.get(Calendar.YEAR)
+        val year = selectedCalendar.get(Calendar.YEAR)
         val start = DateUtils.getStartOfYear(year)
         val end = DateUtils.getEndOfYear(year)
         val list = transactionDao.getTransactionsBetween(start, end)
@@ -460,10 +494,3 @@ class FinanceRepository(private val context: Context) {
   }
 }
 
-data class LocalDataBundle(
-  val transactions: List<TransactionItem>,
-  val budgets: List<BudgetModel>,
-  val recurringRules: List<RecurringRule>,
-  val paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList(),
-  val secureNotes: List<SecureNote> = emptyList()
-)
