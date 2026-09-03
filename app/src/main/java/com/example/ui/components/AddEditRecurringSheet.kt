@@ -1,9 +1,9 @@
 package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -57,8 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringRule
@@ -100,7 +99,7 @@ fun AddEditRecurringSheet(
   var titleText by remember { mutableStateOf(initialRule?.title ?: "") }
   var selectedCategory by remember {
     mutableStateOf(
-      initialRule?.category ?: if (ruleType == TransactionType.INCOME) TransactionCategory.SALARY else TransactionCategory.SUBSCRIPTIONS
+      initialRule?.category ?: if (ruleType == TransactionType.INCOME) TransactionCategory.SALARY else TransactionCategory.FOOD_DINING
     )
   }
   var selectedInterval by remember {
@@ -128,6 +127,12 @@ fun AddEditRecurringSheet(
     selectedCategory = availableCategories.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
   }
 
+  val activeColor by animateColorAsState(
+    targetValue = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
+    animationSpec = spring(stiffness = Spring.StiffnessMedium),
+    label = "active_color"
+  )
+
   if (showStartDatePicker) {
     AppDatePickerDialog(
       initialDateMillis = startDate,
@@ -141,9 +146,6 @@ fun AddEditRecurringSheet(
     sheetState = sheetState,
     containerColor = MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-    modifier = Modifier
-      .fillMaxWidth()
-      .fillMaxHeight(0.9f),
     dragHandle = {
       Box(
         modifier = Modifier
@@ -156,14 +158,17 @@ fun AddEditRecurringSheet(
   ) {
     Column(
       modifier = Modifier
-        .fillMaxSize()
+        .fillMaxWidth()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 24.dp)
         .navigationBarsPadding()
-        .padding(bottom = 24.dp)
+        .padding(bottom = 28.dp)
     ) {
+      // Header
       Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(36.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
@@ -173,64 +178,77 @@ fun AddEditRecurringSheet(
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
-        IconButton(onClick = onDismiss) {
-          Icon(Icons.Default.Close, contentDescription = "Close")
+        IconButton(
+          onClick = onDismiss,
+          modifier = Modifier.size(36.dp)
+        ) {
+          Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(20.dp))
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
-      // Clean stable Segmented Control (Expense / Income) without jittery highlight animation
-      Row(
+      // Smooth Sliding Income / Expense Toggle Segment
+      BoxWithConstraints(
         modifier = Modifier
           .fillMaxWidth()
           .height(48.dp)
           .clip(RoundedCornerShape(14.dp))
-          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-          .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+          .padding(4.dp)
       ) {
-        val isExpense = ruleType == TransactionType.EXPENSE
-        Surface(
-          shape = RoundedCornerShape(10.dp),
-          color = if (isExpense) ExpenseRed else Color.Transparent,
+        val segmentWidth = (maxWidth) / 2
+        val slideOffset by animateFloatAsState(
+          targetValue = if (ruleType == TransactionType.EXPENSE) 0f else 1f,
+          animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+          label = "pill_slide"
+        )
+
+        Box(
           modifier = Modifier
-            .weight(1f)
+            .offset(x = segmentWidth * slideOffset)
+            .width(segmentWidth)
             .fillMaxHeight()
-            .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null
-            ) { ruleType = TransactionType.EXPENSE }
-            .testTag("recurring_type_expense")
-        ) {
-          Box(contentAlignment = Alignment.Center) {
+            .clip(RoundedCornerShape(10.dp))
+            .background(activeColor)
+        )
+
+        Row(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .fillMaxHeight()
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { ruleType = TransactionType.EXPENSE }
+              .testTag("recurring_type_expense"),
+            contentAlignment = Alignment.Center
+          ) {
             Text(
               text = "Recurring Expense",
-              style = MaterialTheme.typography.bodyMedium,
-              fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
-              color = if (isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = if (ruleType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
+              color = if (ruleType == TransactionType.EXPENSE) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
-        }
 
-        Surface(
-          shape = RoundedCornerShape(10.dp),
-          color = if (!isExpense) IncomeGreen else Color.Transparent,
-          modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
-            .clickable(
-              interactionSource = remember { MutableInteractionSource() },
-              indication = null
-            ) { ruleType = TransactionType.INCOME }
-            .testTag("recurring_type_income")
-        ) {
-          Box(contentAlignment = Alignment.Center) {
+          Box(
+            modifier = Modifier
+              .weight(1f)
+              .fillMaxHeight()
+              .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+              ) { ruleType = TransactionType.INCOME }
+              .testTag("recurring_type_income"),
+            contentAlignment = Alignment.Center
+          ) {
             Text(
               text = "Recurring Income",
-              style = MaterialTheme.typography.bodyMedium,
-              fontWeight = if (!isExpense) FontWeight.Bold else FontWeight.Medium,
-              color = if (!isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = if (ruleType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
+              color = if (ruleType == TransactionType.INCOME) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
@@ -238,7 +256,7 @@ fun AddEditRecurringSheet(
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Recurrence Interval Selector (Daily, Weekly, Monthly, Yearly)
+      // Recurrence Interval Selector
       Text(
         text = "Recurrence Interval",
         style = MaterialTheme.typography.labelMedium,
@@ -291,25 +309,33 @@ fun AddEditRecurringSheet(
             errorMessage = null
           }
         },
-        placeholder = { Text("0.00") },
+        placeholder = { Text("0.00", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)) },
         leadingIcon = {
           Text(
             text = currencySymbol,
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
+            color = activeColor,
             modifier = Modifier.padding(start = 12.dp)
           )
         },
+        textStyle = MaterialTheme.typography.headlineMedium.copy(
+          fontWeight = FontWeight.Bold,
+          color = activeColor
+        ),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
         shape = RoundedCornerShape(16.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+          focusedBorderColor = activeColor,
+          unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+        ),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("recurring_amount_input")
       )
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // Title
       Text(
@@ -324,7 +350,13 @@ fun AddEditRecurringSheet(
           titleText = it
           errorMessage = null
         },
-        placeholder = { Text(if (ruleType == TransactionType.INCOME) "e.g., Monthly Salary, Rental Dividend" else "e.g., Netflix Subscription, Apartment Rent") },
+        placeholder = {
+          Text(
+            text = if (ruleType == TransactionType.INCOME) "e.g., Monthly Salary, Rental Dividend" else "e.g., Netflix Subscription, Apartment Rent",
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        },
         leadingIcon = {
           Icon(Icons.Default.Title, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
@@ -335,30 +367,34 @@ fun AddEditRecurringSheet(
           .testTag("recurring_title_input")
       )
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
-      // Category Selector
+      // Category Selector (Stable Height)
       Text(
         text = "Category",
         style = MaterialTheme.typography.labelMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
       )
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(6.dp))
       Row(
         modifier = Modifier
           .fillMaxWidth()
+          .height(44.dp)
           .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
       ) {
         availableCategories.forEach { category ->
           val isCatSelected = selectedCategory == category
           Surface(
             shape = RoundedCornerShape(14.dp),
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-            modifier = Modifier.clickable { selectedCategory = category }
+            modifier = Modifier
+              .fillMaxHeight()
+              .clickable { selectedCategory = category }
           ) {
             Row(
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+              modifier = Modifier.padding(horizontal = 12.dp),
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
@@ -374,7 +410,7 @@ fun AddEditRecurringSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // Start Date
       Text(
@@ -392,9 +428,9 @@ fun AddEditRecurringSheet(
           .clickable { showStartDatePicker = true }
       ) {
         Row(
-          modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+          modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
           verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
           Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
           Text(
@@ -405,7 +441,7 @@ fun AddEditRecurringSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       // Notes
       Text(

@@ -183,20 +183,24 @@ fun CalendarScreen(
 
     // 2. Calendar Grid Card with Horizontal Swipe Navigation
     item {
+      val year = selectedCalendar.get(java.util.Calendar.YEAR)
+      val month = selectedCalendar.get(java.util.Calendar.MONTH)
+      val monthIndex = year * 12 + month
+
       Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
         modifier = Modifier
           .fillMaxWidth()
-          .pointerInput(selectedCalendar.get(java.util.Calendar.YEAR), selectedCalendar.get(java.util.Calendar.MONTH)) {
+          .pointerInput(monthIndex) {
             var totalDrag = 0f
             detectHorizontalDragGestures(
               onDragStart = { totalDrag = 0f },
               onDragEnd = {
-                if (totalDrag < -60f) {
+                if (totalDrag < -50f) {
                   viewModel.nextCalendarMonth()
-                } else if (totalDrag > 60f) {
+                } else if (totalDrag > 50f) {
                   viewModel.previousCalendarMonth()
                 }
               },
@@ -232,13 +236,23 @@ fun CalendarScreen(
 
           // Animated Days Grid
           AnimatedContent(
-            targetState = "${selectedCalendar.get(java.util.Calendar.YEAR)}_${selectedCalendar.get(java.util.Calendar.MONTH)}",
+            targetState = monthIndex,
             transitionSpec = {
-              slideInHorizontally { width -> width / 3 } togetherWith slideOutHorizontally { width -> -width / 3 }
+              if (targetState > initialState) {
+                // Next month: enter from right, exit to left
+                slideInHorizontally { width -> width } togetherWith slideOutHorizontally { width -> -width }
+              } else {
+                // Previous month: enter from left, exit to right
+                slideInHorizontally { width -> -width } togetherWith slideOutHorizontally { width -> width }
+              }
             },
             label = "calendar_month_grid"
           ) { _ ->
-            Column {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+            ) {
               val rows = calendarDays.chunked(7)
               rows.forEach { week ->
                 Row(

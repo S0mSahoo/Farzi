@@ -59,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.OccurrenceStatus
@@ -107,7 +108,7 @@ fun RecurringScreen(
     ConfirmationDialog(
       title = "Cancel Payment Occurrence?",
       message = "This will cancel the payment for ${occurrenceToCancel?.occurrenceDateKey} only. Your recurring rule \"${occurrenceToCancel?.rule?.title}\" will stay active for subsequent months. No transaction will be created.",
-      confirmText = "Cancel Occurrence",
+      confirmButtonText = "Cancel Occurrence",
       onConfirm = {
         occurrenceToCancel?.let { viewModel.cancelRecurringOccurrence(it) }
         occurrenceToCancel = null
@@ -131,23 +132,32 @@ fun RecurringScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column {
+        Column(
+          modifier = Modifier.weight(1f)
+        ) {
           Text(
             text = "Recurring & Bills",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
           Text(
             text = "Track upcoming dues & manage subscriptions",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
           )
         }
+
+        Spacer(modifier = Modifier.width(12.dp))
 
         Button(
           onClick = onOpenAddRecurringRule,
           shape = RoundedCornerShape(12.dp),
+          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
           modifier = Modifier.testTag("add_recurring_rule_button")
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))

@@ -133,7 +133,7 @@ fun TransactionsScreen(
       OutlinedTextField(
         value = searchQuery,
         onValueChange = { viewModel.setSearchQuery(it) },
-        placeholder = { Text("Search by title, category, notes, amount...") },
+        placeholder = { Text("Search transactions...", maxLines = 1, overflow = TextOverflow.Ellipsis) },
         leadingIcon = {
           Icon(Icons.Default.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.primary)
         },
@@ -210,9 +210,11 @@ fun TransactionsScreen(
           Surface(
             shape = RoundedCornerShape(10.dp),
             color = if (isSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            modifier = Modifier.clickable {
-              viewModel.setFilterCategory(if (isSelected) null else category)
-            }
+            modifier = Modifier
+              .clip(RoundedCornerShape(10.dp))
+              .clickable {
+                viewModel.setFilterCategory(if (isSelected) null else category)
+              }
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),

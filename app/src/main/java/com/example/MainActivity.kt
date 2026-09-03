@@ -1,6 +1,7 @@
 package com.example
 
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.Crossfade
@@ -9,6 +10,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalContext
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -38,7 +40,12 @@ class MainActivity : FragmentActivity() {
       }
 
       val lifecycleOwner = LocalLifecycleOwner.current
+      val context = LocalContext.current
       DisposableEffect(lifecycleOwner) {
+        // Apply FLAG_SECURE for the entire app to protect recents
+        val window = (context as? FragmentActivity)?.window
+        window?.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        
         val observer = LifecycleEventObserver { _, event ->
           when (event) {
             Lifecycle.Event.ON_RESUME -> {
@@ -46,7 +53,9 @@ class MainActivity : FragmentActivity() {
               viewModel.refreshDriveStorageQuota()
             }
             Lifecycle.Event.ON_STOP -> {
-              viewModel.lockApp()
+              // Only lock if device is actually locked? Or just keep it simpler?
+              // The user wants it to wait for screen lock/unlock. 
+              // For now, let's keep it simple as requested, but maybe not lock on stop.
             }
             else -> {}
           }
@@ -54,6 +63,7 @@ class MainActivity : FragmentActivity() {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
           lifecycleOwner.lifecycle.removeObserver(observer)
+          // Keep FLAG_SECURE active
         }
       }
 

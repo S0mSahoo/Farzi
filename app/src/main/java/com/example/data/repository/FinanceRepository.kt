@@ -279,15 +279,8 @@ class FinanceRepository(private val context: Context) {
   suspend fun insertSecureNote(note: SecureNoteItem): Long = withContext(Dispatchers.IO) {
     val jsonPayload = JSONObject().apply {
       put("notes", note.notes)
-      put("bankName", note.bankName)
-      put("accountNumber", note.accountNumber)
-      put("ifscCode", note.ifscCode)
-      put("holderName", note.holderName)
-      put("cardNumber", note.cardNumber)
-      put("cardExpiry", note.cardExpiry)
-      put("cardCvv", note.cardCvv)
-      put("username", note.username)
-      put("passwordSecret", note.passwordSecret)
+      put("fileName", note.fileName)
+      put("fileUri", note.fileUri)
     }.toString()
 
     val (ciphertext, iv) = CryptoManager.encryptLocal(jsonPayload, localKey)
@@ -314,22 +307,15 @@ class FinanceRepository(private val context: Context) {
     return try {
       val plainJson = CryptoManager.decryptLocal(entity.encryptedContent, entity.iv, localKey)
       val json = JSONObject(plainJson)
-      val noteType = try { SecureNoteType.valueOf(entity.type) } catch (e: Exception) { SecureNoteType.GENERAL_NOTE }
+      val noteType = try { SecureNoteType.valueOf(entity.type) } catch (e: Exception) { SecureNoteType.NOTE }
 
       SecureNoteItem(
         id = entity.id,
         title = entity.title,
         type = noteType,
         notes = json.optString("notes", ""),
-        bankName = json.optString("bankName", ""),
-        accountNumber = json.optString("accountNumber", ""),
-        ifscCode = json.optString("ifscCode", ""),
-        holderName = json.optString("holderName", ""),
-        cardNumber = json.optString("cardNumber", ""),
-        cardExpiry = json.optString("cardExpiry", ""),
-        cardCvv = json.optString("cardCvv", ""),
-        username = json.optString("username", ""),
-        passwordSecret = json.optString("passwordSecret", ""),
+        fileName = json.optString("fileName", ""),
+        fileUri = json.optString("fileUri", ""),
         updatedAt = entity.updatedAt
       )
     } catch (e: Exception) {

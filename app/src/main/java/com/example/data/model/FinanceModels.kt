@@ -305,11 +305,8 @@ data class RecurringOccurrence(
 )
 
 enum class SecureNoteType(val displayName: String) {
-  BANK_ACCOUNT("Bank Account"),
-  CREDIT_CARD("Credit Card"),
-  DEBIT_CARD("Debit Card"),
-  PASSWORD("Password / Credential"),
-  GENERAL_NOTE("Private Note")
+  NOTE("Private Note"),
+  FILE("File Attachment")
 }
 
 @Immutable
@@ -318,18 +315,8 @@ data class SecureNoteItem(
   val title: String,
   val type: SecureNoteType,
   val notes: String = "",
-  // Bank fields
-  val bankName: String = "",
-  val accountNumber: String = "",
-  val ifscCode: String = "",
-  val holderName: String = "",
-  // Card fields
-  val cardNumber: String = "",
-  val cardExpiry: String = "",
-  val cardCvv: String = "",
-  // Credentials
-  val username: String = "",
-  val passwordSecret: String = "",
+  val fileName: String = "",
+  val fileUri: String = "",
   val updatedAt: Long = System.currentTimeMillis()
 )
 

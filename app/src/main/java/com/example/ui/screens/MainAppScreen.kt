@@ -1,8 +1,9 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedContent
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,45 +12,42 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.DrawerValue
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.NavigationDrawerItem
-import androidx.compose.material3.NavigationDrawerItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -57,34 +55,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.example.data.model.BudgetModel
 import com.example.data.model.RecurringRule
-import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.components.AddEditRecurringSheet
 import com.example.ui.components.AddEditTransactionSheet
 import com.example.ui.components.AppBrandLogo
+import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
 import com.example.ui.components.ExportDataModal
 import com.example.ui.components.SetBudgetSheet
-import com.example.ui.theme.MinimalEmerald
-import com.example.ui.theme.MinimalIndigo
+import com.example.ui.theme.ExpenseRed
 import com.example.ui.viewmodel.FinanceViewModel
-import kotlinx.coroutines.launch
 
 sealed class AppDestination(val index: Int, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
   object Dashboard : AppDestination(0, "Home", Icons.Default.Dashboard)
@@ -99,6 +93,7 @@ sealed class AppDestination(val index: Int, val label: String, val icon: android
 fun MainAppScreen(
   viewModel: FinanceViewModel
 ) {
+  val context = LocalContext.current
   val userProfile by viewModel.userProfile.collectAsState()
   val dashboardCalendar by viewModel.dashboardCalendar.collectAsState()
   val budgetCalendar by viewModel.budgetCalendar.collectAsState()
@@ -106,9 +101,9 @@ fun MainAppScreen(
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
-
-  val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-  val scope = rememberCoroutineScope()
+  var showProfileSheet by remember { mutableStateOf(false) }
+  var showSecureNotesScreen by remember { mutableStateOf(false) }
+  var showSignOutDialog by remember { mutableStateOf(false) }
 
   // Sheet states
   var showAddEditTransactionSheet by remember { mutableStateOf(false) }
@@ -129,10 +124,27 @@ fun MainAppScreen(
   val recurringSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val budgetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+  val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
   val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(budgetCalendar)
   val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(budgetCalendar)
   val currentBudget = allBudgets.find { it.monthKey == activeBudgetMonthKey }
+
+  if (showSignOutDialog) {
+    ConfirmationDialog(
+      title = "Sign Out from Google Account?",
+      message = "Signing out will end your session and clear local device cache. Your financial data is securely preserved on Google Drive and will reload when you sign in again.",
+      confirmButtonText = "Sign Out",
+      confirmButtonColor = ExpenseRed,
+      onConfirm = {
+        viewModel.signOut {
+          Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+        }
+        showSignOutDialog = false
+      },
+      onDismiss = { showSignOutDialog = false }
+    )
+  }
 
   // Sheets
   if (showAddEditTransactionSheet) {
@@ -246,175 +258,179 @@ fun MainAppScreen(
     )
   }
 
-  ModalNavigationDrawer(
-    drawerState = drawerState,
-    drawerContent = {
-      ModalDrawerSheet(
-        modifier = Modifier.width(310.dp),
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
-        drawerShape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
+  if (showProfileSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showProfileSheet = false },
+      sheetState = profileSheetState,
+      containerColor = MaterialTheme.colorScheme.surface,
+      shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(24.dp)
+          .navigationBarsPadding(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        Column(
-          modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
+        // Account Profile Header
+        Surface(
+          shape = RoundedCornerShape(20.dp),
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+          modifier = Modifier.fillMaxWidth()
         ) {
-          // Header: Google Account Profile & App Identity
-          Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-            modifier = Modifier.fillMaxWidth()
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
           ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-              ) {
-                if (!userProfile.photoUrl.isNullOrBlank()) {
-                  AsyncImage(
-                    model = userProfile.photoUrl,
-                    contentDescription = "Google Profile Picture",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                      .size(46.dp)
-                      .clip(CircleShape)
-                      .background(MaterialTheme.colorScheme.surfaceVariant)
-                  )
-                } else {
-                  Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(46.dp)
-                  ) {
-                    Box(contentAlignment = Alignment.Center) {
-                      Text(
-                        text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "G",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                      )
-                    }
-                  }
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
+            if (!userProfile.photoUrl.isNullOrBlank()) {
+              AsyncImage(
+                model = userProfile.photoUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(50.dp).clip(CircleShape)
+              )
+            } else {
+              Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(50.dp)) {
+                Box(contentAlignment = Alignment.Center) {
                   Text(
-                    text = userProfile.name.ifBlank { "Google User" },
+                    text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "G",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                  )
-                  Text(
-                    text = userProfile.email.ifBlank { "Google Account" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = Color.White
                   )
                 }
               }
             }
-          }
-
-          Spacer(modifier = Modifier.height(16.dp))
-          HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-          Spacer(modifier = Modifier.height(12.dp))
-
-          // Navigation Links
-          val destinations = listOf(
-            AppDestination.Dashboard,
-            AppDestination.Calendar,
-            AppDestination.Transactions,
-            AppDestination.Budgets,
-            AppDestination.Recurring
-          )
-
-          destinations.forEach { dest ->
-            val isSelected = !isSettingsOpen && selectedTab == dest.index
-            NavigationDrawerItem(
-              icon = { Icon(dest.icon, contentDescription = null, modifier = Modifier.size(20.dp)) },
-              label = { Text(dest.label, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium) },
-              selected = isSelected,
-              onClick = {
-                isSettingsOpen = false
-                selectedTab = dest.index
-                scope.launch { drawerState.close() }
-              },
-              shape = RoundedCornerShape(14.dp),
-              colors = NavigationDrawerItemDefaults.colors(
-                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                selectedIconColor = MaterialTheme.colorScheme.primary,
-                selectedTextColor = MaterialTheme.colorScheme.primary
-              ),
-              modifier = Modifier.padding(vertical = 2.dp)
-            )
-          }
-
-          Spacer(modifier = Modifier.height(8.dp))
-          HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-          Spacer(modifier = Modifier.height(8.dp))
-
-          // Export & Portability Quick Action
-          NavigationDrawerItem(
-            icon = { Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) },
-            label = { Text("Export & Portability", fontWeight = FontWeight.Medium) },
-            selected = false,
-            onClick = {
-              scope.launch { drawerState.close() }
-              showExportModal = true
-            },
-            shape = RoundedCornerShape(14.dp),
-            modifier = Modifier
-              .padding(vertical = 2.dp)
-              .testTag("drawer_export_pdf_button")
-          )
-
-          // Settings Action
-          NavigationDrawerItem(
-            icon = { Icon(Icons.Default.Settings, contentDescription = null, modifier = Modifier.size(20.dp)) },
-            label = { Text("Settings", fontWeight = if (isSettingsOpen) FontWeight.Bold else FontWeight.Medium) },
-            selected = isSettingsOpen,
-            onClick = {
-              isSettingsOpen = true
-              scope.launch { drawerState.close() }
-            },
-            shape = RoundedCornerShape(14.dp),
-            colors = NavigationDrawerItemDefaults.colors(
-              selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-              selectedIconColor = MaterialTheme.colorScheme.primary,
-              selectedTextColor = MaterialTheme.colorScheme.primary
-            ),
-            modifier = Modifier
-              .padding(vertical = 2.dp)
-              .testTag("drawer_settings_button")
-          )
-
-          Spacer(modifier = Modifier.weight(1f))
-
-          // Bottom Info Badge
-          Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Row(
-              modifier = Modifier.padding(12.dp),
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-              AppBrandLogo(size = 24.dp)
-              Column {
-                Text("Paisa v3.0.0", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                Text("100% Offline & Private", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-              }
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = userProfile.name.ifBlank { "Google User" },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+              )
+              Text(
+                text = userProfile.email.ifBlank { "Google Account" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+              )
             }
           }
         }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Secure Notes Vault Item
+        Surface(
+          onClick = {
+            showProfileSheet = false
+            showSecureNotesScreen = true
+          },
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("profile_secure_notes_button")
+        ) {
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
+            Icon(Icons.Default.Shield, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Secure Notes Vault", fontWeight = FontWeight.Bold)
+              Text("Encrypted bank accounts, cards & passwords", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+
+        // Export & Portability Item
+        Surface(
+          onClick = {
+            showProfileSheet = false
+            showExportModal = true
+          },
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("profile_export_button")
+        ) {
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
+            Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Export & Portability", fontWeight = FontWeight.Bold)
+              Text("PDF reports & JSON backups", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+
+        // Settings Item
+        Surface(
+          onClick = {
+            showProfileSheet = false
+            isSettingsOpen = true
+          },
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("profile_settings_button")
+        ) {
+          Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
+            Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text("Settings & Preferences", fontWeight = FontWeight.Bold)
+              Text("App lock, themes & currency", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+          }
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Sign Out Button
+        OutlinedButton(
+          onClick = {
+            showProfileSheet = false
+            showSignOutDialog = true
+          },
+          shape = RoundedCornerShape(14.dp),
+          colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed),
+          border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.5f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .testTag("profile_sign_out_button")
+        ) {
+          Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Sign Out of Account", fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
       }
     }
-  ) {
+  }
+
+  if (showSecureNotesScreen) {
+    BackHandler { showSecureNotesScreen = false }
+    SecureNotesScreen(
+      viewModel = viewModel,
+      onBack = { showSecureNotesScreen = false }
+    )
+  } else {
     Scaffold(
       topBar = {
         TopAppBar(
@@ -436,34 +452,24 @@ fun MainAppScreen(
               IconButton(onClick = { isSettingsOpen = false }) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back to Dashboard")
               }
-            } else {
-              IconButton(
-                onClick = { scope.launch { drawerState.open() } },
-                modifier = Modifier.testTag("profile_drawer_button")
-              ) {
-                Icon(Icons.Default.Menu, contentDescription = "Open Navigation Menu")
-              }
             }
           },
           actions = {
             if (!isSettingsOpen) {
-              // Clickable profile pill in header
               Surface(
+                onClick = { showProfileSheet = true },
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier
-                  .clip(RoundedCornerShape(12.dp))
-                  .clickable { scope.launch { drawerState.open() } }
-                  .testTag("header_profile_pill")
+                modifier = Modifier.testTag("header_profile_pill")
               ) {
                 Row(
-                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                  modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                   Icon(Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
                   Text(
-                    text = if (userProfile.name.isNotBlank()) userProfile.name.split(" ").first() else "Menu",
+                    text = if (userProfile.name.isNotBlank()) userProfile.name.split(" ").first() else "Profile",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -548,6 +554,7 @@ fun MainAppScreen(
           .padding(innerPadding)
       ) {
         if (isSettingsOpen) {
+          BackHandler { isSettingsOpen = false }
           SettingsScreen(
             viewModel = viewModel,
             onOpenExportModal = { showExportModal = true }
