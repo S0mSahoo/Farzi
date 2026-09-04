@@ -424,14 +424,30 @@ fun MainAppScreen(
     }
   }
 
-  if (showSecureNotesScreen) {
-    BackHandler { showSecureNotesScreen = false }
-    SecureNotesScreen(
-      viewModel = viewModel,
-      onBack = { showSecureNotesScreen = false }
-    )
-  } else {
-    Scaffold(
+  // Screen blocker overlay for recents
+  val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+  var isAppInBackground by remember { mutableStateOf(false) }
+  androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+      when (event) {
+        androidx.lifecycle.Lifecycle.Event.ON_START -> isAppInBackground = false
+        androidx.lifecycle.Lifecycle.Event.ON_STOP -> isAppInBackground = true
+        else -> {}
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
+
+  Box(modifier = Modifier.fillMaxSize()) {
+    if (showSecureNotesScreen) {
+      BackHandler { showSecureNotesScreen = false }
+      SecureNotesScreen(
+        viewModel = viewModel,
+        onBack = { showSecureNotesScreen = false }
+      )
+    } else {
+      Scaffold(
       topBar = {
         TopAppBar(
           title = {
@@ -618,5 +634,28 @@ fun MainAppScreen(
         }
       }
     }
+
+
+    if (isAppInBackground) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .background(MaterialTheme.colorScheme.surface)
+          .clickable(enabled = false) {}, // Block clicks
+        contentAlignment = Alignment.Center
+      ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          AppBrandLogo(size = 80.dp)
+          Spacer(modifier = Modifier.height(16.dp))
+          Text(
+            text = "App Content Blocked",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+        }
+      }
+    }
   }
+}
 }

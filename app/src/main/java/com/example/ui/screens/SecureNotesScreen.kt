@@ -136,9 +136,8 @@ fun SecureNotesScreen(
   }
 
   LaunchedEffect(Unit) {
-    if (!isVaultUnlocked) {
-      authenticateUser {}
-    }
+    viewModel.lockVault() // Ensure it's locked whenever we enter this screen
+    authenticateUser {}
   }
 
   // Full-page Detail / Editor Screen

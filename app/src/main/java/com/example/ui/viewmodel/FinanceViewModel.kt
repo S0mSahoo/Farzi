@@ -115,6 +115,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   private var lastAutoSyncCheckTime = 0L
+  var lastStopTime: Long = 0L
 
   private fun checkAndAutoSync() {
     triggerAutoSyncOnResume(force = true)
@@ -1045,6 +1046,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun unlockVault() {
     _isVaultUnlocked.value = true
+  }
+
+  fun lockVault() {
+    _isVaultUnlocked.value = false
   }
 
   fun refreshDriveStorageQuota() {

@@ -21,7 +21,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import android.view.WindowManager
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import android.app.Activity
 import com.example.ui.theme.MinimalIndigo
 import com.example.util.BiometricAuthManager
 
@@ -39,6 +42,16 @@ fun AppLockScreen(
   onUnlockSuccess: () -> Unit
 ) {
   val context = LocalContext.current
+  
+  // Apply FLAG_SECURE for this screen to protect recents
+  DisposableEffect(Unit) {
+    val window = (context as? FragmentActivity)?.window ?: (context as? Activity)?.window
+    window?.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    onDispose {
+      window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+    }
+  }
+
   val activity = context as? FragmentActivity
 
   fun triggerBiometric() {
