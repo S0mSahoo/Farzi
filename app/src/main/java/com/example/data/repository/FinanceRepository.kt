@@ -6,7 +6,6 @@ import com.example.data.local.AppDatabase
 import com.example.data.local.BudgetEntity
 import com.example.data.local.PaidRecurringOccurrenceEntity
 import com.example.data.local.RecurringRuleEntity
-import com.example.data.local.SecureNoteEntity
 import com.example.data.local.TransactionEntity
 import com.example.data.model.BudgetModel
 import com.example.data.model.ExportPeriod
@@ -16,15 +15,12 @@ import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
-import com.example.data.model.SecureNoteItem
-import com.example.data.model.SecureNoteType
 import com.example.data.model.ThemeMode
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.data.model.UserProfile
 import com.example.ui.components.DateUtils
-import com.example.util.CryptoManager
 import com.example.util.NotificationHelper
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -45,13 +41,10 @@ class FinanceRepository(private val context: Context) {
   private val transactionDao = database.transactionDao()
   private val budgetDao = database.budgetDao()
   private val recurringRuleDao = database.recurringRuleDao()
-  private val secureNoteDao = database.secureNoteDao()
   private val paidRecurringOccurrenceDao = database.paidRecurringOccurrenceDao()
 
   private val prefs: SharedPreferences =
     context.getSharedPreferences("paisa_user_preferences", Context.MODE_PRIVATE)
-
-  private val localKey = "paisa_vault_local_key_v1"
 
   // Reactive transaction flow
   val allTransactions: Flow<List<TransactionItem>> =
@@ -77,12 +70,6 @@ class FinanceRepository(private val context: Context) {
   // Reactive paid occurrences flow
   val allPaidOccurrences: Flow<List<PaidRecurringOccurrenceEntity>> =
     paidRecurringOccurrenceDao.getAllPaidOccurrencesFlow()
-
-  // Reactive secure notes flow
-  val allSecureNotes: Flow<List<SecureNoteItem>> =
-    secureNoteDao.getAllNotesFlow().map { entities ->
-      entities.mapNotNull { entity -> decryptNoteEntity(entity) }
-    }
 
   // ================= Transactions CRUD =================
 
@@ -274,62 +261,12 @@ class FinanceRepository(private val context: Context) {
     return cal.timeInMillis
   }
 
-  // ================= Secure Vault / Private Notes CRUD =================
-
-  suspend fun insertSecureNote(note: SecureNoteItem): Long = withContext(Dispatchers.IO) {
-    val jsonPayload = JSONObject().apply {
-      put("notes", note.notes)
-      put("fileName", note.fileName)
-      put("fileUri", note.fileUri)
-    }.toString()
-
-    val (ciphertext, iv) = CryptoManager.encryptLocal(jsonPayload, localKey)
-    val entity = SecureNoteEntity(
-      id = note.id,
-      title = note.title,
-      type = note.type.name,
-      encryptedContent = ciphertext,
-      iv = iv,
-      updatedAt = System.currentTimeMillis()
-    )
-    secureNoteDao.insertNote(entity)
-  }
-
-  suspend fun updateSecureNote(note: SecureNoteItem) = withContext(Dispatchers.IO) {
-    insertSecureNote(note)
-  }
-
-  suspend fun deleteSecureNote(id: Long) = withContext(Dispatchers.IO) {
-    secureNoteDao.deleteById(id)
-  }
-
-  private fun decryptNoteEntity(entity: SecureNoteEntity): SecureNoteItem? {
-    return try {
-      val plainJson = CryptoManager.decryptLocal(entity.encryptedContent, entity.iv, localKey)
-      val json = JSONObject(plainJson)
-      val noteType = try { SecureNoteType.valueOf(entity.type) } catch (e: Exception) { SecureNoteType.NOTE }
-
-      SecureNoteItem(
-        id = entity.id,
-        title = entity.title,
-        type = noteType,
-        notes = json.optString("notes", ""),
-        fileName = json.optString("fileName", ""),
-        fileUri = json.optString("fileUri", ""),
-        updatedAt = entity.updatedAt
-      )
-    } catch (e: Exception) {
-      null
-    }
-  }
-
   // ================= Cloud Cache Synchronization =================
 
   suspend fun replaceCacheWithCloudData(
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
     recurringRules: List<RecurringRule>,
-    secureNotes: List<SecureNoteItem> = emptyList(),
     paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
   ) = withContext(Dispatchers.IO) {
     // Atomically replace local tables with cloud authoritative data
@@ -352,13 +289,6 @@ class FinanceRepository(private val context: Context) {
     if (paidOccurrences.isNotEmpty()) {
       paidRecurringOccurrenceDao.insertAll(paidOccurrences)
     }
-
-    if (secureNotes.isNotEmpty()) {
-      secureNoteDao.clearAll()
-      for (sn in secureNotes) {
-        insertSecureNote(sn)
-      }
-    }
   }
 
   suspend fun clearLocalCache() = withContext(Dispatchers.IO) {
@@ -366,7 +296,6 @@ class FinanceRepository(private val context: Context) {
     budgetDao.clearAll()
     recurringRuleDao.clearAll()
     paidRecurringOccurrenceDao.clearAll()
-    secureNoteDao.clearAll()
   }
 
   suspend fun getAllLocalData(): LocalDataDump = withContext(Dispatchers.IO) {
@@ -374,8 +303,7 @@ class FinanceRepository(private val context: Context) {
     val bgs = budgetDao.getAllBudgets().map { it.toModel() }
     val rcs = recurringRuleDao.getAllRules().map { it.toModel() }
     val paid = paidRecurringOccurrenceDao.getAllPaidOccurrences()
-    val notes = secureNoteDao.getAllNotes().mapNotNull { decryptNoteEntity(it) }
-    LocalDataDump(txs, bgs, rcs, notes, paid)
+    LocalDataDump(txs, bgs, rcs, paid)
   }
 
   // ================= Theme & Security Preferences =================

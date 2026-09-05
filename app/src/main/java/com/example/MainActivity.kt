@@ -22,10 +22,12 @@ import com.example.ui.screens.MainAppScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
+import com.example.pro.entitlement.ProEntitlementManagerProvider
 
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    ProEntitlementManagerProvider.initialize(this)
     enableEdgeToEdge()
     setContent {
       val viewModel: FinanceViewModel = viewModel()

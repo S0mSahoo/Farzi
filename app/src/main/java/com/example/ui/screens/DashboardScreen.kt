@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -61,6 +62,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.TransactionType
+import com.example.pro.entitlement.ProFeature
 import com.example.ui.components.BudgetProgressBar
 import com.example.ui.components.CategoryDetailSheet
 import com.example.ui.components.CategorySpendingBreakdown
@@ -68,6 +70,7 @@ import com.example.ui.components.FinancialInsightsSection
 import com.example.ui.components.IncomeExpenseComparisonBar
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
+import com.example.ui.components.PaisaProCard
 import com.example.ui.components.YearPickerDialog
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
@@ -80,9 +83,14 @@ import java.util.Calendar
 fun DashboardScreen(
   viewModel: FinanceViewModel,
   onOpenAddTransaction: (prefilledType: TransactionType?) -> Unit,
-  onOpenSetBudget: () -> Unit
+  onOpenSetBudget: () -> Unit,
+  onOpenCopilot: () -> Unit = {},
+  onOpenForecast: () -> Unit = {},
+  onOpenWhatIf: () -> Unit = {},
+  onOpenProUpgrade: (ProFeature?) -> Unit = {}
 ) {
   val userProfile by viewModel.userProfile.collectAsState()
+  val isProUser by viewModel.isProUser.collectAsState()
   val selectedCalendar by viewModel.dashboardCalendar.collectAsState()
   val monthlySummary by viewModel.dashboardMonthSummary.collectAsState()
   val yearlySummary by viewModel.dashboardYearSummary.collectAsState()
@@ -254,6 +262,22 @@ fun DashboardScreen(
           }
         }
       }
+    }
+
+    // 2.5 Paisa Pro Feature Card (Forecast, What-If, Copilot)
+    item {
+      PaisaProCard(
+        isPro = isProUser,
+        onOpenCopilot = {
+          if (viewModel.hasProAccess(ProFeature.AI_COPILOT)) onOpenCopilot() else onOpenProUpgrade(ProFeature.AI_COPILOT)
+        },
+        onOpenForecast = {
+          if (viewModel.hasProAccess(ProFeature.CASH_FLOW_FORECAST)) onOpenForecast() else onOpenProUpgrade(ProFeature.CASH_FLOW_FORECAST)
+        },
+        onOpenWhatIf = {
+          if (viewModel.hasProAccess(ProFeature.WHAT_IF_SIMULATOR)) onOpenWhatIf() else onOpenProUpgrade(ProFeature.WHAT_IF_SIMULATOR)
+        }
+      )
     }
 
     if (isAnnualView) {

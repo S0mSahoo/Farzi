@@ -6,7 +6,6 @@ import com.example.data.local.PaidRecurringOccurrenceEntity
 import com.example.data.model.BudgetModel
 import com.example.data.model.DriveStorageQuota
 import com.example.data.model.RecurringRule
-import com.example.data.model.SecureNoteItem
 import com.example.data.model.TransactionItem
 import com.example.data.model.UserProfile
 import com.example.util.CryptoManager
@@ -70,7 +69,6 @@ data class BackupPayload(
   val transactions: List<TransactionItem>,
   val budgets: List<BudgetModel>,
   val recurringRules: List<RecurringRule>,
-  val secureNotes: List<SecureNoteItem> = emptyList(),
   val paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
 )
 
@@ -312,7 +310,6 @@ class GoogleDriveBackupService(private val context: Context) {
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
     recurringRules: List<RecurringRule>,
-    secureNotes: List<SecureNoteItem> = emptyList(),
     paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
   ): Long = withContext(Dispatchers.IO) {
     val payload = BackupPayload(
@@ -322,7 +319,6 @@ class GoogleDriveBackupService(private val context: Context) {
       transactions = transactions,
       budgets = budgets,
       recurringRules = recurringRules,
-      secureNotes = secureNotes,
       paidOccurrences = paidOccurrences
     )
     saveCloudData(account, payload)

@@ -26,7 +26,6 @@ import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
-import com.example.data.model.SecureNoteItem
 import com.example.data.model.ThemeMode
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
@@ -34,6 +33,22 @@ import com.example.data.model.TransactionType
 import com.example.data.model.UserProfile
 import com.example.data.model.YearlyFinancialSummary
 import com.example.data.repository.FinanceRepository
+import com.example.pro.ai.CopilotMessage
+import com.example.pro.ai.CopilotSender
+import com.example.pro.ai.FinancialAiService
+import com.example.pro.ai.IntentClassifier
+import com.example.pro.engine.FinancialContextBuilder
+import com.example.pro.engine.FinancialIntelligenceEngine
+import com.example.pro.engine.forecast.CashFlowForecastEngine
+import com.example.pro.engine.forecast.CashFlowForecastResult
+import com.example.pro.engine.whatif.WhatIfScenario
+import com.example.pro.engine.whatif.WhatIfSimulationResult
+import com.example.pro.engine.whatif.WhatIfSimulatorEngine
+import com.example.pro.entitlement.DevelopmentProEntitlementProvider
+import com.example.pro.entitlement.EntitlementState
+import com.example.pro.entitlement.ProEntitlementManager
+import com.example.pro.entitlement.ProEntitlementManagerProvider
+import com.example.pro.entitlement.ProFeature
 import com.example.ui.components.DateUtils
 import com.example.util.JsonPortabilityManager
 import com.example.util.JsonValidationResult
@@ -48,6 +63,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalDate
+import java.time.YearMonth
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -55,6 +72,33 @@ import java.util.Locale
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
   private val repository = FinanceRepository(application.applicationContext)
   val driveService = GoogleDriveBackupService(application.applicationContext)
+
+  // Paisa Pro Engines & Entitlement
+  private val financialIntelligenceEngine = FinancialIntelligenceEngine()
+  private val cashFlowForecastEngine = CashFlowForecastEngine()
+  private val whatIfSimulatorEngine = WhatIfSimulatorEngine(cashFlowForecastEngine)
+  private val financialContextBuilder = FinancialContextBuilder(financialIntelligenceEngine)
+  private val financialAiService = FinancialAiService()
+  val proEntitlementManager: ProEntitlementManager = ProEntitlementManagerProvider.get()
+
+  val proEntitlementState: StateFlow<EntitlementState> = proEntitlementManager.entitlementStateFlow
+  val isProUser: StateFlow<Boolean> = proEntitlementManager.entitlementStateFlow
+    .map { it == EntitlementState.PRO }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), proEntitlementManager.getEntitlementState() == EntitlementState.PRO)
+
+  // AI Copilot State
+  private val _copilotMessages = MutableStateFlow<List<CopilotMessage>>(
+    listOf(
+      CopilotMessage(
+        sender = CopilotSender.COPILOT,
+        text = "Namaste! I'm your Paisa Financial Copilot. Ask me anything about your income, expenses, forecasts, or what-if spending decisions."
+      )
+    )
+  )
+  val copilotMessages: StateFlow<List<CopilotMessage>> = _copilotMessages.asStateFlow()
+
+  private val _isCopilotLoading = MutableStateFlow(false)
+  val isCopilotLoading: StateFlow<Boolean> = _isCopilotLoading.asStateFlow()
 
   // Google Drive Real State Flow
   private val _googleDriveState = MutableStateFlow<GoogleDriveState>(GoogleDriveState.NotConnected)
@@ -168,7 +212,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           transactions = dump.transactions,
           budgets = dump.budgets,
           recurringRules = dump.recurringRules,
-          secureNotes = dump.secureNotes,
           paidOccurrences = dump.paidOccurrences
         )
         val ts = driveService.saveCloudData(account, payload)
@@ -196,7 +239,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           transactions = cloudPayload.transactions,
           budgets = cloudPayload.budgets,
           recurringRules = cloudPayload.recurringRules,
-          secureNotes = cloudPayload.secureNotes,
           paidOccurrences = cloudPayload.paidOccurrences
         )
         _lastSyncTimestamp.value = cloudPayload.exportTimestamp
@@ -214,7 +256,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           transactions = dump.transactions,
           budgets = dump.budgets,
           recurringRules = dump.recurringRules,
-          secureNotes = dump.secureNotes,
           paidOccurrences = dump.paidOccurrences
         )
         val ts = driveService.saveCloudData(account, payload)
@@ -294,13 +335,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // All Paid Recurring Occurrences from DB
   val allPaidOccurrences: StateFlow<List<PaidRecurringOccurrenceEntity>> = repository.allPaidOccurrences.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
-
-  // All Secure Notes from DB
-  val allSecureNotes: StateFlow<List<SecureNoteItem>> = repository.allSecureNotes.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -1060,28 +1094,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  // ================= Secure Notes CRUD =================
 
-  fun addSecureNote(note: SecureNoteItem) {
-    viewModelScope.launch {
-      repository.insertSecureNote(note)
-      syncCurrentStateToDrive()
-    }
-  }
-
-  fun updateSecureNote(note: SecureNoteItem) {
-    viewModelScope.launch {
-      repository.updateSecureNote(note)
-      syncCurrentStateToDrive()
-    }
-  }
-
-  fun deleteSecureNote(id: Long) {
-    viewModelScope.launch {
-      repository.deleteSecureNote(id)
-      syncCurrentStateToDrive()
-    }
-  }
 
   // ================= Bulk Delete Operations =================
 
@@ -1324,7 +1337,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     selectedCal: Calendar = _universalCalendar.value,
     customStart: Long? = null,
     customEnd: Long? = null,
-    includePrivateNotes: Boolean = false,
     onSuccess: (String) -> Unit,
     onError: (String) -> Unit
   ) {
@@ -1337,12 +1349,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           transactions = dump.transactions,
           budgets = dump.budgets,
           recurringRules = dump.recurringRules,
-          secureNotes = dump.secureNotes,
           period = period,
           selectedCalendar = selectedCal,
           customStart = customStart,
-          customEnd = customEnd,
-          includePrivateNotes = includePrivateNotes
+          customEnd = customEnd
         )
         val shareIntent = JsonPortabilityManager.createShareIntent(context, file)
         val chooser = Intent.createChooser(shareIntent, "Share or Save Paisa JSON Backup")
@@ -1389,7 +1399,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           transactions = mergedTxs,
           budgets = mergedBgs,
           recurringRules = mergedRcs,
-          secureNotes = if (backup.secureNotes.isNotEmpty()) backup.secureNotes else dump.secureNotes,
           paidOccurrences = dump.paidOccurrences
         )
         repository.processDueRecurringRules()
@@ -1404,7 +1413,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             transactions = mergedTxs,
             budgets = mergedBgs,
             recurringRules = mergedRcs,
-            secureNotes = if (backup.secureNotes.isNotEmpty()) backup.secureNotes else dump.secureNotes,
             paidOccurrences = dump.paidOccurrences
           )
           val ts = driveService.saveCloudData(account, payload)
@@ -1509,7 +1517,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             transactions = dump.transactions,
             budgets = dump.budgets,
             recurringRules = dump.recurringRules,
-            secureNotes = dump.secureNotes,
             paidOccurrences = dump.paidOccurrences
           )
           val ts = driveService.saveCloudData(account, payload)
@@ -1558,5 +1565,147 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     } else {
       _googleDriveState.value = GoogleDriveState.NotConnected
     }
+  }
+
+  // ================= Paisa Pro Operations =================
+
+  fun hasProAccess(feature: ProFeature): Boolean {
+    return proEntitlementManager.hasAccess(feature)
+  }
+
+  fun setDevProEnabled(enabled: Boolean) {
+    val provider = proEntitlementManager.getProvider()
+    if (provider is DevelopmentProEntitlementProvider) {
+      provider.setProEnabled(enabled)
+    }
+  }
+
+  fun getCashFlowForecast(yearMonth: YearMonth = YearMonth.now()): CashFlowForecastResult {
+    val txs = allTransactions.value
+    val rules = allRecurringRules.value
+    val paids = allPaidOccurrences.value
+    val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
+    val budget = allBudgets.value.find { it.monthKey == monthKey }
+
+    return cashFlowForecastEngine.generateForecast(
+      allTransactions = txs,
+      recurringRules = rules,
+      paidOccurrences = paids,
+      activeBudget = budget,
+      yearMonth = yearMonth
+    )
+  }
+
+  fun simulateWhatIfScenario(scenario: WhatIfScenario, yearMonth: YearMonth = YearMonth.now()): WhatIfSimulationResult {
+    val txs = allTransactions.value
+    val rules = allRecurringRules.value
+    val paids = allPaidOccurrences.value
+    val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
+    val budget = allBudgets.value.find { it.monthKey == monthKey }
+
+    return whatIfSimulatorEngine.simulate(
+      allTransactions = txs,
+      recurringRules = rules,
+      paidOccurrences = paids,
+      activeBudget = budget,
+      yearMonth = yearMonth,
+      scenario = scenario
+    )
+  }
+
+  fun askCopilot(question: String) {
+    if (question.isBlank()) return
+    val userMsg = CopilotMessage(
+      sender = CopilotSender.USER,
+      text = question.trim()
+    )
+    _copilotMessages.value = _copilotMessages.value + userMsg
+    _isCopilotLoading.value = true
+
+    viewModelScope.launch {
+      try {
+        val txs = allTransactions.value
+        val rules = allRecurringRules.value
+        val paids = allPaidOccurrences.value
+        val cal = _universalCalendar.value
+        val yearMonth = YearMonth.of(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
+        val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
+        val budget = allBudgets.value.find { it.monthKey == monthKey }
+
+        val snapshot = financialIntelligenceEngine.generateSnapshot(
+          allTransactions = txs,
+          currentYearMonth = yearMonth,
+          recurringRules = rules,
+          activeBudget = budget
+        )
+        val context = financialContextBuilder.buildContext(snapshot)
+        val forecast = cashFlowForecastEngine.generateForecast(
+          allTransactions = txs,
+          recurringRules = rules,
+          paidOccurrences = paids,
+          activeBudget = budget,
+          yearMonth = yearMonth
+        )
+
+        // If question is a What-If query, check if an amount can be parsed
+        val simulation = if (IntentClassifier.classify(question) == com.example.pro.ai.AiIntent.WHAT_IF_QUERY) {
+          val numbers = Regex("(\\d+([.,]\\d+)?)").findAll(question).mapNotNull {
+            it.value.replace(",", "").toDoubleOrNull()
+          }.toList()
+          val amount = numbers.firstOrNull() ?: 5000.0
+          val scenario = WhatIfScenario(
+            type = com.example.pro.engine.whatif.ScenarioType.ONE_TIME_EXPENSE,
+            change = com.example.pro.engine.whatif.ScenarioChange.OneTimeExpense(
+              amount = amount,
+              category = TransactionCategory.SHOPPING,
+              date = LocalDate.now()
+            )
+          )
+          whatIfSimulatorEngine.simulate(
+            allTransactions = txs,
+            recurringRules = rules,
+            paidOccurrences = paids,
+            activeBudget = budget,
+            yearMonth = yearMonth,
+            scenario = scenario
+          )
+        } else null
+
+        val response = financialAiService.getAiExplanation(
+          question = question,
+          context = context,
+          currencySymbol = _userProfile.value.currencySymbol,
+          forecast = forecast,
+          simulation = simulation
+        )
+
+        val copilotMsg = CopilotMessage(
+          sender = CopilotSender.COPILOT,
+          text = response.answer,
+          keyFacts = response.keyFacts,
+          warnings = response.warnings,
+          confidence = response.confidence
+        )
+        _copilotMessages.value = _copilotMessages.value + copilotMsg
+      } catch (e: Exception) {
+        val errorMsg = CopilotMessage(
+          sender = CopilotSender.COPILOT,
+          text = "I encountered an issue analyzing your financial records. Please try asking again.",
+          isError = true
+        )
+        _copilotMessages.value = _copilotMessages.value + errorMsg
+      } finally {
+        _isCopilotLoading.value = false
+      }
+    }
+  }
+
+  fun clearCopilotMessages() {
+    _copilotMessages.value = listOf(
+      CopilotMessage(
+        sender = CopilotSender.COPILOT,
+        text = "Namaste! I'm your Paisa Financial Copilot. Ask me anything about your income, expenses, forecasts, or what-if spending decisions."
+      )
+    )
   }
 }

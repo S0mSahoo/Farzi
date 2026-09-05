@@ -108,7 +108,7 @@ fun ExportDataModal(
   var selectedPeriod by remember { mutableStateOf(ExportPeriod.CURRENT_MONTH) }
   var isExporting by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
-  var includeSecureNotes by remember { mutableStateOf(false) }
+
 
   // Custom date range state
   var customStartDateMillis by remember { mutableStateOf(DateUtils.getStartOfMonth(exportCal)) }
@@ -598,96 +598,22 @@ fun ExportDataModal(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Include Secure Notes Toggle with Biometric Auth
-        Surface(
-          shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .clickable { includeSecureNotes = !includeSecureNotes }
-            .testTag("export_include_secure_notes_toggle")
-        ) {
-          Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              modifier = Modifier.weight(1f)
-            ) {
-              Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-              Column {
-                Text("Include Secure Notes in Export", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
-                Text("Requires biometric verification", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-              }
-            }
-            androidx.compose.material3.Switch(
-              checked = includeSecureNotes,
-              onCheckedChange = { includeSecureNotes = it }
-            )
-          }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-          text = "Actions",
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
         // 1. Export JSON Button
         Button(
           onClick = {
-            val doExport = {
-              isExporting = true
-              viewModel.exportJson(
-                context = context,
-                includePrivateNotes = includeSecureNotes,
-                onSuccess = { msg ->
-                  isExporting = false
-                  Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                  onDismiss()
-                },
-                onError = { err ->
-                  isExporting = false
-                  Toast.makeText(context, err, Toast.LENGTH_LONG).show()
-                }
-              )
-            }
-
-            if (includeSecureNotes) {
-              val activity = context as? FragmentActivity
-              if (activity != null) {
-                val executor = ContextCompat.getMainExecutor(activity)
-                val biometricPrompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
-                  override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    doExport()
-                  }
-                  override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    Toast.makeText(context, "Authentication required to export secure notes", Toast.LENGTH_SHORT).show()
-                  }
-                })
-                biometricPrompt.authenticate(
-                  BiometricPrompt.PromptInfo.Builder()
-                    .setTitle("Authenticate to Export Secure Notes")
-                    .setSubtitle("Confirm biometrics to include encrypted vault records in backup")
-                    .setNegativeButtonText("Cancel")
-                    .build()
-                )
-              } else {
-                doExport()
+            isExporting = true
+            viewModel.exportJson(
+              context = context,
+              onSuccess = { msg ->
+                isExporting = false
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                onDismiss()
+              },
+              onError = { err ->
+                isExporting = false
+                Toast.makeText(context, err, Toast.LENGTH_LONG).show()
               }
-            } else {
-              doExport()
-            }
+            )
           },
           enabled = !isExporting && !isValidatingImport,
           shape = RoundedCornerShape(16.dp),

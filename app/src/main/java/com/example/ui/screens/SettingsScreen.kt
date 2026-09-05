@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -87,6 +88,7 @@ import com.example.data.drive.GoogleDriveState
 import com.example.data.model.ThemeMode
 import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
+import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
@@ -108,6 +110,7 @@ fun SettingsScreen(
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
   val userProfile by viewModel.userProfile.collectAsState()
+  val isProUser by viewModel.isProUser.collectAsState()
   val googleDriveState by viewModel.googleDriveState.collectAsState()
   val isSyncing by viewModel.isSyncing.collectAsState()
   val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
@@ -736,6 +739,112 @@ fun SettingsScreen(
                 text = if (driveConsentIntent != null) "Grant Drive Permission" else "Sync Now",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+      }
+    }
+
+    // 2.5 Paisa Pro Section
+    item {
+      SettingsSection(title = "Paisa Pro & Intelligence") {
+        Card(
+          shape = RoundedCornerShape(18.dp),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          border = BorderStroke(1.dp, if (isProUser) AccentAmber.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          modifier = Modifier.fillMaxWidth().testTag("settings_pro_card")
+        ) {
+          Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+              ) {
+                Surface(
+                  shape = CircleShape,
+                  color = AccentAmber.copy(alpha = 0.18f),
+                  modifier = Modifier.size(42.dp)
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                      Icons.Default.Star,
+                      contentDescription = null,
+                      tint = AccentAmber,
+                      modifier = Modifier.size(22.dp)
+                    )
+                  }
+                }
+                Column {
+                  Text(
+                    text = "Paisa Pro Subscription",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                  Text(
+                    text = if (isProUser) "All Pro capabilities active" else "Free Plan active",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isProUser) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                  )
+                }
+              }
+
+              Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = if (isProUser) AccentAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant
+              ) {
+                Text(
+                  text = if (isProUser) "PRO" else "FREE",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Bold,
+                  color = if (isProUser) AccentAmber else MaterialTheme.colorScheme.onSurfaceVariant,
+                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+              }
+            }
+
+            Text(
+              text = "Includes Cash-Flow Forecast, What-If Simulator, and local AI Financial Copilot.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(
+                  text = "Enable Pro (Development Mode)",
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  text = "Toggle entitlement locally for testing & evaluation",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+              Switch(
+                checked = isProUser,
+                onCheckedChange = { enabled ->
+                  viewModel.setDevProEnabled(enabled)
+                  Toast.makeText(
+                    context,
+                    if (enabled) "Paisa Pro Enabled" else "Paisa Free Mode Enabled",
+                    Toast.LENGTH_SHORT
+                  ).show()
+                },
+                modifier = Modifier.testTag("settings_pro_toggle")
               )
             }
           }

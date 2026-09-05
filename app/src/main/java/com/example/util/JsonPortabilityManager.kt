@@ -9,7 +9,6 @@ import com.example.data.model.ExportPeriod
 import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringRule
-import com.example.data.model.SecureNoteItem
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
@@ -43,8 +42,7 @@ data class PaisaJsonBackup(
   val account: PaisaExportAccount = PaisaExportAccount(),
   val transactions: List<TransactionItem> = emptyList(),
   val budgets: List<BudgetModel> = emptyList(),
-  val recurringTransactions: List<RecurringRule> = emptyList(),
-  val secureNotes: List<SecureNoteItem> = emptyList()
+  val recurringTransactions: List<RecurringRule> = emptyList()
 )
 
 data class ValidationSummary(
@@ -79,12 +77,10 @@ object JsonPortabilityManager {
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
     recurringRules: List<RecurringRule>,
-    secureNotes: List<SecureNoteItem> = emptyList(),
     period: ExportPeriod = ExportPeriod.ALL_TIME,
     selectedCalendar: Calendar = Calendar.getInstance(),
     customStart: Long? = null,
-    customEnd: Long? = null,
-    includePrivateNotes: Boolean = false
+    customEnd: Long? = null
   ): File = withContext(Dispatchers.IO) {
     val exportDir = File(context.cacheDir, "exports")
     if (!exportDir.exists()) exportDir.mkdirs()
@@ -136,8 +132,7 @@ object JsonPortabilityManager {
       ),
       transactions = filteredTxs.sortedByDescending { it.timestamp },
       budgets = budgets,
-      recurringTransactions = recurringRules,
-      secureNotes = if (includePrivateNotes) secureNotes else emptyList()
+      recurringTransactions = recurringRules
     )
 
     val jsonString = adapter.toJson(backupObject)

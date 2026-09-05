@@ -304,22 +304,6 @@ data class RecurringOccurrence(
   val paidTransactionId: Long? = null
 )
 
-enum class SecureNoteType(val displayName: String) {
-  NOTE("Private Note"),
-  FILE("File Attachment")
-}
-
-@Immutable
-data class SecureNoteItem(
-  val id: Long = 0,
-  val title: String,
-  val type: SecureNoteType,
-  val notes: String = "",
-  val fileName: String = "",
-  val fileUri: String = "",
-  val updatedAt: Long = System.currentTimeMillis()
-)
-
 enum class InsightType {
   ALERT,
   WARNING,
@@ -352,7 +336,6 @@ data class LocalDataDump(
   val transactions: List<TransactionItem>,
   val budgets: List<BudgetModel>,
   val recurringRules: List<RecurringRule>,
-  val secureNotes: List<SecureNoteItem>,
   val paidOccurrences: List<com.example.data.local.PaidRecurringOccurrenceEntity>
 )
 

@@ -18,7 +18,6 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
     TransactionEntity::class,
     BudgetEntity::class,
     RecurringRuleEntity::class,
-    SecureNoteEntity::class,
     PaidRecurringOccurrenceEntity::class
   ],
   version = 4,
@@ -28,7 +27,6 @@ abstract class AppDatabase : RoomDatabase() {
   abstract fun transactionDao(): TransactionDao
   abstract fun budgetDao(): BudgetDao
   abstract fun recurringRuleDao(): RecurringRuleDao
-  abstract fun secureNoteDao(): SecureNoteDao
   abstract fun paidRecurringOccurrenceDao(): PaidRecurringOccurrenceDao
 
   companion object {
