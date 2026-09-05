@@ -12,5 +12,8 @@ data class FinancialContext(
     val spendingTrendsSummary: String,
     val recurringCommitmentsTotal: Double,
     val budgetStatusSummary: String,
-    val forecastSummary: String
+    val forecastSummary: String,
+    val forecastDetails: String? = null,
+    val simulationDetails: String? = null,
+    val fullDataSummary: String? = null
 )

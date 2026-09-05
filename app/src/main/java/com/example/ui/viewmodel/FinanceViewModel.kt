@@ -1638,7 +1638,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           recurringRules = rules,
           activeBudget = budget
         )
-        val context = financialContextBuilder.buildContext(snapshot)
+        val context = financialContextBuilder.buildContext(snapshot, txs)
         val forecast = cashFlowForecastEngine.generateForecast(
           allTransactions = txs,
           recurringRules = rules,
