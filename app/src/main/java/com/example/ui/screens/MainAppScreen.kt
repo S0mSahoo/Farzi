@@ -593,6 +593,7 @@ fun MainAppScreen(
                         text = when {
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
+                          isMoreOpen -> "More"
                           else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories", "Insights")[selectedTab]
                         },
                         style = MaterialTheme.typography.titleLarge,
@@ -600,8 +601,16 @@ fun MainAppScreen(
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen || isAnalyticsOpen) {
-                        IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
+                      if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
+                        IconButton(
+                          onClick = {
+                            when {
+                              isSettingsOpen -> isSettingsOpen = false
+                              isAnalyticsOpen -> isAnalyticsOpen = false
+                              else -> isMoreOpen = false
+                            }
+                          }
+                        ) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
@@ -836,6 +845,7 @@ fun MainAppScreen(
                         text = when {
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
+                          isMoreOpen -> "More"
                           else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories", "Insights")[selectedTab]
                         },
                         style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
@@ -843,8 +853,16 @@ fun MainAppScreen(
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen || isAnalyticsOpen) {
-                        IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
+                      if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
+                        IconButton(
+                          onClick = {
+                            when {
+                              isSettingsOpen -> isSettingsOpen = false
+                              isAnalyticsOpen -> isAnalyticsOpen = false
+                              else -> isMoreOpen = false
+                            }
+                          }
+                        ) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
@@ -987,16 +1005,24 @@ fun MainAppScreen(
                     ) {
                       AppBrandLogo(size = 26.dp)
                       Text(
-                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; else -> "Paisa" },
+                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; selectedTab == 6 -> "Insights"; else -> "Paisa" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
                     }
                   },
                   navigationIcon = {
-                    if (isSettingsOpen || isAnalyticsOpen) {
-                      IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
-                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
+                      IconButton(
+                        onClick = {
+                          when {
+                            isSettingsOpen -> isSettingsOpen = false
+                            isAnalyticsOpen -> isAnalyticsOpen = false
+                            else -> isMoreOpen = false
+                          }
+                        }
+                      ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                       }
                     }
                   },
