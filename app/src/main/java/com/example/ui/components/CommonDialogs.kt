@@ -111,7 +111,7 @@ fun ConfirmationDialog(
       }
     },
     containerColor = MaterialTheme.colorScheme.surface,
-    shape = RoundedCornerShape(20.dp)
+    shape = RoundedCornerShape(22.dp)
   )
 }
 

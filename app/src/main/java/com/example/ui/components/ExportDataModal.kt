@@ -528,7 +528,7 @@ fun ExportDataModal(
             )
           },
           enabled = !isExporting,
-          shape = RoundedCornerShape(16.dp),
+          shape = RoundedCornerShape(18.dp),
           modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
@@ -557,7 +557,7 @@ fun ExportDataModal(
       if (selectedTab == 1) {
         // Purpose Description Card
         Surface(
-          shape = RoundedCornerShape(16.dp),
+          shape = RoundedCornerShape(18.dp),
           color = MinimalBlue.copy(alpha = 0.08f),
           border = BorderStroke(1.dp, MinimalBlue.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
@@ -616,7 +616,7 @@ fun ExportDataModal(
             )
           },
           enabled = !isExporting && !isValidatingImport,
-          shape = RoundedCornerShape(16.dp),
+          shape = RoundedCornerShape(18.dp),
           colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
           modifier = Modifier
             .fillMaxWidth()
@@ -653,7 +653,7 @@ fun ExportDataModal(
             }
           },
           enabled = !isExporting && !isValidatingImport,
-          shape = RoundedCornerShape(16.dp),
+          shape = RoundedCornerShape(18.dp),
           border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
           modifier = Modifier
             .fillMaxWidth()
