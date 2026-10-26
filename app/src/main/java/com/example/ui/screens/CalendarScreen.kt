@@ -3,7 +3,6 @@ package com.example.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -143,8 +141,6 @@ fun CalendarScreen(
           calendarDays = calendarDays,
           selectedDayKey = selectedDayKey,
           onDaySelected = { viewModel.selectCalendarDate(it.epochMillis) },
-          onPreviousMonth = { viewModel.previousCalendarMonth() },
-          onNextMonth = { viewModel.nextCalendarMonth() }
         )
       }
 
@@ -322,12 +318,11 @@ private fun CalendarGridCard(
   calendarDays: List<CalendarDayData>,
   selectedDayKey: String,
   onDaySelected: (CalendarDayData) -> Unit,
-  onPreviousMonth: () -> Unit,
-  onNextMonth: () -> Unit
 ) {
   val year = selectedCalendar.get(Calendar.YEAR)
   val month = selectedCalendar.get(Calendar.MONTH)
-  val monthIndex = year * 12 + month
+  val adaptiveInfo = LocalAdaptiveInfo.current
+  val compactHeight = adaptiveInfo.isLandscapePhone
   // Month and computed days are exposed as separate StateFlows. They can update on
   // adjacent frames, so guard against displaying the old month's dates under the new header.
   val gridMatchesSelectedMonth = remember(calendarDays, year, month) {
@@ -347,31 +342,13 @@ private fun CalendarGridCard(
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier
-      .fillMaxWidth()
-      .pointerInput(monthIndex) {
-        var totalDrag = 0f
-        detectHorizontalDragGestures(
-          onDragStart = { totalDrag = 0f },
-          onDragEnd = {
-            if (totalDrag < -50f) {
-              onNextMonth()
-            } else if (totalDrag > 50f) {
-              onPreviousMonth()
-            }
-          },
-          onDragCancel = { totalDrag = 0f },
-          onHorizontalDrag = { change, dragAmount ->
-            change.consume()
-            totalDrag += dragAmount
-          }
-        )
-      }
+.fillMaxWidth()
   ) {
-    Column(modifier = Modifier.padding(14.dp)) {
+    Column(modifier = Modifier.padding(if (compactHeight) 8.dp else 14.dp)) {
       // Weekdays Header Row
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
+        horizontalArrangement = Arrangement.spacedBy(if (compactHeight) 1.dp else 2.dp)
       ) {
         listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { dayName ->
           Text(
@@ -385,13 +362,13 @@ private fun CalendarGridCard(
         }
       }
 
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(if (compactHeight) 4.dp else 8.dp))
 
       // Switch the grid immediately rather than animating old dates out. If the
       // computed data still belongs to the previous month, show placeholders until it catches up.
       if (gridMatchesSelectedMonth) {
         val weeks = calendarDays.chunked(7)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(if (compactHeight) 2.dp else 4.dp)) {
           weeks.forEach { weekDays ->
             Row(
               modifier = Modifier.fillMaxWidth(),
@@ -403,7 +380,7 @@ private fun CalendarGridCard(
                 Box(
                   modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .height(if (compactHeight) 34.dp else 48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .then(
                       if (isSelected) {
@@ -440,12 +417,12 @@ private fun CalendarGridCard(
                     // Dots indicator
                     Row(
                       horizontalArrangement = Arrangement.spacedBy(3.dp),
-                      modifier = Modifier.height(4.dp)
+                      modifier = Modifier.height(if (compactHeight) 3.dp else 4.dp)
                     ) {
                       if (dayData.hasIncome) {
                         Box(
                           modifier = Modifier
-                            .size(4.dp)
+                            .size(if (compactHeight) 3.dp else 4.dp)
                             .clip(CircleShape)
                             .background(IncomeGreen)
                         )
