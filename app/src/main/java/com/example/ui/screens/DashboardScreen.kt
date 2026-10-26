@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.CategorySpending
+import com.example.data.model.DailySpendingPoint
 import com.example.data.model.MonthlyFinancialSummary as MonthlySummary
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionItem
@@ -92,6 +93,7 @@ fun DashboardScreen(
   val monthlySummary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
   val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
   val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
+  val dailyTrend by viewModel.dashboardDailyTrend.collectAsStateWithLifecycle()
   val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val recentTransactions = remember(allTransactions) {
@@ -202,7 +204,7 @@ fun DashboardScreen(
               AnnualOverviewCard(yearlySummary = yearlySummary, currencySymbol = currencySymbol)
               AnnualBreakdownTable(yearlySummary = yearlySummary, currencySymbol = currencySymbol)
             } else {
-              NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol)
+              NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol, dailyTrend = dailyTrend)
               IncomeExpenseQuickCards(
                 monthlySummary = monthlySummary,
                 currencySymbol = currencySymbol,
@@ -271,7 +273,7 @@ fun DashboardScreen(
         item { AnnualOverviewCard(yearlySummary = yearlySummary, currencySymbol = currencySymbol) }
         item { AnnualBreakdownTable(yearlySummary = yearlySummary, currencySymbol = currencySymbol) }
       } else {
-        item { NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol) }
+        item { NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol, dailyTrend = dailyTrend) }
         item {
           IncomeExpenseQuickCards(
             monthlySummary = monthlySummary,
@@ -657,7 +659,8 @@ private fun IncomeExpenseQuickCards(
 @Composable
 private fun NetSavingsHeroCard(
   monthlySummary: MonthlySummary,
-  currencySymbol: String
+  currencySymbol: String,
+  dailyTrend: List<DailySpendingPoint>
 ) {
   Card(
     shape = RoundedCornerShape(22.dp),
@@ -712,8 +715,90 @@ private fun NetSavingsHeroCard(
         text = IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
-        color = if (monthlySummary.savings >= 0) IncomeGreen else ExpenseRed
+        color = if (monthlySummary.savings >= 0) IncomeGreen else ExpenseRed,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis
       )
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = "Daily net movement",
+          style = MaterialTheme.typography.labelMedium,
+          fontWeight = FontWeight.SemiBold,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+          text = "Recorded days",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+
+      DailyNetSparkline(
+        points = dailyTrend,
+        modifier = Modifier.fillMaxWidth().height(48.dp)
+      )
+    }
+  }
+}
+
+@Composable
+private fun DailyNetSparkline(
+  points: List<DailySpendingPoint>,
+  modifier: Modifier = Modifier
+) {
+  val activePoints = remember(points) {
+    points.filter { it.income != 0.0 || it.expense != 0.0 || it.net != 0.0 }
+  }
+  val positive = activePoints.any { it.net > 0.0 }
+  val lineColor = if (positive) IncomeGreen else ExpenseRed
+
+  Canvas(modifier = modifier) {
+    if (activePoints.isEmpty()) {
+      drawLine(
+        color = MaterialTheme.colorScheme.outlineVariant,
+        start = Offset(0f, size.height / 2f),
+        end = Offset(size.width, size.height / 2f),
+        strokeWidth = 2.dp.toPx(),
+        cap = StrokeCap.Round
+      )
+    } else {
+      val values = activePoints.map { it.net }
+      val minValue = minOf(0.0, values.minOrNull() ?: 0.0)
+      val maxValue = maxOf(0.0, values.maxOrNull() ?: 0.0)
+      val range = (maxValue - minValue).takeIf { it > 0.0 } ?: 1.0
+      val chartPoints = values.mapIndexed { index, value ->
+        val x = if (values.size <= 1) size.width / 2f else size.width * index / (values.size - 1).toFloat()
+        val y = size.height - (((value - minValue) / range).toFloat() * (size.height - 6.dp.toPx())) - 3.dp.toPx()
+        Offset(x, y.coerceIn(2.dp.toPx(), size.height - 2.dp.toPx()))
+      }
+
+      val zeroY = size.height - (((0.0 - minValue) / range).toFloat() * (size.height - 6.dp.toPx())) - 3.dp.toPx()
+      drawLine(
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+        start = Offset(0f, zeroY),
+        end = Offset(size.width, zeroY),
+        strokeWidth = 1.dp.toPx()
+      )
+      chartPoints.zipWithNext().forEach { (start, end) ->
+        drawLine(
+          color = lineColor,
+          start = start,
+          end = end,
+          strokeWidth = 2.5.dp.toPx(),
+          cap = StrokeCap.Round
+        )
+      }
+      chartPoints.lastOrNull()?.let { last ->
+        drawCircle(color = lineColor, radius = 3.5.dp.toPx(), center = last)
+      }
     }
   }
 }
