@@ -92,8 +92,8 @@ import com.example.ui.viewmodel.FinanceViewModel
 
 sealed class AppDestination(val index: Int, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
   object Dashboard : AppDestination(0, "Home", Icons.Default.Dashboard)
-  object Calendar : AppDestination(1, "Calendar", Icons.Default.CalendarMonth)
-  object Transactions : AppDestination(2, "History", Icons.Default.ReceiptLong)
+  object Transactions : AppDestination(1, "Transactions", Icons.Default.ReceiptLong)
+  object Calendar : AppDestination(2, "Calendar", Icons.Default.CalendarMonth)
   object Budgets : AppDestination(3, "Budgets", Icons.Default.AccountBalanceWallet)
   object Recurring : AppDestination(4, "Recurring", Icons.Default.Repeat)
 }
@@ -467,8 +467,8 @@ fun MainAppScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                       val navItems = listOf(
                         AppDestination.Dashboard,
-                        AppDestination.Calendar,
                         AppDestination.Transactions,
+                        AppDestination.Calendar,
                         AppDestination.Budgets,
                         AppDestination.Recurring
                       )
@@ -582,7 +582,7 @@ fun MainAppScreen(
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
-                          else -> listOf("Dashboard", "Calendar", "Transactions", "Budgets", "Recurring")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -720,8 +720,8 @@ fun MainAppScreen(
                   ) {
                     val navItems = listOf(
                       AppDestination.Dashboard,
-                      AppDestination.Calendar,
                       AppDestination.Transactions,
+                      AppDestination.Calendar,
                       AppDestination.Budgets,
                       AppDestination.Recurring
                     )
@@ -797,7 +797,7 @@ fun MainAppScreen(
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
-                          else -> listOf("Dashboard", "Calendar", "Transactions", "Budgets", "Recurring")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
                         },
                         style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -968,8 +968,8 @@ fun MainAppScreen(
                   ) {
                     val navItems = listOf(
                       AppDestination.Dashboard,
-                      AppDestination.Calendar,
                       AppDestination.Transactions,
+                      AppDestination.Calendar,
                       AppDestination.Budgets,
                       AppDestination.Recurring
                     )
@@ -1130,13 +1130,13 @@ private fun MainScreenContent(
           )
         }
       )
-      1 -> CalendarScreen(
+      1 -> TransactionsScreen(
         viewModel = viewModel,
-        onAddTransactionForDate = onAddTransactionForDate,
         onEditTransaction = onEditTransaction
       )
-      2 -> TransactionsScreen(
+      2 -> CalendarScreen(
         viewModel = viewModel,
+        onAddTransactionForDate = onAddTransactionForDate,
         onEditTransaction = onEditTransaction
       )
       3 -> BudgetScreen(
