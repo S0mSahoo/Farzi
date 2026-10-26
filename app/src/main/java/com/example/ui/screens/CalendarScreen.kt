@@ -213,9 +213,7 @@ fun CalendarScreen(
           selectedCalendar = selectedCalendar,
           calendarDays = calendarDays,
           selectedDayKey = selectedDayKey,
-          onDaySelected = { viewModel.selectCalendarDate(it.epochMillis) },
-          onPreviousMonth = { viewModel.previousCalendarMonth() },
-          onNextMonth = { viewModel.nextCalendarMonth() }
+          onDaySelected = { viewModel.selectCalendarDate(it.epochMillis) }
         )
       }
 
