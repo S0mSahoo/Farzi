@@ -29,7 +29,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
@@ -605,7 +605,7 @@ fun MainAppScreen(
                           onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
                           modifier = Modifier.testTag("analytics_open_button")
                         ) {
-                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
                           onClick = { showExportModal = true },
@@ -830,7 +830,7 @@ fun MainAppScreen(
                           onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
                           modifier = Modifier.testTag("analytics_open_button")
                         ) {
-                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
                           onClick = { showExportModal = true },
@@ -965,7 +965,7 @@ fun MainAppScreen(
                           onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
                           modifier = Modifier.testTag("analytics_open_button")
                         ) {
-                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
                         onClick = { showExportModal = true },

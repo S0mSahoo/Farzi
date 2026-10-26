@@ -20,7 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Insights
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
@@ -41,6 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.MonthlyFinancialSummary
+import com.example.data.model.CategorySpending
 import com.example.data.model.YearlyFinancialSummary
 import com.example.ui.components.CategoryDetailSheet
 import com.example.ui.components.CategorySpendingBreakdown
@@ -133,7 +134,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Insights,
+                        imageVector = Icons.Default.TrendingUp,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(12.dp).size(26.dp)
@@ -263,6 +264,16 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                 }
             }
 
+            if (monthlySummary.transactionCount > 0) {
+                item {
+                    MonthlyInsightCard(
+                        summary = monthlySummary,
+                        categorySpending = categorySpending,
+                        currencySymbol = currencySymbol
+                    )
+                }
+            }
+
             item {
                 Card(
                     shape = RoundedCornerShape(22.dp),
@@ -319,6 +330,78 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MonthlyInsightCard(
+    summary: MonthlyFinancialSummary,
+    categorySpending: List<CategorySpending>,
+    currencySymbol: String
+) {
+    val topCategory = categorySpending.maxByOrNull { it.amount }
+    val insightText = when {
+        summary.savings > 0.0 -> "Recorded income was greater than expenses by ${IndianCurrencyFormatter.formatWithSymbol(summary.savings, currencySymbol)} this month."
+        summary.savings < 0.0 -> "Recorded expenses exceeded income by ${IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(summary.savings), currencySymbol)} this month."
+        else -> "Recorded income and expenses are equal for this month."
+    }
+
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(9.dp).size(20.dp)
+                    )
+                }
+                Text(
+                    text = "Monthly insight",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+            Text(
+                text = insightText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (topCategory != null) {
+                Text(
+                    text = "Highest recorded expense category: ${topCategory.category.displayName} (${IndianCurrencyFormatter.formatWithSymbol(topCategory.amount, currencySymbol)}).",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (summary.budgetLimit > 0.0) {
+                val budgetPercent = (summary.budgetUsed / summary.budgetLimit * 100.0).coerceAtLeast(0.0)
+                Text(
+                    text = "Budget used: ${String.format(java.util.Locale.getDefault(), "%.0f", budgetPercent)}%.",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (budgetPercent > 100.0) ExpenseRed else MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
