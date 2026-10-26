@@ -68,6 +68,7 @@ import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import com.example.ui.util.LocalAdaptiveInfo
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,6 +122,10 @@ fun AddEditTransactionSheet(
   var showPaymentMethodDropdown by remember { mutableStateOf(false) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
 
+  val adaptiveInfo = LocalAdaptiveInfo.current
+  val compactHeight = adaptiveInfo.isLandscapePhone
+  val horizontalContentPadding = if (compactHeight) 16.dp else 24.dp
+  val fieldSpacing = if (compactHeight) 8.dp else 14.dp
   val availableCategories = remember(transactionType) {
     TransactionCategory.values().filter { it.defaultType == transactionType }
   }
@@ -163,21 +168,21 @@ fun AddEditTransactionSheet(
       modifier = Modifier
         .fillMaxWidth()
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp)
+        .padding(horizontal = horizontalContentPadding)
         .navigationBarsPadding()
-        .padding(bottom = 24.dp)
+        .padding(bottom = if (compactHeight) 12.dp else 24.dp)
     ) {
       // Header with stable height and close icon
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .height(36.dp),
+          .height(if (compactHeight) 30.dp else 36.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
           text = if (initialTransaction == null) "New Record" else "Edit Record",
-          style = MaterialTheme.typography.titleLarge,
+          style = if (compactHeight) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
@@ -189,13 +194,13 @@ fun AddEditTransactionSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(14.dp))
+      Spacer(modifier = Modifier.height(fieldSpacing))
 
       // Smooth Sliding Income / Expense Toggle Segment with Stable Height
       BoxWithConstraints(
         modifier = Modifier
           .fillMaxWidth()
-          .height(48.dp)
+          .height(if (compactHeight) 40.dp else 48.dp)
           .clip(RoundedCornerShape(14.dp))
           .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
           .padding(4.dp)
@@ -263,7 +268,7 @@ fun AddEditTransactionSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(if (compactHeight) 8.dp else 16.dp))
 
       // Amount Input Field
       Text(
@@ -345,7 +350,7 @@ fun AddEditTransactionSheet(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .height(44.dp)
+          .height(if (compactHeight) 36.dp else 44.dp)
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
