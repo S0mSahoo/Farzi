@@ -325,7 +325,7 @@ fun AddEditRecurringSheet(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = OutlinedTextFieldDefaults.colors(
           focusedBorderColor = activeColor,
           unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
@@ -361,7 +361,7 @@ fun AddEditRecurringSheet(
           Icon(Icons.Default.Title, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("recurring_title_input")
@@ -420,7 +420,7 @@ fun AddEditRecurringSheet(
       )
       Spacer(modifier = Modifier.height(6.dp))
       Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
         modifier = Modifier
@@ -458,7 +458,7 @@ fun AddEditRecurringSheet(
           Icon(Icons.Default.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         maxLines = 2,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier.fillMaxWidth()
       )
 
@@ -503,7 +503,7 @@ fun AddEditRecurringSheet(
           containerColor = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
           contentColor = Color.White
         ),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier
           .fillMaxWidth()
           .height(52.dp)
