@@ -1,9 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -332,6 +328,19 @@ private fun CalendarGridCard(
   val year = selectedCalendar.get(Calendar.YEAR)
   val month = selectedCalendar.get(Calendar.MONTH)
   val monthIndex = year * 12 + month
+  // Month and computed days are exposed as separate StateFlows. They can update on
+  // adjacent frames, so guard against displaying the old month's dates under the new header.
+  val gridMatchesSelectedMonth = remember(calendarDays, year, month) {
+    calendarDays.any { day ->
+      if (!day.isCurrentMonth) {
+        false
+      } else {
+        Calendar.getInstance().apply { timeInMillis = day.epochMillis }.let { dayCalendar ->
+          dayCalendar.get(Calendar.YEAR) == year && dayCalendar.get(Calendar.MONTH) == month
+        }
+      }
+    }
+  }
 
   Card(
     shape = RoundedCornerShape(20.dp),
@@ -362,7 +371,7 @@ private fun CalendarGridCard(
       // Weekdays Header Row
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceAround
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
       ) {
         listOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").forEach { dayName ->
           Text(
@@ -370,7 +379,7 @@ private fun CalendarGridCard(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier.width(36.dp),
+            modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
           )
         }
@@ -378,31 +387,23 @@ private fun CalendarGridCard(
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      // Animated Month Grid
-      AnimatedContent(
-        targetState = monthIndex,
-        transitionSpec = {
-          if (targetState > initialState) {
-            slideInHorizontally { width -> width / 3 } togetherWith slideOutHorizontally { width -> -width / 3 }
-          } else {
-            slideInHorizontally { width -> -width / 3 } togetherWith slideOutHorizontally { width -> width / 3 }
-          }
-        },
-        label = "month_grid_animation"
-      ) { _ ->
+      // Switch the grid immediately rather than animating old dates out. If the
+      // computed data still belongs to the previous month, show placeholders until it catches up.
+      if (gridMatchesSelectedMonth) {
         val weeks = calendarDays.chunked(7)
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
           weeks.forEach { weekDays ->
             Row(
               modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceAround
+              horizontalArrangement = Arrangement.spacedBy(2.dp)
             ) {
               weekDays.forEach { dayData ->
                 val isSelected = dayData.dateKey == selectedDayKey
 
                 Box(
                   modifier = Modifier
-                    .size(width = 44.dp, height = 48.dp)
+                    .weight(1f)
+                    .height(48.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .then(
                       if (isSelected) {
@@ -460,6 +461,26 @@ private fun CalendarGridCard(
                     }
                   }
                 }
+              }
+            }
+          }
+        }
+      } else {
+        // Preserve grid height while waiting for the selected month's dates.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+          repeat(6) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+              repeat(7) {
+                Box(
+                  modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f))
+                )
               }
             }
           }
