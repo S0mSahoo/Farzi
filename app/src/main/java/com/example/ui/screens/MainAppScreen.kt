@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
@@ -111,6 +112,7 @@ fun MainAppScreen(
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
+  var isAnalyticsOpen by remember { mutableStateOf(false) }
   var showProfileSheet by remember { mutableStateOf(false) }
   var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -474,7 +476,7 @@ fun MainAppScreen(
                       )
 
                       navItems.forEach { destination ->
-                        val isSelected = !isSettingsOpen && selectedTab == destination.index
+                        val isSelected = !isSettingsOpen && !isAnalyticsOpen && selectedTab == destination.index
                         Surface(
                           shape = RoundedCornerShape(12.dp),
                           color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
@@ -483,6 +485,7 @@ fun MainAppScreen(
                             .clip(RoundedCornerShape(12.dp))
                             .clickable {
                               isSettingsOpen = false
+                              isAnalyticsOpen = false
                               selectedTab = destination.index
                             }
                             .testTag("desktop_nav_${destination.label.lowercase()}")
@@ -582,6 +585,7 @@ fun MainAppScreen(
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
+                          isAnalyticsOpen -> "Analytics"
                           else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
                         },
                         style = MaterialTheme.typography.titleLarge,
@@ -589,14 +593,20 @@ fun MainAppScreen(
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen) {
-                        IconButton(onClick = { isSettingsOpen = false }) {
+                      if (isSettingsOpen || isAnalyticsOpen) {
+                        IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
                     actions = {
-                      if (!isSettingsOpen) {
+                      if (!isSettingsOpen && !isAnalyticsOpen) {
+                        IconButton(
+                          onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
+                          modifier = Modifier.testTag("analytics_open_button")
+                        ) {
+                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(
                           onClick = { showExportModal = true },
                           modifier = Modifier.testTag("landscape_top_bar_export")
@@ -604,7 +614,7 @@ fun MainAppScreen(
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
-                          onClick = { isSettingsOpen = true },
+                          onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
                           modifier = Modifier.testTag("landscape_top_bar_settings")
                         ) {
                           Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
@@ -620,7 +630,7 @@ fun MainAppScreen(
                 },
                 containerColor = MaterialTheme.colorScheme.background,
                 floatingActionButton = {
-                  if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                  if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
                     FloatingActionButton(
                       onClick = {
                         editingTransaction = null
@@ -656,6 +666,8 @@ fun MainAppScreen(
                     MainScreenContent(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
+                      isAnalyticsOpen = isAnalyticsOpen,
+                      onBackFromAnalytics = { isAnalyticsOpen = false },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -727,11 +739,12 @@ fun MainAppScreen(
                     )
 
                     navItems.forEach { destination ->
-                      val isSelected = !isSettingsOpen && selectedTab == destination.index
+                      val isSelected = !isSettingsOpen && !isAnalyticsOpen && selectedTab == destination.index
                       NavigationRailItem(
                         selected = isSelected,
                         onClick = {
                           isSettingsOpen = false
+                          isAnalyticsOpen = false
                           selectedTab = destination.index
                         },
                         icon = {
@@ -772,7 +785,7 @@ fun MainAppScreen(
                       Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     }
                     IconButton(
-                      onClick = { isSettingsOpen = !isSettingsOpen },
+                      onClick = { isAnalyticsOpen = false; isSettingsOpen = !isSettingsOpen },
                       modifier = Modifier.testTag("desktop_nav_settings")
                     ) {
                       Icon(
@@ -797,6 +810,7 @@ fun MainAppScreen(
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
+                          isAnalyticsOpen -> "Analytics"
                           else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
                         },
                         style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
@@ -804,14 +818,20 @@ fun MainAppScreen(
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen) {
-                        IconButton(onClick = { isSettingsOpen = false }) {
+                      if (isSettingsOpen || isAnalyticsOpen) {
+                        IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
                     actions = {
-                      if (!isSettingsOpen) {
+                      if (!isSettingsOpen && !isAnalyticsOpen) {
+                        IconButton(
+                          onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
+                          modifier = Modifier.testTag("analytics_open_button")
+                        ) {
+                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(
                           onClick = { showExportModal = true },
                           modifier = Modifier.testTag("landscape_top_bar_export")
@@ -819,7 +839,7 @@ fun MainAppScreen(
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
                         IconButton(
-                          onClick = { isSettingsOpen = true },
+                          onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
                           modifier = Modifier.testTag("landscape_top_bar_settings")
                         ) {
                           Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
@@ -835,7 +855,7 @@ fun MainAppScreen(
                 },
                 containerColor = MaterialTheme.colorScheme.background,
                 floatingActionButton = {
-                  if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                  if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
                     FloatingActionButton(
                       onClick = {
                         editingTransaction = null
@@ -871,6 +891,8 @@ fun MainAppScreen(
                     MainScreenContent(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
+                      isAnalyticsOpen = isAnalyticsOpen,
+                      onBackFromAnalytics = { isAnalyticsOpen = false },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -924,29 +946,35 @@ fun MainAppScreen(
                     ) {
                       AppBrandLogo(size = 26.dp)
                       Text(
-                        text = if (isSettingsOpen) "Settings" else "Paisa",
+                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; else -> "Paisa" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
                     }
                   },
                   navigationIcon = {
-                    if (isSettingsOpen) {
-                      IconButton(onClick = { isSettingsOpen = false }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back to Dashboard")
+                    if (isSettingsOpen || isAnalyticsOpen) {
+                      IconButton(onClick = { if (isSettingsOpen) isSettingsOpen = false else isAnalyticsOpen = false }) {
+                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                       }
                     }
                   },
                   actions = {
-                    if (!isSettingsOpen) {
+                    if (!isSettingsOpen && !isAnalyticsOpen) {
                       IconButton(
+                          onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
+                          modifier = Modifier.testTag("analytics_open_button")
+                        ) {
+                          Icon(Icons.Default.Insights, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(
                         onClick = { showExportModal = true },
                         modifier = Modifier.testTag("top_bar_export")
                       ) {
                         Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                       }
                       IconButton(
-                        onClick = { isSettingsOpen = true },
+                        onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
                         modifier = Modifier.testTag("top_bar_settings")
                       ) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
@@ -961,7 +989,7 @@ fun MainAppScreen(
                 )
               },
               bottomBar = {
-                if (!isSettingsOpen) {
+                if (!isSettingsOpen && !isAnalyticsOpen) {
                   NavigationBar(
                     containerColor = MaterialTheme.colorScheme.background,
                     tonalElevation = 0.dp
@@ -978,7 +1006,7 @@ fun MainAppScreen(
                       val isSelected = selectedTab == destination.index
                       NavigationBarItem(
                         selected = isSelected,
-                        onClick = { selectedTab = destination.index },
+                        onClick = { isAnalyticsOpen = false; selectedTab = destination.index },
                         icon = {
                           Icon(
                             imageVector = destination.icon,
@@ -1004,7 +1032,7 @@ fun MainAppScreen(
                 }
               },
               floatingActionButton = {
-                if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
                   FloatingActionButton(
                     onClick = {
                       editingTransaction = null
@@ -1031,6 +1059,8 @@ fun MainAppScreen(
                 MainScreenContent(
                   selectedTab = selectedTab,
                   isSettingsOpen = isSettingsOpen,
+                  isAnalyticsOpen = isAnalyticsOpen,
+                  onBackFromAnalytics = { isAnalyticsOpen = false },
                   onBackFromSettings = { isSettingsOpen = false },
                   viewModel = viewModel,
                   dashboardCalendar = dashboardCalendar,
@@ -1100,6 +1130,8 @@ fun MainAppScreen(
 private fun MainScreenContent(
   selectedTab: Int,
   isSettingsOpen: Boolean,
+  isAnalyticsOpen: Boolean,
+  onBackFromAnalytics: () -> Unit,
   onBackFromSettings: () -> Unit,
   viewModel: FinanceViewModel,
   dashboardCalendar: java.util.Calendar,
@@ -1118,6 +1150,9 @@ private fun MainScreenContent(
       viewModel = viewModel,
       onOpenExportModal = onOpenExportModal
     )
+  } else if (isAnalyticsOpen) {
+    BackHandler { onBackFromAnalytics() }
+    AnalyticsScreen(viewModel = viewModel)
   } else {
     when (selectedTab) {
       0 -> DashboardScreen(
