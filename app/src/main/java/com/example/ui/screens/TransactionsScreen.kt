@@ -133,12 +133,43 @@ fun TransactionsScreen(
             .fillMaxWidth()
             .padding(horizontal = horizontalPadding, vertical = verticalPadding)
         ) {
-          Text(
-            text = "All Transactions",
-          style = MaterialTheme.typography.titleLarge,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onSurface
-        )
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Transactions",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+              )
+              Text(
+                text = "Find and manage your records",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+              )
+            }
+            Surface(
+              shape = RoundedCornerShape(18.dp),
+              color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
+            ) {
+              Text(
+                text = transactions.size.toString(),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
+              )
+            }
+          }
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -165,7 +196,7 @@ fun TransactionsScreen(
             }
           },
           singleLine = true,
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -188,7 +219,7 @@ fun TransactionsScreen(
             selected = filterType == null,
             onClick = { viewModel.setFilterType(null) },
             label = { Text("All", fontWeight = if (filterType == null) FontWeight.Bold else FontWeight.Normal) },
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.testTag("filter_all")
           )
           FilterChip(
@@ -201,7 +232,7 @@ fun TransactionsScreen(
               selectedContainerColor = ExpenseRed.copy(alpha = 0.12f),
               selectedLabelColor = ExpenseRed
             ),
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.testTag("filter_expenses")
           )
           FilterChip(
@@ -214,7 +245,7 @@ fun TransactionsScreen(
               selectedContainerColor = IncomeGreen.copy(alpha = 0.12f),
               selectedLabelColor = IncomeGreen
             ),
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             modifier = Modifier.testTag("filter_income")
           )
         }
@@ -231,10 +262,10 @@ fun TransactionsScreen(
           TransactionCategory.values().forEach { category ->
             val isSelected = filterCategory == category
             Surface(
-              shape = RoundedCornerShape(10.dp),
+              shape = RoundedCornerShape(16.dp),
               color = if (isSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               modifier = Modifier
-                .clip(RoundedCornerShape(10.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .clickable {
                   viewModel.setFilterCategory(if (isSelected) null else category)
                 }
@@ -310,7 +341,7 @@ fun TransactionsScreen(
                 viewModel.setFilterType(null)
                 viewModel.setFilterCategory(null)
               },
-              shape = RoundedCornerShape(12.dp)
+              shape = RoundedCornerShape(18.dp)
             ) {
               Text("Reset Filters")
             }
@@ -346,23 +377,27 @@ fun TransactionsScreen(
               val groupTotal = itemsInGroup.sumOf {
                 if (it.type == TransactionType.INCOME) it.amount else -it.amount
               }
+              val groupTotalLabel = IndianCurrencyFormatter.formatWithSymbol(groupTotal, currencySymbol, includeSign = true)
               Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(groupTotal, currencySymbol, includeSign = true),
+                text = if (groupTotalLabel.length > 13) IndianCurrencyFormatter.formatCompact(groupTotal, currencySymbol) else groupTotalLabel,
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (groupTotal >= 0) IncomeGreen else ExpenseRed
+                color = if (groupTotal >= 0) IncomeGreen else ExpenseRed,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
               )
             }
           }
 
           items(itemsInGroup, key = { it.id }, contentType = { "transaction_item" }) { item ->
             Surface(
-              shape = RoundedCornerShape(18.dp),
+              shape = RoundedCornerShape(24.dp),
               color = MaterialTheme.colorScheme.surface,
               tonalElevation = 0.dp,
               modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(22.dp))
                 .clickable { onEditTransaction(item) }
                 .testTag("transaction_item_${item.id}")
             ) {
