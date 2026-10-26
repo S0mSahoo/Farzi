@@ -2,92 +2,92 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// ==========================================
-// Farzi Theme Redesign Tokens
-// ==========================================
+/**
+ * Paisa design tokens.
+ *
+ * Neutral surfaces keep financial figures readable; coral is reserved for primary
+ * actions and expense emphasis, while category accents stay distinct in charts.
+ */
 
-// Dark Theme Tokens — inspired by YouTube / YouTube Music
-// Keep the canvas near-black and reserve red for meaningful actions and emphasis.
-val DarkBackground = Color(0xFF030303)
-val DarkSurface = Color(0xFF121212)
-val DarkSurfaceContainerLow = Color(0xFF0F0F0F)
-val DarkSurfaceContainer = Color(0xFF181818)
-val DarkSurfaceContainerHigh = Color(0xFF212121)
-val DarkSurfaceContainerHighest = Color(0xFF2A2A2A)
-val DarkSurfaceOutline = Color(0xFF3A3A3A)
-val DarkPrimary = Color(0xFFFF3347)
+// Dark surfaces
+val DarkBackground = Color(0xFF0B0F16)
+val DarkSurface = Color(0xFF121822)
+val DarkSurfaceContainerLow = Color(0xFF0F141D)
+val DarkSurfaceContainer = Color(0xFF171F2B)
+val DarkSurfaceContainerHigh = Color(0xFF202A39)
+val DarkSurfaceContainerHighest = Color(0xFF293548)
+val DarkSurfaceOutline = Color(0xFF354255)
+val DarkPrimary = Color(0xFFFF4963)
 val DarkOnPrimary = Color(0xFFFFFFFF)
-val DarkPrimaryContainer = Color(0xFF4A171D)
-val DarkOnPrimaryContainer = Color(0xFFFFDADB)
-val DarkSecondary = Color(0xFFD0D0D0)
-val DarkSecondaryContainer = Color(0xFF292929)
-val DarkTertiary = Color(0xFF8AB4F8)
-val DarkOnTertiary = Color(0xFF10213A)
-val DarkPrimaryText = Color(0xFFFFFFFF)
-val DarkSecondaryText = Color(0xFFAAAAAA)
-val DarkTertiaryText = Color(0xFF8F8F8F)
-val DarkDivider = Color(0xFF282828)
-val DarkNavSelectedBg = Color(0xFF292929)
-val DarkNavSelectedFg = Color(0xFFFFFFFF)
-val DarkNavUnselectedFg = Color(0xFFAAAAAA)
+val DarkPrimaryContainer = Color(0xFF421D2A)
+val DarkOnPrimaryContainer = Color(0xFFFFDCE4)
+val DarkSecondary = Color(0xFFBAC5D5)
+val DarkSecondaryContainer = Color(0xFF253142)
+val DarkTertiary = Color(0xFF73B9F5)
+val DarkOnTertiary = Color(0xFF0B2438)
+val DarkPrimaryText = Color(0xFFF4F6FA)
+val DarkSecondaryText = Color(0xFFB0BBCB)
+val DarkTertiaryText = Color(0xFF8390A4)
+val DarkDivider = Color(0xFF273243)
+val DarkNavSelectedBg = Color(0xFF321F2B)
+val DarkNavSelectedFg = Color(0xFFFF7184)
+val DarkNavUnselectedFg = Color(0xFF9AA6B8)
 
-// Light Theme Tokens — neutral YouTube-inspired light surfaces
-val LightBackground = Color(0xFFF9F9F9)
+// Light surfaces
+val LightBackground = Color(0xFFF5F7FB)
 val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceContainerLow = Color(0xFFFCFCFC)
-val LightSurfaceContainer = Color(0xFFF2F2F2)
-val LightSurfaceContainerHigh = Color(0xFFEAEAEA)
-val LightSurfaceContainerHighest = Color(0xFFE0E0E0)
-val LightSurfaceOutline = Color(0xFFD6D6D6)
-val LightPrimary = Color(0xFFCC0000)
+val LightSurfaceContainerLow = Color(0xFFFBFCFE)
+val LightSurfaceContainer = Color(0xFFEEF2F8)
+val LightSurfaceContainerHigh = Color(0xFFE6EBF3)
+val LightSurfaceContainerHighest = Color(0xFFDDE4EE)
+val LightSurfaceOutline = Color(0xFFCDD5E2)
+val LightPrimary = Color(0xFFE93651)
 val LightOnPrimary = Color(0xFFFFFFFF)
-val LightPrimaryContainer = Color(0xFFFFE5E7)
-val LightOnPrimaryContainer = Color(0xFF5B0010)
-val LightSecondary = Color(0xFF555555)
-val LightSecondaryContainer = Color(0xFFECECEC)
-val LightTertiary = Color(0xFF065FD4)
+val LightPrimaryContainer = Color(0xFFFFE3E9)
+val LightOnPrimaryContainer = Color(0xFF5F1424)
+val LightSecondary = Color(0xFF596678)
+val LightSecondaryContainer = Color(0xFFE8EDF5)
+val LightTertiary = Color(0xFF1769AA)
 val LightOnTertiary = Color(0xFFFFFFFF)
-val LightPrimaryText = Color(0xFF0F0F0F)
-val LightSecondaryText = Color(0xFF606060)
-val LightTertiaryText = Color(0xFF767676)
-val LightDivider = Color(0xFFE0E0E0)
-val LightNavSelectedBg = Color(0xFFEAEAEA)
-val LightNavSelectedFg = Color(0xFF0F0F0F)
-val LightNavUnselectedFg = Color(0xFF606060)
+val LightPrimaryText = Color(0xFF151B26)
+val LightSecondaryText = Color(0xFF5D687A)
+val LightTertiaryText = Color(0xFF778397)
+val LightDivider = Color(0xFFE0E5ED)
+val LightNavSelectedBg = Color(0xFFFFE6EB)
+val LightNavSelectedFg = Color(0xFFB51F3B)
+val LightNavUnselectedFg = Color(0xFF687588)
 
-// Shared Semantic Colors
-val IncomeGreen = Color(0xFF2EBD59)
-val ExpenseRed = Color(0xFFFF3347)
-val WarningAmber = Color(0xFFF9AB00)
-val ErrorContainer = Color(0xFF4A2025)
-val OnErrorContainer = Color(0xFFFFDAD6)
-val LightErrorContainer = Color(0xFFFFDAD6)
-val LightOnErrorContainer = Color(0xFF690005)
+// Shared semantic colors
+val IncomeGreen = Color(0xFF22B985)
+val ExpenseRed = Color(0xFFF0445D)
+val WarningAmber = Color(0xFFF0AA35)
+val ErrorContainer = Color(0xFF4A2028)
+val OnErrorContainer = Color(0xFFFFDAD7)
+val LightErrorContainer = Color(0xFFFFDADF)
+val LightOnErrorContainer = Color(0xFF690018)
 val DisabledContent = Color(0xFF7D8981)
 val LightDisabledContent = Color(0xFF6F8075)
 
-// Aliases for compatibility
+// Chart/category accents: distinct values keep legends and category icons recognizable.
+val AccentAmber = Color(0xFFF4B33F)
+val AccentIndigo = Color(0xFF7C83F6)
+val AccentSky = Color(0xFF4AA7F2)
+val AccentPurple = Color(0xFFAB79F5)
+val AccentPink = Color(0xFFED75B2)
+val AccentTeal = Color(0xFF31BFC0)
+val AccentOrange = Color(0xFFF07A4B)
+val EmeraldPrimary = Color(0xFF26B98C)
+val Slate500 = Color(0xFF7B8798)
+
+// Backward-compatibility aliases retained for existing screens and models.
 val DarkTextPrimary = DarkPrimaryText
 val DarkTextSecondary = DarkSecondaryText
 val DarkTextTertiary = DarkTertiaryText
 val LightTextPrimary = LightPrimaryText
 val LightTextSecondary = LightSecondaryText
 val LightTextTertiary = LightTertiaryText
-
-// Backward Compatibility Aliases for Existing Code
-val AccentAmber = WarningAmber
-val MinimalIndigo = DarkPrimary
-val MinimalBlue = DarkPrimary
-val MinimalPurple = DarkPrimary
-val MinimalPink = DarkPrimary
-val MinimalEmerald = IncomeGreen
-val EmeraldPrimary = IncomeGreen
-val AccentIndigo = DarkPrimary
-val AccentSky = DarkPrimary
-val AccentPurple = DarkPrimary
-val AccentPink = DarkPrimary
-val AccentTeal = DarkPrimary
-val AccentOrange = DarkPrimary
-val Slate500 = DarkSecondaryText
-
-
+val MinimalIndigo = AccentIndigo
+val MinimalBlue = AccentSky
+val MinimalPurple = AccentPurple
+val MinimalPink = AccentPink
+val MinimalEmerald = EmeraldPrimary
