@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,6 +58,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.CategorySpending
 import com.example.data.model.MonthlyFinancialSummary as MonthlySummary
@@ -684,30 +687,23 @@ private fun EmptyTransactionsState(
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-      ) {
-        Button(
-          onClick = onAddIncome,
-          colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen, contentColor = Color.White),
-          shape = RoundedCornerShape(12.dp),
-          modifier = Modifier.weight(1f)
-        ) {
-          Icon(Icons.Default.ArrowUpward, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Add Income", maxLines = 1, softWrap = false)
-        }
+      BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val stackActions = maxWidth < 340.dp
+        val actionSpacing = if (stackActions) 8.dp else 12.dp
 
-        Button(
-          onClick = onAddExpense,
-          colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed, contentColor = Color.White),
-          shape = RoundedCornerShape(12.dp),
-          modifier = Modifier.weight(1f)
-        ) {
-          Icon(Icons.Default.ArrowDownward, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Add Expense", maxLines = 1, softWrap = false)
+        if (stackActions) {
+          Column(verticalArrangement = Arrangement.spacedBy(actionSpacing)) {
+            EmptyStateActionButton("Add Income", true, onAddIncome, Modifier.fillMaxWidth())
+            EmptyStateActionButton("Add Expense", false, onAddExpense, Modifier.fillMaxWidth())
+          }
+        } else {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(actionSpacing)
+          ) {
+            EmptyStateActionButton("Add Income", true, onAddIncome, Modifier.weight(1f))
+            EmptyStateActionButton("Add Expense", false, onAddExpense, Modifier.weight(1f))
+          }
         }
       }
     }
@@ -962,5 +958,38 @@ private fun MonthBreakdownRowItem(
       )
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+  }
+}
+
+@Composable
+private fun EmptyStateActionButton(
+  label: String,
+  isIncome: Boolean,
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier
+) {
+  Button(
+    onClick = onClick,
+    colors = ButtonDefaults.buttonColors(
+      containerColor = if (isIncome) IncomeGreen else ExpenseRed,
+      contentColor = Color.White
+    ),
+    shape = RoundedCornerShape(16.dp),
+    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+    modifier = modifier.heightIn(min = 48.dp)
+  ) {
+    Icon(
+      imageVector = if (isIncome) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+      contentDescription = null,
+      modifier = Modifier.size(18.dp)
+    )
+    Spacer(modifier = Modifier.width(8.dp))
+    Text(
+      text = label,
+      maxLines = 1,
+      softWrap = false,
+      overflow = TextOverflow.Clip,
+      style = MaterialTheme.typography.labelLarge
+    )
   }
 }
