@@ -241,7 +241,7 @@ fun OnboardingScreen(
                   text = "G",
                   fontWeight = FontWeight.Black,
                   fontSize = 14.sp,
-                  color = Color(0xFF4285F4)
+                  color = MaterialTheme.colorScheme.primary
                 )
               }
             }
