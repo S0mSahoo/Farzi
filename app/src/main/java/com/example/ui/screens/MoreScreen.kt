@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.TrendingUp
@@ -44,6 +45,7 @@ fun MoreScreen(
     onOpenCalendar: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenAnalytics: () -> Unit,
+    onOpenInsights: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenExport: () -> Unit,
     onOpenSettings: () -> Unit
@@ -148,9 +150,16 @@ fun MoreScreen(
             Spacer(Modifier.height(10.dp))
             MoreActionRow(
                 title = "Analytics",
-                description = "Understand income, expenses, and savings",
+                description = "Explore monthly and annual breakdowns",
                 icon = Icons.Default.TrendingUp,
                 onClick = onOpenAnalytics
+            )
+            Spacer(Modifier.height(10.dp))
+            MoreActionRow(
+                title = "Insights",
+                description = "See clear takeaways from recorded activity",
+                icon = Icons.Default.Lightbulb,
+                onClick = onOpenInsights
             )
         }
 
