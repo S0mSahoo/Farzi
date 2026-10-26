@@ -1,7 +1,7 @@
 package com.example.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.CategorySpending
 import com.example.data.model.DailySpendingPoint
+import com.example.data.model.TransactionCategory
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
@@ -50,10 +51,17 @@ fun BudgetProgressBar(
   modifier: Modifier = Modifier
 ) {
   val remaining = budgetLimit - budgetUsed
-  val ratio = if (budgetLimit > 0) (budgetUsed / budgetLimit).toFloat().coerceIn(0f, 1f) else 0f
+  val rawRatio = if (budgetLimit > 0) (budgetUsed / budgetLimit).toFloat() else 0f
+  val ratio = rawRatio.coerceIn(0f, 1f)
   val percent = if (budgetLimit > 0) (budgetUsed / budgetLimit * 100.0) else 0.0
   val isExceeded = budgetUsed > budgetLimit && budgetLimit > 0
   val isNearLimit = ratio >= 0.8f && !isExceeded
+
+  val animatedProgress by animateFloatAsState(
+    targetValue = ratio,
+    animationSpec = tween(durationMillis = 600),
+    label = "budget_progress"
+  )
 
   val statusColor = when {
     isExceeded -> ExpenseRed
@@ -65,7 +73,7 @@ fun BudgetProgressBar(
     isExceeded -> "Exceeded by ${IndianCurrencyFormatter.formatWithSymbol(budgetUsed - budgetLimit, currencySymbol)}"
     isNearLimit -> "Warning: ${String.format("%.1f", percent)}% used"
     budgetLimit > 0 -> "${IndianCurrencyFormatter.formatWithSymbol(remaining, currencySymbol)} remaining"
-    else -> "No budget set"
+    else -> "No budget configured"
   }
 
   Column(modifier = modifier.fillMaxWidth()) {
@@ -77,28 +85,28 @@ fun BudgetProgressBar(
       Text(
         text = "Budget Utilization",
         style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
+        fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface
       )
       Surface(
         shape = RoundedCornerShape(8.dp),
-        color = statusColor.copy(alpha = 0.15f)
+        color = statusColor.copy(alpha = 0.12f)
       ) {
         Text(
           text = if (budgetLimit > 0) "${String.format("%.0f", percent)}%" else "None",
           style = MaterialTheme.typography.labelSmall,
           fontWeight = FontWeight.Bold,
           color = statusColor,
-          modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+          modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
         )
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(10.dp))
 
-    // Progress Bar
+    // Smooth rounded progress bar
     LinearProgressIndicator(
-      progress = { ratio },
+      progress = { animatedProgress },
       modifier = Modifier
         .fillMaxWidth()
         .height(10.dp)
@@ -112,7 +120,8 @@ fun BudgetProgressBar(
 
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
     ) {
       Text(
         text = "Spent: ${IndianCurrencyFormatter.formatWithSymbol(budgetUsed, currencySymbol)}",
@@ -140,7 +149,11 @@ fun IncomeExpenseComparisonBar(
   val incomeRatio = if (total > 0) (income / total).toFloat() else 0.5f
   val expenseRatio = if (total > 0) (expense / total).toFloat() else 0.5f
 
-  val animatedIncomeRatio by animateFloatAsState(targetValue = incomeRatio, label = "income_ratio")
+  val animatedIncomeRatio by animateFloatAsState(
+    targetValue = incomeRatio,
+    animationSpec = tween(durationMillis = 600),
+    label = "income_ratio"
+  )
 
   Column(modifier = modifier.fillMaxWidth()) {
     Row(
@@ -165,9 +178,9 @@ fun IncomeExpenseComparisonBar(
       }
     }
 
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(10.dp))
 
-    // Multi-color segmented bar
+    // Smooth Segmented Bar
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -208,14 +221,20 @@ fun IncomeExpenseComparisonBar(
 fun CategorySpendingBreakdown(
   categories: List<CategorySpending>,
   currencySymbol: String = "₹",
-  onCategoryClick: ((com.example.data.model.TransactionCategory) -> Unit)? = null,
+  onCategoryClick: ((TransactionCategory) -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
   Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
     categories.forEach { item ->
+      val animatedPercent by animateFloatAsState(
+        targetValue = item.percentage.coerceIn(0f, 1f),
+        animationSpec = tween(durationMillis = 500),
+        label = "cat_percent"
+      )
+
       Surface(
         shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
         modifier = Modifier
           .fillMaxWidth()
           .clip(RoundedCornerShape(14.dp))
@@ -223,7 +242,7 @@ fun CategorySpendingBreakdown(
             onCategoryClick?.invoke(item.category)
           }
       ) {
-        Column(modifier = Modifier.padding(12.dp)) {
+        Column(modifier = Modifier.padding(14.dp)) {
           Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -231,19 +250,20 @@ fun CategorySpendingBreakdown(
           ) {
             Row(
               verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
+              horizontalArrangement = Arrangement.spacedBy(10.dp),
+              modifier = Modifier.weight(1f)
             ) {
               Surface(
                 shape = CircleShape,
                 color = item.color.copy(alpha = 0.15f),
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(36.dp)
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
                     imageVector = item.category.icon,
                     contentDescription = null,
                     tint = item.color,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                   )
                 }
               }
@@ -255,7 +275,7 @@ fun CategorySpendingBreakdown(
                   color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                  text = "${item.count} transactions • Tap for details",
+                  text = "${item.count} transactions • Tap for breakdown",
                   style = MaterialTheme.typography.labelSmall,
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -273,22 +293,23 @@ fun CategorySpendingBreakdown(
                 text = "${String.format("%.1f", item.percentage * 100)}%",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.Medium
+                fontWeight = FontWeight.SemiBold
               )
             }
           }
 
-          Spacer(modifier = Modifier.height(8.dp))
+          Spacer(modifier = Modifier.height(10.dp))
 
-          // Progress indicator for category
+          // Category linear indicator
           LinearProgressIndicator(
-            progress = { item.percentage.coerceIn(0f, 1f) },
+            progress = { animatedPercent },
             modifier = Modifier
               .fillMaxWidth()
               .height(6.dp)
               .clip(RoundedCornerShape(3.dp)),
             color = item.color,
-            trackColor = MaterialTheme.colorScheme.surfaceVariant
+            trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+            strokeCap = StrokeCap.Round
           )
         }
       }
@@ -310,7 +331,7 @@ fun DailySpendingTrendBarChart(
     Text(
       text = "Daily Spending Trend",
       style = MaterialTheme.typography.titleSmall,
-      fontWeight = FontWeight.Bold,
+      fontWeight = FontWeight.SemiBold,
       color = MaterialTheme.colorScheme.onSurface
     )
     Spacer(modifier = Modifier.height(12.dp))
@@ -330,13 +351,13 @@ fun DailySpendingTrendBarChart(
         Column(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.Bottom,
-          modifier = Modifier.width(28.dp)
+          modifier = Modifier.width(30.dp)
         ) {
-          // Bar
+          // Bar container
           Box(
             modifier = Modifier
-              .height(80.dp)
-              .width(14.dp),
+              .height(84.dp)
+              .width(16.dp),
             contentAlignment = Alignment.BottomCenter
           ) {
             // Track
@@ -344,7 +365,7 @@ fun DailySpendingTrendBarChart(
               modifier = Modifier
                 .fillMaxWidth()
                 .fillMaxHeight()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(6.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             )
             // Active Bar
@@ -353,7 +374,7 @@ fun DailySpendingTrendBarChart(
                 modifier = Modifier
                   .fillMaxWidth()
                   .fillMaxHeight(heightRatio)
-                  .clip(RoundedCornerShape(4.dp))
+                  .clip(RoundedCornerShape(6.dp))
                   .background(if (point.income > 0) IncomeGreen else ExpenseRed)
               )
             }

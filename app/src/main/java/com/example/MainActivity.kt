@@ -8,7 +8,7 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalContext
@@ -22,19 +22,16 @@ import com.example.ui.screens.MainAppScreen
 import com.example.ui.screens.OnboardingScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.ui.viewmodel.FinanceViewModel
-import com.example.pro.entitlement.ProEntitlementManagerProvider
-
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    ProEntitlementManagerProvider.initialize(this)
     enableEdgeToEdge()
     setContent {
       val viewModel: FinanceViewModel = viewModel()
-      val userProfile by viewModel.userProfile.collectAsState()
-      val themeMode by viewModel.themeMode.collectAsState()
-      val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsState()
-      val isAppUnlocked by viewModel.isAppUnlocked.collectAsState()
+      val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+      val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+      val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
+      val isAppUnlocked by viewModel.isAppUnlocked.collectAsStateWithLifecycle()
 
       val isDark = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()

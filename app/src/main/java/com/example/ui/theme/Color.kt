@@ -2,89 +2,142 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// AMOLED Dark Mode Palette (Pure AMOLED Black background with distinct near-black surface hierarchy)
-val AmoledBlack = Color(0xFF000000)
-val DarkBackground = Color(0xFF000000)
-val DarkSurface = Color(0xFF121214)
-val DarkSurfaceVariant = Color(0xFF1A1A1E)
-val DarkSurfaceElevated = Color(0xFF24242A)
-val DarkBorder = Color(0xFF282830)
-val DarkBorderLight = Color(0xFF363640)
-val DarkTextPrimary = Color(0xFFFFFFFF)
-val DarkTextSecondary = Color(0xFFA2A6B2)
-val DarkTextMuted = Color(0xFF727682)
+// ==========================================
+// Google Material 3 Color System
+// Clean, trustworthy, and modern financial palette
+// ==========================================
 
-// Light Mode Palette (Subtle warm slate, soft natural borders)
-val LightBackground = Color(0xFFF7F8FA)
-val LightSurface = Color(0xFFFFFFFF)
-val LightSurfaceVariant = Color(0xFFEFF1F5)
-val LightBorder = Color(0xFFE2E5EB)
-val LightBorderDarker = Color(0xFFD0D5DD)
-val LightTextPrimary = Color(0xFF191D24)
-val LightTextSecondary = Color(0xFF5A6372)
-val LightTextMuted = Color(0xFF7C8698)
+// Light Mode Google Palette
+val GoogleBlue = Color(0xFF0B57D0)
+val GoogleBlueContainer = Color(0xFFD3E3FD)
+val GoogleOnBlueContainer = Color(0xFF041E49)
 
-// Grayscale System
-val Gray50 = Color(0xFFF8FAFC)
-val Gray100 = Color(0xFFF1F5F9)
-val Gray200 = Color(0xFFE2E8F0)
-val Gray300 = Color(0xFFCBD5E1)
-val Gray400 = Color(0xFF94A3B8)
-val Gray500 = Color(0xFF64748B)
-val Gray600 = Color(0xFF475569)
-val Gray700 = Color(0xFF334155)
-val Gray800 = Color(0xFF1E293B)
-val Gray900 = Color(0xFF0F172A)
+val GoogleTeal = Color(0xFF006A60)
+val GoogleTealContainer = Color(0xFFCCE8E3)
+val GoogleOnTealContainer = Color(0xFF00201D)
 
-// Refined Subtle Accents (Softened tone, non-glaring)
-val MinimalEmerald = Color(0xFF1EA97C)
-val MinimalEmeraldLight = Color(0xFF38C194)
-val MinimalEmeraldBg = Color(0xFFEBF7F2)
+val GoogleBackgroundLight = Color(0xFFF8F9FA)
+val GoogleSurfaceLight = Color(0xFFFFFFFF)
+val GoogleSurfaceVariantLight = Color(0xFFEFF2F8)
+val GoogleOutlineLight = Color(0xFFD2D6DC)
+val GoogleOutlineVariantLight = Color(0xFFE6E9EE)
+val GoogleTextPrimaryLight = Color(0xFF1F1F1F)
+val GoogleTextSecondaryLight = Color(0xFF5E6368)
+val GoogleTextMutedLight = Color(0xFF80868B)
 
-val MinimalRose = Color(0xFFE05263)
-val MinimalRoseLight = Color(0xFFEA7080)
-val MinimalRoseBg = Color(0xFFFDECEF)
+// Dark Mode Google Palette (Sophisticated Deep Charcoal / Navy)
+val GoogleBlueDark = Color(0xFF8AB4F8)
+val GoogleBlueContainerDark = Color(0xFF0B306B)
+val GoogleOnBlueContainerDark = Color(0xFFD3E3FD)
 
-val MinimalBlue = Color(0xFF3E7DE6)
-val MinimalBlueBg = Color(0xFFEEF4FD)
+val GoogleTealDark = Color(0xFF509D93)
+val GoogleTealContainerDark = Color(0xFF003731)
+val GoogleOnTealContainerDark = Color(0xFF9DF2DE)
 
-val MinimalAmber = Color(0xFFE08E1A)
-val MinimalAmberBg = Color(0xFFFDF5E9)
+val GoogleBackgroundDark = Color(0xFF0F1117)
+val GoogleSurfaceDark = Color(0xFF161A22)
+val GoogleSurfaceVariantDark = Color(0xFF212630)
+val GoogleSurfaceElevatedDark = Color(0xFF2C323E)
+val GoogleOutlineDark = Color(0xFF373E4D)
+val GoogleOutlineVariantDark = Color(0xFF232833)
+val GoogleTextPrimaryDark = Color(0xFFECEFF4)
+val GoogleTextSecondaryDark = Color(0xFF9099A8)
+val GoogleTextMutedDark = Color(0xFF636E82)
 
-val MinimalIndigo = Color(0xFF5C62DE)
-val MinimalIndigoBg = Color(0xFFEFF0FC)
+// ==========================================
+// Financial Semantic Colors (Accessible & Consistent)
+// ==========================================
 
-val MinimalPurple = Color(0xFF825AD8)
-val MinimalPurpleBg = Color(0xFFF4F0FD)
-
-// Status and Semantic Colors
-val EmeraldPrimary = MinimalEmerald
-val EmeraldLight = MinimalEmeraldLight
-val EmeraldDark = Color(0xFF0F563E)
-val EmeraldContainer = MinimalEmeraldBg
-val OnEmeraldContainer = Color(0xFF0D533B)
-
-val IncomeGreen = Color(0xFF1EA97C)
-val IncomeGreenLight = Color(0xFF38C194)
-val IncomeGreenContainer = MinimalEmeraldBg
+// Income / Positive
+val IncomeGreen = Color(0xFF188038)
+val IncomeGreenLight = Color(0xFF34A853)
+val IncomeGreenDark = Color(0xFF5BB974)
+val IncomeGreenContainer = Color(0xFFE6F4EA)
+val IncomeGreenContainerDark = Color(0xFF0F381F)
 val OnIncomeGreen = Color(0xFFFFFFFF)
 
-val ExpenseRed = Color(0xFFE05263)
-val ExpenseRedLight = Color(0xFFEA7080)
-val ExpenseRedContainer = MinimalRoseBg
+// Expense / Negative
+val ExpenseRed = Color(0xFFD93025)
+val ExpenseRedLight = Color(0xFFEA4335)
+val ExpenseRedDark = Color(0xFFF28B82)
+val ExpenseRedContainer = Color(0xFFFCE8E6)
+val ExpenseRedContainerDark = Color(0xFF5A1A18)
 val OnExpenseRed = Color(0xFFFFFFFF)
+
+// Warning / Caution / Approaching Limit
+val WarningAmber = Color(0xFFE37400)
+val WarningAmberDark = Color(0xFFFDD663)
+val WarningAmberContainer = Color(0xFFFEF7E0)
+val WarningAmberContainerDark = Color(0xFF422D00)
+
+// Backward Compatibility Aliases for Existing Code
+val DarkBackground = GoogleBackgroundDark
+val DarkSurface = GoogleSurfaceDark
+val DarkSurfaceVariant = GoogleSurfaceVariantDark
+val DarkSurfaceElevated = GoogleSurfaceElevatedDark
+val DarkBorder = GoogleOutlineDark
+val DarkBorderLight = GoogleOutlineVariantDark
+val DarkTextPrimary = GoogleTextPrimaryDark
+val DarkTextSecondary = GoogleTextSecondaryDark
+val DarkTextMuted = GoogleTextMutedDark
+val AmoledBlack = Color(0xFF000000)
+val AmoledBackground = DarkBackground
+
+val LightBackground = GoogleBackgroundLight
+val LightSurface = GoogleSurfaceLight
+val LightSurfaceVariant = GoogleSurfaceVariantLight
+val LightBorder = GoogleOutlineLight
+val LightBorderDarker = GoogleOutlineVariantLight
+val LightTextPrimary = GoogleTextPrimaryLight
+val LightTextSecondary = GoogleTextSecondaryLight
+val LightTextMuted = GoogleTextMutedLight
+
+val MinimalEmerald = IncomeGreen
+val MinimalEmeraldLight = IncomeGreenLight
+val MinimalEmeraldBg = IncomeGreenContainer
+val EmeraldPrimary = MinimalEmerald
+val EmeraldLight = MinimalEmeraldLight
+val EmeraldDark = Color(0xFF0D533B)
+val EmeraldContainer = IncomeGreenContainer
+val OnEmeraldContainer = Color(0xFF0D533B)
+
+val MinimalRose = ExpenseRed
+val MinimalRoseLight = ExpenseRedLight
+val MinimalRoseBg = ExpenseRedContainer
+
+val MinimalBlue = GoogleBlue
+val MinimalBlueBg = GoogleBlueContainer
+
+val MinimalAmber = WarningAmber
+val MinimalAmberBg = WarningAmberContainer
+val AccentAmber = WarningAmber
+val AccentAmberContainer = WarningAmberContainer
+
+val MinimalIndigo = Color(0xFF3F51B5)
+val MinimalIndigoBg = Color(0xFFEDE7F6)
+val MinimalPurple = Color(0xFF9334E6)
+val MinimalPurpleBg = Color(0xFFF3E8FD)
 
 val AccentIndigo = MinimalIndigo
 val AccentIndigoContainer = MinimalIndigoBg
-val AccentAmber = MinimalAmber
-val AccentAmberContainer = MinimalAmberBg
 val AccentSky = MinimalBlue
 val AccentSkyContainer = MinimalBlueBg
 val AccentPurple = MinimalPurple
 val AccentPurpleContainer = MinimalPurpleBg
-val AccentTeal = Color(0xFF1DB3A0)
-val AccentOrange = Color(0xFFE86B1E)
-val AccentPink = Color(0xFFDE458D)
+val AccentTeal = Color(0xFF00796B)
+val AccentOrange = Color(0xFFE8710A)
+val AccentPink = Color(0xFFD01884)
+
+val Gray50 = Color(0xFFF8F9FA)
+val Gray100 = Color(0xFFF1F3F4)
+val Gray200 = Color(0xFFE8EAED)
+val Gray300 = Color(0xFFDADCE0)
+val Gray400 = Color(0xFFBDC1C6)
+val Gray500 = Color(0xFF9AA0A6)
+val Gray600 = Color(0xFF80868B)
+val Gray700 = Color(0xFF5F6368)
+val Gray800 = Color(0xFF3C4043)
+val Gray900 = Color(0xFF202124)
 
 val Slate50 = Gray50
 val Slate100 = Gray100
@@ -96,6 +149,3 @@ val Slate600 = Gray600
 val Slate700 = Gray700
 val Slate800 = Gray800
 val Slate900 = Gray900
-
-// Compatibility aliases
-val AmoledBackground = DarkBackground

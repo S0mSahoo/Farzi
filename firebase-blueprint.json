@@ -1,0 +1,44 @@
+{
+  "collections": {
+    "users": {
+      "subcollections": {
+        "transactions": {
+          "fields": {
+            "title": "string",
+            "amount": "number",
+            "type": "string",
+            "category": "string",
+            "timestamp": "timestamp",
+            "note": "string",
+            "paymentMethod": "string",
+            "isRecurring": "boolean",
+            "recurringRuleId": "number",
+            "createdAt": "timestamp",
+            "updatedAt": "timestamp",
+            "userId": "string"
+          }
+        },
+        "budgets": {
+          "fields": {
+            "category": "string",
+            "amountLimit": "number",
+            "month": "number",
+            "year": "number",
+            "userId": "string"
+          }
+        },
+        "recurringRules": {
+          "fields": {
+            "title": "string",
+            "amount": "number",
+            "type": "string",
+            "category": "string",
+            "frequency": "string",
+            "startDate": "timestamp",
+            "userId": "string"
+          }
+        }
+      }
+    }
+  }
+}

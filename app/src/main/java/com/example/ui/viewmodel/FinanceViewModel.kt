@@ -18,8 +18,6 @@ import com.example.data.model.CategorySpendingDetail
 import com.example.data.model.DailySpendingPoint
 import com.example.data.model.DriveStorageQuota
 import com.example.data.model.ExportPeriod
-import com.example.data.model.FinancialInsight
-import com.example.data.model.InsightType
 import com.example.data.model.MonthlyFinancialSummary
 import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
@@ -33,22 +31,6 @@ import com.example.data.model.TransactionType
 import com.example.data.model.UserProfile
 import com.example.data.model.YearlyFinancialSummary
 import com.example.data.repository.FinanceRepository
-import com.example.pro.ai.CopilotMessage
-import com.example.pro.ai.CopilotSender
-import com.example.pro.ai.FinancialAiService
-import com.example.pro.ai.IntentClassifier
-import com.example.pro.engine.FinancialContextBuilder
-import com.example.pro.engine.FinancialIntelligenceEngine
-import com.example.pro.engine.forecast.CashFlowForecastEngine
-import com.example.pro.engine.forecast.CashFlowForecastResult
-import com.example.pro.engine.whatif.WhatIfScenario
-import com.example.pro.engine.whatif.WhatIfSimulationResult
-import com.example.pro.engine.whatif.WhatIfSimulatorEngine
-import com.example.pro.entitlement.DevelopmentProEntitlementProvider
-import com.example.pro.entitlement.EntitlementState
-import com.example.pro.entitlement.ProEntitlementManager
-import com.example.pro.entitlement.ProEntitlementManagerProvider
-import com.example.pro.entitlement.ProFeature
 import com.example.ui.components.DateUtils
 import com.example.util.JsonPortabilityManager
 import com.example.util.JsonValidationResult
@@ -72,33 +54,6 @@ import java.util.Locale
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
   private val repository = FinanceRepository(application.applicationContext)
   val driveService = GoogleDriveBackupService(application.applicationContext)
-
-  // Paisa Pro Engines & Entitlement
-  private val financialIntelligenceEngine = FinancialIntelligenceEngine()
-  private val cashFlowForecastEngine = CashFlowForecastEngine()
-  private val whatIfSimulatorEngine = WhatIfSimulatorEngine(cashFlowForecastEngine)
-  private val financialContextBuilder = FinancialContextBuilder(financialIntelligenceEngine)
-  private val financialAiService = FinancialAiService()
-  val proEntitlementManager: ProEntitlementManager = ProEntitlementManagerProvider.get()
-
-  val proEntitlementState: StateFlow<EntitlementState> = proEntitlementManager.entitlementStateFlow
-  val isProUser: StateFlow<Boolean> = proEntitlementManager.entitlementStateFlow
-    .map { it == EntitlementState.PRO }
-    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), proEntitlementManager.getEntitlementState() == EntitlementState.PRO)
-
-  // AI Copilot State
-  private val _copilotMessages = MutableStateFlow<List<CopilotMessage>>(
-    listOf(
-      CopilotMessage(
-        sender = CopilotSender.COPILOT,
-        text = "Namaste! I'm your Paisa Financial Copilot. Ask me anything about your income, expenses, forecasts, or what-if spending decisions."
-      )
-    )
-  )
-  val copilotMessages: StateFlow<List<CopilotMessage>> = _copilotMessages.asStateFlow()
-
-  private val _isCopilotLoading = MutableStateFlow(false)
-  val isCopilotLoading: StateFlow<Boolean> = _isCopilotLoading.asStateFlow()
 
   // Google Drive Real State Flow
   private val _googleDriveState = MutableStateFlow<GoogleDriveState>(GoogleDriveState.NotConnected)
@@ -827,123 +782,6 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  // ----------------- 5. Financial Insights Engine -----------------
-
-  val financialInsights: StateFlow<List<FinancialInsight>> = combine(
-    dashboardMonthSummary,
-    dashboardCategorySpending,
-    todayRecurringPayments,
-    upcomingRecurringPayments
-  ) { summary, categories, dueToday, upcoming ->
-    val insights = mutableListOf<FinancialInsight>()
-    val cal = _universalCalendar.value
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val currentDay = Calendar.getInstance().get(Calendar.DAY_OF_MONTH)
-    val daysLeft = (daysInMonth - currentDay).coerceAtLeast(0)
-
-    // 1. Overall Budget Warning or Pacing
-    if (summary.budgetLimit > 0) {
-      val percent = summary.budgetUsagePercent
-      if (percent >= 100) {
-        insights.add(
-          FinancialInsight(
-            id = "budget_exceeded",
-            title = "Monthly Budget Exceeded",
-            description = "You have spent ₹${summary.totalExpense.toLong()} of your ₹${summary.budgetLimit.toLong()} budget (${percent.toInt()}% consumed).",
-            type = InsightType.ALERT
-          )
-        )
-      } else if (percent >= 80) {
-        insights.add(
-          FinancialInsight(
-            id = "budget_pacing",
-            title = "High Budget Utilization",
-            description = "You have used ${percent.toInt()}% of your ₹${summary.budgetLimit.toLong()} monthly budget with $daysLeft days remaining in the month.",
-            type = InsightType.WARNING
-          )
-        )
-      }
-    }
-
-    // 2. Highest Category
-    val topExpenseCat = categories.maxByOrNull { it.amount }
-    if (topExpenseCat != null && topExpenseCat.amount > 0 && summary.totalExpense > 0) {
-      val catPercent = ((topExpenseCat.amount / summary.totalExpense) * 100.0).toInt()
-      if (catPercent >= 35) {
-        insights.add(
-          FinancialInsight(
-            id = "top_category",
-            title = "${topExpenseCat.category.displayName} Leading Expenses",
-            description = "${topExpenseCat.category.displayName} accounts for $catPercent% (₹${topExpenseCat.amount.toLong()}) of your spending this month.",
-            type = InsightType.INFO,
-            category = topExpenseCat.category
-          )
-        )
-      }
-    }
-
-    // 3. Due recurring bills
-    if (dueToday.isNotEmpty()) {
-      val dueSum = dueToday.sumOf { it.rule.amount }
-      insights.add(
-        FinancialInsight(
-          id = "recurring_due_today",
-          title = "Bills Due Today",
-          description = "${dueToday.size} scheduled payment${if (dueToday.size > 1) "s" else ""} totaling ₹${dueSum.toLong()} are due today.",
-          type = InsightType.ALERT
-        )
-      )
-    }
-
-    // 4. Savings rate insight
-    if (summary.totalIncome > 0) {
-      val rate = summary.savingsRate
-      if (rate >= 30) {
-        insights.add(
-          FinancialInsight(
-            id = "strong_savings",
-            title = "Healthy Savings Rate",
-            description = "Your savings rate is ${rate.toInt()}% this month (₹${summary.savings.toLong()} saved).",
-            type = InsightType.POSITIVE
-          )
-        )
-      } else if (rate < 10 && summary.savings > 0) {
-        insights.add(
-          FinancialInsight(
-            id = "low_savings",
-            title = "Low Savings Margin",
-            description = "Your savings rate is only ${rate.toInt()}% this month. Consider reviewing non-essential expenses.",
-            type = InsightType.WARNING
-          )
-        )
-      }
-    }
-
-    if (insights.isEmpty()) {
-      if (summary.transactionCount == 0) {
-        insights.add(
-          FinancialInsight(
-            id = "no_transactions",
-            title = "No Data Yet for This Period",
-            description = "Add income and expenses for ${summary.monthLabel} to view personalized spending insights.",
-            type = InsightType.INFO
-          )
-        )
-      } else {
-        insights.add(
-          FinancialInsight(
-            id = "balanced_month",
-            title = "Spending On Track",
-            description = "Your expenses are balanced and within healthy limits for ${summary.monthLabel}.",
-            type = InsightType.POSITIVE
-          )
-        )
-      }
-    }
-
-    insights
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
   // Aliases for compatibility
   val currentMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
   val currentYearSummary: StateFlow<YearlyFinancialSummary> = dashboardYearSummary
@@ -1565,147 +1403,5 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     } else {
       _googleDriveState.value = GoogleDriveState.NotConnected
     }
-  }
-
-  // ================= Paisa Pro Operations =================
-
-  fun hasProAccess(feature: ProFeature): Boolean {
-    return proEntitlementManager.hasAccess(feature)
-  }
-
-  fun setDevProEnabled(enabled: Boolean) {
-    val provider = proEntitlementManager.getProvider()
-    if (provider is DevelopmentProEntitlementProvider) {
-      provider.setProEnabled(enabled)
-    }
-  }
-
-  fun getCashFlowForecast(yearMonth: YearMonth = YearMonth.now()): CashFlowForecastResult {
-    val txs = allTransactions.value
-    val rules = allRecurringRules.value
-    val paids = allPaidOccurrences.value
-    val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
-    val budget = allBudgets.value.find { it.monthKey == monthKey }
-
-    return cashFlowForecastEngine.generateForecast(
-      allTransactions = txs,
-      recurringRules = rules,
-      paidOccurrences = paids,
-      activeBudget = budget,
-      yearMonth = yearMonth
-    )
-  }
-
-  fun simulateWhatIfScenario(scenario: WhatIfScenario, yearMonth: YearMonth = YearMonth.now()): WhatIfSimulationResult {
-    val txs = allTransactions.value
-    val rules = allRecurringRules.value
-    val paids = allPaidOccurrences.value
-    val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
-    val budget = allBudgets.value.find { it.monthKey == monthKey }
-
-    return whatIfSimulatorEngine.simulate(
-      allTransactions = txs,
-      recurringRules = rules,
-      paidOccurrences = paids,
-      activeBudget = budget,
-      yearMonth = yearMonth,
-      scenario = scenario
-    )
-  }
-
-  fun askCopilot(question: String) {
-    if (question.isBlank()) return
-    val userMsg = CopilotMessage(
-      sender = CopilotSender.USER,
-      text = question.trim()
-    )
-    _copilotMessages.value = _copilotMessages.value + userMsg
-    _isCopilotLoading.value = true
-
-    viewModelScope.launch {
-      try {
-        val txs = allTransactions.value
-        val rules = allRecurringRules.value
-        val paids = allPaidOccurrences.value
-        val cal = _universalCalendar.value
-        val yearMonth = YearMonth.of(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1)
-        val monthKey = "%04d-%02d".format(Locale.US, yearMonth.year, yearMonth.monthValue)
-        val budget = allBudgets.value.find { it.monthKey == monthKey }
-
-        val snapshot = financialIntelligenceEngine.generateSnapshot(
-          allTransactions = txs,
-          currentYearMonth = yearMonth,
-          recurringRules = rules,
-          activeBudget = budget
-        )
-        val context = financialContextBuilder.buildContext(snapshot, txs)
-        val forecast = cashFlowForecastEngine.generateForecast(
-          allTransactions = txs,
-          recurringRules = rules,
-          paidOccurrences = paids,
-          activeBudget = budget,
-          yearMonth = yearMonth
-        )
-
-        // If question is a What-If query, check if an amount can be parsed
-        val simulation = if (IntentClassifier.classify(question) == com.example.pro.ai.AiIntent.WHAT_IF_QUERY) {
-          val numbers = Regex("(\\d+([.,]\\d+)?)").findAll(question).mapNotNull {
-            it.value.replace(",", "").toDoubleOrNull()
-          }.toList()
-          val amount = numbers.firstOrNull() ?: 5000.0
-          val scenario = WhatIfScenario(
-            type = com.example.pro.engine.whatif.ScenarioType.ONE_TIME_EXPENSE,
-            change = com.example.pro.engine.whatif.ScenarioChange.OneTimeExpense(
-              amount = amount,
-              category = TransactionCategory.SHOPPING,
-              date = LocalDate.now()
-            )
-          )
-          whatIfSimulatorEngine.simulate(
-            allTransactions = txs,
-            recurringRules = rules,
-            paidOccurrences = paids,
-            activeBudget = budget,
-            yearMonth = yearMonth,
-            scenario = scenario
-          )
-        } else null
-
-        val response = financialAiService.getAiExplanation(
-          question = question,
-          context = context,
-          currencySymbol = _userProfile.value.currencySymbol,
-          forecast = forecast,
-          simulation = simulation
-        )
-
-        val copilotMsg = CopilotMessage(
-          sender = CopilotSender.COPILOT,
-          text = response.answer,
-          keyFacts = response.keyFacts,
-          warnings = response.warnings,
-          confidence = response.confidence
-        )
-        _copilotMessages.value = _copilotMessages.value + copilotMsg
-      } catch (e: Exception) {
-        val errorMsg = CopilotMessage(
-          sender = CopilotSender.COPILOT,
-          text = "I encountered an issue analyzing your financial records. Please try asking again.",
-          isError = true
-        )
-        _copilotMessages.value = _copilotMessages.value + errorMsg
-      } finally {
-        _isCopilotLoading.value = false
-      }
-    }
-  }
-
-  fun clearCopilotMessages() {
-    _copilotMessages.value = listOf(
-      CopilotMessage(
-        sender = CopilotSender.COPILOT,
-        text = "Namaste! I'm your Paisa Financial Copilot. Ask me anything about your income, expenses, forecasts, or what-if spending decisions."
-      )
-    )
   }
 }

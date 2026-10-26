@@ -1,0 +1,10 @@
+{
+  "firestore": {
+    "rules": "firestore.rules",
+    "databases": {
+      "ai-studio-android-farzi-7f7e31e5-1afe-47c9-8ae1-d03f7e8dc61d": {
+        "rules": "firestore.rules"
+      }
+    }
+  }
+}

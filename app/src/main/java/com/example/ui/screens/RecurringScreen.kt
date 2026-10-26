@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
@@ -37,7 +36,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,7 +45,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -61,7 +59,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.OccurrenceStatus
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
@@ -73,9 +70,6 @@ import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 @Composable
 fun RecurringScreen(
@@ -83,9 +77,9 @@ fun RecurringScreen(
   onOpenAddRecurringRule: () -> Unit,
   onEditRecurringRule: (rule: RecurringRule) -> Unit
 ) {
-  val recurringRules by viewModel.allRecurringRules.collectAsState()
-  val scheduledOccurrences by viewModel.allScheduledOccurrences.collectAsState()
-  val userProfile by viewModel.userProfile.collectAsState()
+  val recurringRules by viewModel.allRecurringRules.collectAsStateWithLifecycle()
+  val scheduledOccurrences by viewModel.allScheduledOccurrences.collectAsStateWithLifecycle()
+  val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   var ruleToDelete by remember { mutableStateOf<RecurringRule?>(null) }
   var selectedTab by remember { mutableStateOf(0) } // 0: Upcoming Bills, 1: Recurring Rules
 
@@ -132,17 +126,16 @@ fun RecurringScreen(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Column(
-          modifier = Modifier.weight(1f)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "Recurring & Bills",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
           )
+          Spacer(modifier = Modifier.height(2.dp))
           Text(
             text = "Track upcoming dues & manage subscriptions",
             style = MaterialTheme.typography.bodySmall,
@@ -157,7 +150,7 @@ fun RecurringScreen(
         Button(
           onClick = onOpenAddRecurringRule,
           shape = RoundedCornerShape(12.dp),
-          contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+          contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
           modifier = Modifier.testTag("add_recurring_rule_button")
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -176,12 +169,12 @@ fun RecurringScreen(
       ) {
         Row(modifier = Modifier.padding(4.dp)) {
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             color = if (selectedTab == 0) MaterialTheme.colorScheme.surface else Color.Transparent,
             tonalElevation = if (selectedTab == 0) 2.dp else 0.dp,
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(12.dp))
+              .clip(RoundedCornerShape(10.dp))
               .clickable { selectedTab = 0 }
           ) {
             Box(
@@ -191,19 +184,19 @@ fun RecurringScreen(
               Text(
                 text = "Upcoming Bills (${scheduledOccurrences.count { it.status != OccurrenceStatus.PAID }})",
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
                 color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
           }
 
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(10.dp),
             color = if (selectedTab == 1) MaterialTheme.colorScheme.surface else Color.Transparent,
             tonalElevation = if (selectedTab == 1) 2.dp else 0.dp,
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(12.dp))
+              .clip(RoundedCornerShape(10.dp))
               .clickable { selectedTab = 1 }
           ) {
             Box(
@@ -213,7 +206,7 @@ fun RecurringScreen(
               Text(
                 text = "Active Rules (${recurringRules.size})",
                 style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
                 color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
@@ -229,7 +222,7 @@ fun RecurringScreen(
           Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
           ) {
             Column(
@@ -269,10 +262,6 @@ fun RecurringScreen(
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
-            border = androidx.compose.foundation.BorderStroke(
-              1.dp,
-              if (isPaid) IncomeGreen.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
-            ),
             modifier = Modifier.fillMaxWidth()
           ) {
             Column(modifier = Modifier.padding(16.dp)) {
@@ -288,7 +277,7 @@ fun RecurringScreen(
                 ) {
                   Surface(
                     shape = CircleShape,
-                    color = occ.rule.category.color.copy(alpha = 0.15f),
+                    color = occ.rule.category.color.copy(alpha = 0.12f),
                     modifier = Modifier.size(42.dp)
                   ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -324,7 +313,7 @@ fun RecurringScreen(
                 )
               }
 
-              Spacer(modifier = Modifier.height(12.dp))
+              Spacer(modifier = Modifier.height(14.dp))
 
               // Action Row
               val isCancelled = occ.status == OccurrenceStatus.CANCELLED
@@ -362,7 +351,7 @@ fun RecurringScreen(
               ) {
                 Surface(
                   shape = RoundedCornerShape(8.dp),
-                  color = statusColor.copy(alpha = 0.15f)
+                  color = statusColor.copy(alpha = 0.12f)
                 ) {
                   Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -438,13 +427,11 @@ fun RecurringScreen(
       }
     } else {
       // ACTIVE RULES TAB
-      // Offline Automatic Engine Status Card
       item {
         Surface(
           shape = RoundedCornerShape(18.dp),
           color = MaterialTheme.colorScheme.surface,
           tonalElevation = 1.dp,
-          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
           modifier = Modifier.fillMaxWidth()
         ) {
           Row(
@@ -493,7 +480,7 @@ fun RecurringScreen(
           Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
             modifier = Modifier.fillMaxWidth()
           ) {
             Column(
@@ -523,7 +510,7 @@ fun RecurringScreen(
               Spacer(modifier = Modifier.height(6.dp))
 
               Text(
-                text = "Create rules for regular monthly salary, house rent, Netflix, gym fees, electricity bills, etc.",
+                text = "Create rules for regular monthly salary, house rent, subscriptions, electricity bills, etc.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -533,7 +520,7 @@ fun RecurringScreen(
 
               Button(
                 onClick = onOpenAddRecurringRule,
-                shape = RoundedCornerShape(14.dp)
+                shape = RoundedCornerShape(12.dp)
               ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -548,7 +535,6 @@ fun RecurringScreen(
             shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
             modifier = Modifier
               .fillMaxWidth()
               .clickable { onEditRecurringRule(rule) }
@@ -566,7 +552,7 @@ fun RecurringScreen(
                 ) {
                   Surface(
                     shape = CircleShape,
-                    color = rule.category.color.copy(alpha = 0.15f),
+                    color = rule.category.color.copy(alpha = 0.12f),
                     modifier = Modifier.size(42.dp)
                   ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -621,7 +607,7 @@ fun RecurringScreen(
                 )
               }
 
-              Spacer(modifier = Modifier.height(12.dp))
+              Spacer(modifier = Modifier.height(14.dp))
 
               // Footer row with Active switch and Delete button
               Row(
@@ -662,4 +648,3 @@ fun RecurringScreen(
     }
   }
 }
-

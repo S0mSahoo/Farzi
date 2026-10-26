@@ -63,7 +63,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,17 +109,16 @@ fun SettingsScreen(
 ) {
   val context = LocalContext.current
   val coroutineScope = rememberCoroutineScope()
-  val userProfile by viewModel.userProfile.collectAsState()
-  val isProUser by viewModel.isProUser.collectAsState()
-  val googleDriveState by viewModel.googleDriveState.collectAsState()
-  val isSyncing by viewModel.isSyncing.collectAsState()
-  val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsState()
-  val syncErrorMessage by viewModel.syncErrorMessage.collectAsState()
-  val driveConsentIntent by viewModel.driveConsentIntent.collectAsState()
-  val driveQuota by viewModel.driveStorageQuota.collectAsState()
-  val themeMode by viewModel.themeMode.collectAsState()
-  val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsState()
-  val universalCal by viewModel.selectedCalendar.collectAsState()
+  val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+  val googleDriveState by viewModel.googleDriveState.collectAsStateWithLifecycle()
+  val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+  val lastSyncTimestamp by viewModel.lastSyncTimestamp.collectAsStateWithLifecycle()
+  val syncErrorMessage by viewModel.syncErrorMessage.collectAsStateWithLifecycle()
+  val driveConsentIntent by viewModel.driveConsentIntent.collectAsStateWithLifecycle()
+  val driveQuota by viewModel.driveStorageQuota.collectAsStateWithLifecycle()
+  val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+  val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
+  val universalCal by viewModel.selectedCalendar.collectAsStateWithLifecycle()
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -465,7 +464,7 @@ fun SettingsScreen(
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -560,7 +559,7 @@ fun SettingsScreen(
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -746,119 +745,13 @@ fun SettingsScreen(
       }
     }
 
-    // 2.5 Paisa Pro Section
-    item {
-      SettingsSection(title = "Paisa Pro & Intelligence") {
-        Card(
-          shape = RoundedCornerShape(18.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, if (isProUser) AccentAmber.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
-          modifier = Modifier.fillMaxWidth().testTag("settings_pro_card")
-        ) {
-          Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-              ) {
-                Surface(
-                  shape = CircleShape,
-                  color = AccentAmber.copy(alpha = 0.18f),
-                  modifier = Modifier.size(42.dp)
-                ) {
-                  Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                      Icons.Default.Star,
-                      contentDescription = null,
-                      tint = AccentAmber,
-                      modifier = Modifier.size(22.dp)
-                    )
-                  }
-                }
-                Column {
-                  Text(
-                    text = "Paisa Pro Subscription",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                  )
-                  Text(
-                    text = if (isProUser) "All Pro capabilities active" else "Free Plan active",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (isProUser) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                  )
-                }
-              }
-
-              Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = if (isProUser) AccentAmber.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant
-              ) {
-                Text(
-                  text = if (isProUser) "PRO" else "FREE",
-                  style = MaterialTheme.typography.labelSmall,
-                  fontWeight = FontWeight.Bold,
-                  color = if (isProUser) AccentAmber else MaterialTheme.colorScheme.onSurfaceVariant,
-                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-              }
-            }
-
-            Text(
-              text = "Includes Cash-Flow Forecast, What-If Simulator, and local AI Financial Copilot.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
-                Text(
-                  text = "Enable Pro (Development Mode)",
-                  style = MaterialTheme.typography.bodyMedium,
-                  fontWeight = FontWeight.SemiBold,
-                  color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                  text = "Toggle entitlement locally for testing & evaluation",
-                  style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-              }
-              Switch(
-                checked = isProUser,
-                onCheckedChange = { enabled ->
-                  viewModel.setDevProEnabled(enabled)
-                  Toast.makeText(
-                    context,
-                    if (enabled) "Paisa Pro Enabled" else "Paisa Free Mode Enabled",
-                    Toast.LENGTH_SHORT
-                  ).show()
-                },
-                modifier = Modifier.testTag("settings_pro_toggle")
-              )
-            }
-          }
-        }
-      }
-    }
-
     // 3. Currency & Preferences Section
     item {
       SettingsSection(title = "Regional & Display") {
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -938,7 +831,7 @@ fun SettingsScreen(
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -993,7 +886,7 @@ fun SettingsScreen(
         Card(
           shape = RoundedCornerShape(18.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+          elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {

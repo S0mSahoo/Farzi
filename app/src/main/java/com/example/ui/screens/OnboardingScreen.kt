@@ -3,7 +3,6 @@ package com.example.ui.screens
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -83,7 +82,6 @@ fun OnboardingScreen(
       Log.e("GoogleSignIn", "Google Sign-In ApiException: statusCode=${e.statusCode}, message=${e.localizedMessage}", e)
       when (e.statusCode) {
         GoogleSignInStatusCodes.SIGN_IN_CANCELLED, 12501 -> {
-          // Clean cancellation by user - do not display an error message
           errorMessage = null
         }
         GoogleSignInStatusCodes.NETWORK_ERROR, 7 -> {
@@ -150,12 +148,11 @@ fun OnboardingScreen(
       Surface(
         shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)),
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(
           modifier = Modifier.padding(20.dp),
-          verticalArrangement = Arrangement.spacedBy(14.dp)
+          verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
           FeatureRow(
             icon = Icons.Default.CloudDone,
@@ -181,7 +178,6 @@ fun OnboardingScreen(
         Surface(
           shape = RoundedCornerShape(12.dp),
           color = ExpenseRed.copy(alpha = 0.1f),
-          border = BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.3f)),
           modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 16.dp)

@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
@@ -46,6 +45,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -54,8 +56,12 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import com.example.ui.util.AppNavigationType
+import com.example.ui.util.LocalAdaptiveInfo
+import com.example.ui.util.calculateAdaptiveInfo
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,21 +80,15 @@ import coil.compose.AsyncImage
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
-import com.example.pro.entitlement.ProFeature
 import com.example.ui.components.AddEditRecurringSheet
 import com.example.ui.components.AddEditTransactionSheet
 import com.example.ui.components.AppBrandLogo
 import com.example.ui.components.ConfirmationDialog
-import com.example.ui.components.CopilotSheet
 import com.example.ui.components.DateUtils
 import com.example.ui.components.ExportDataModal
-import com.example.ui.components.ForecastSheet
-import com.example.ui.components.ProUpgradeSheet
 import com.example.ui.components.SetBudgetSheet
-import com.example.ui.components.WhatIfSheet
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.viewmodel.FinanceViewModel
-import java.time.YearMonth
 
 sealed class AppDestination(val index: Int, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
   object Dashboard : AppDestination(0, "Home", Icons.Default.Dashboard)
@@ -104,10 +104,10 @@ fun MainAppScreen(
   viewModel: FinanceViewModel
 ) {
   val context = LocalContext.current
-  val userProfile by viewModel.userProfile.collectAsState()
-  val dashboardCalendar by viewModel.dashboardCalendar.collectAsState()
-  val budgetCalendar by viewModel.budgetCalendar.collectAsState()
-  val allBudgets by viewModel.allBudgets.collectAsState()
+  val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+  val dashboardCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
+  val budgetCalendar by viewModel.budgetCalendar.collectAsStateWithLifecycle()
+  val allBudgets by viewModel.allBudgets.collectAsStateWithLifecycle()
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
@@ -129,25 +129,11 @@ fun MainAppScreen(
 
   var showExportModal by remember { mutableStateOf(false) }
 
-  // Paisa Pro Sheet States
-  var showProUpgradeSheet by remember { mutableStateOf(false) }
-  var targetProFeature by remember { mutableStateOf<ProFeature?>(null) }
-  var showForecastSheet by remember { mutableStateOf(false) }
-  var showWhatIfSheet by remember { mutableStateOf(false) }
-  var showCopilotSheet by remember { mutableStateOf(false) }
-
-  val copilotMessages by viewModel.copilotMessages.collectAsState()
-  val isCopilotLoading by viewModel.isCopilotLoading.collectAsState()
-
   val transactionSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val recurringSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val budgetSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val exportSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
   val profileSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val proUpgradeSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val forecastSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val whatIfSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val copilotSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
   val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(budgetCalendar)
   val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(budgetCalendar)
@@ -282,67 +268,6 @@ fun MainAppScreen(
   }
 
   // Paisa Pro Sheets
-  if (showProUpgradeSheet) {
-    ProUpgradeSheet(
-      sheetState = proUpgradeSheetState,
-      targetFeature = targetProFeature,
-      onDismiss = {
-        showProUpgradeSheet = false
-        targetProFeature = null
-      },
-      onUnlockPro = {
-        viewModel.setDevProEnabled(true)
-        Toast.makeText(context, "Paisa Pro Activated!", Toast.LENGTH_SHORT).show()
-        val featureToOpen = targetProFeature
-        showProUpgradeSheet = false
-        targetProFeature = null
-        when (featureToOpen) {
-          ProFeature.CASH_FLOW_FORECAST -> showForecastSheet = true
-          ProFeature.WHAT_IF_SIMULATOR -> showWhatIfSheet = true
-          ProFeature.AI_COPILOT -> showCopilotSheet = true
-          else -> {}
-        }
-      }
-    )
-  }
-
-  if (showForecastSheet) {
-    val cal = dashboardCalendar
-    val yearMonth = YearMonth.of(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
-    val forecastResult = remember(cal, allBudgets) {
-      viewModel.getCashFlowForecast(yearMonth)
-    }
-    ForecastSheet(
-      forecast = forecastResult,
-      currencySymbol = userProfile.currencySymbol,
-      sheetState = forecastSheetState,
-      onDismiss = { showForecastSheet = false }
-    )
-  }
-
-  if (showWhatIfSheet) {
-    WhatIfSheet(
-      currencySymbol = userProfile.currencySymbol,
-      sheetState = whatIfSheetState,
-      onRunSimulation = { scenario ->
-        val cal = dashboardCalendar
-        val yearMonth = YearMonth.of(cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH) + 1)
-        viewModel.simulateWhatIfScenario(scenario, yearMonth)
-      },
-      onDismiss = { showWhatIfSheet = false }
-    )
-  }
-
-  if (showCopilotSheet) {
-    CopilotSheet(
-      messages = copilotMessages,
-      isLoading = isCopilotLoading,
-      sheetState = copilotSheetState,
-      onSendMessage = { question -> viewModel.askCopilot(question) },
-      onClearChat = { viewModel.clearCopilotMessages() },
-      onDismiss = { showCopilotSheet = false }
-    )
-  }
 
   if (showProfileSheet) {
     ModalBottomSheet(
@@ -502,43 +427,297 @@ fun MainAppScreen(
 
   Box(modifier = Modifier.fillMaxSize()) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isDesktopLandscape = maxWidth > 480.dp
+      val adaptiveInfo = calculateAdaptiveInfo(maxWidth, maxHeight)
 
-        if (isDesktopLandscape) {
-          Row(modifier = Modifier.fillMaxSize()) {
-            // Left Sidebar / NavigationRail
-            Surface(
-              modifier = Modifier
-                .fillMaxHeight()
-                .width(260.dp),
-              color = MaterialTheme.colorScheme.surface,
-              tonalElevation = 3.dp,
-              border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-            ) {
-              Column(
+      CompositionLocalProvider(LocalAdaptiveInfo provides adaptiveInfo) {
+        when (adaptiveInfo.navigationType) {
+          AppNavigationType.PERMANENT_DRAWER -> {
+            Row(modifier = Modifier.fillMaxSize()) {
+              // Left Permanent Navigation Drawer (240dp)
+              Surface(
                 modifier = Modifier
-                  .fillMaxSize()
-                  .padding(16.dp),
-                verticalArrangement = Arrangement.SpaceBetween
+                  .fillMaxHeight()
+                  .width(240.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 1.dp
               ) {
-                Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
-                  ) {
-                    AppBrandLogo(size = 32.dp)
-                    Text(
-                      text = "Paisa",
-                      style = MaterialTheme.typography.titleLarge,
-                      fontWeight = FontWeight.Bold,
-                      color = MaterialTheme.colorScheme.onSurface
-                    )
+                Column(
+                  modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                  verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                  Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(12.dp),
+                      modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                    ) {
+                      AppBrandLogo(size = 32.dp)
+                      Text(
+                        text = "Paisa",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                      )
+                    }
+
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                      val navItems = listOf(
+                        AppDestination.Dashboard,
+                        AppDestination.Calendar,
+                        AppDestination.Transactions,
+                        AppDestination.Budgets,
+                        AppDestination.Recurring
+                      )
+
+                      navItems.forEach { destination ->
+                        val isSelected = !isSettingsOpen && selectedTab == destination.index
+                        Surface(
+                          shape = RoundedCornerShape(12.dp),
+                          color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
+                          modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable {
+                              isSettingsOpen = false
+                              selectedTab = destination.index
+                            }
+                            .testTag("desktop_nav_${destination.label.lowercase()}")
+                        ) {
+                          Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                          ) {
+                            Icon(
+                              imageVector = destination.icon,
+                              contentDescription = destination.label,
+                              tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                              modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                              text = destination.label,
+                              style = MaterialTheme.typography.bodyMedium,
+                              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                              color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            )
+                          }
+                        }
+                      }
+                    }
                   }
 
-                  androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+                  Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-                  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // Export & Portability Item
+                    Surface(
+                      shape = RoundedCornerShape(12.dp),
+                      color = Color.Transparent,
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { showExportModal = true }
+                        .testTag("desktop_nav_export")
+                    ) {
+                      Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                      ) {
+                        Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                        Text(
+                          text = "Export & Reports",
+                          style = MaterialTheme.typography.bodyMedium,
+                          fontWeight = FontWeight.Medium,
+                          color = MaterialTheme.colorScheme.onSurface
+                        )
+                      }
+                    }
+
+                    // Settings Item
+                    Surface(
+                      shape = RoundedCornerShape(12.dp),
+                      color = if (isSettingsOpen) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
+                      modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { isSettingsOpen = !isSettingsOpen }
+                        .testTag("desktop_nav_settings")
+                    ) {
+                      Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                      ) {
+                        Icon(
+                          imageVector = Icons.Default.Settings,
+                          contentDescription = "Settings",
+                          tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                          modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                          text = "Settings",
+                          style = MaterialTheme.typography.bodyMedium,
+                          fontWeight = if (isSettingsOpen) FontWeight.Bold else FontWeight.Medium,
+                          color = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                        )
+                      }
+                    }
+                  }
+                }
+              }
+
+              // Main content area for Drawer
+              Scaffold(
+                modifier = Modifier
+                  .weight(1f)
+                  .fillMaxHeight(),
+                topBar = {
+                  TopAppBar(
+                    title = {
+                      Text(
+                        text = when {
+                          isSettingsOpen -> "Settings"
+                          else -> listOf("Dashboard", "Calendar", "Transactions", "Budgets", "Recurring")[selectedTab]
+                        },
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                      )
+                    },
+                    navigationIcon = {
+                      if (isSettingsOpen) {
+                        IconButton(onClick = { isSettingsOpen = false }) {
+                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                      }
+                    },
+                    actions = {
+                      if (!isSettingsOpen) {
+                        IconButton(
+                          onClick = { showExportModal = true },
+                          modifier = Modifier.testTag("landscape_top_bar_export")
+                        ) {
+                          Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(
+                          onClick = { isSettingsOpen = true },
+                          modifier = Modifier.testTag("landscape_top_bar_settings")
+                        ) {
+                          Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                      }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                      containerColor = MaterialTheme.colorScheme.surface,
+                      titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                  )
+                },
+                containerColor = MaterialTheme.colorScheme.background,
+                floatingActionButton = {
+                  if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                    FloatingActionButton(
+                      onClick = {
+                        editingTransaction = null
+                        prefilledDateTimestamp = null
+                        prefilledTxType = null
+                        showAddEditTransactionSheet = true
+                      },
+                      containerColor = MaterialTheme.colorScheme.primary,
+                      contentColor = Color.White,
+                      shape = CircleShape,
+                      elevation = FloatingActionButtonDefaults.elevation(4.dp),
+                      modifier = Modifier
+                        .padding(20.dp)
+                        .testTag("global_add_transaction_fab")
+                    ) {
+                      Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
+                    }
+                  }
+                }
+              ) { innerPadding ->
+                Box(
+                  modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                  contentAlignment = Alignment.TopCenter
+                ) {
+                  Box(
+                    modifier = Modifier
+                      .fillMaxSize()
+                      .widthIn(max = 1200.dp)
+                  ) {
+                    MainScreenContent(
+                      selectedTab = selectedTab,
+                      isSettingsOpen = isSettingsOpen,
+                      onBackFromSettings = { isSettingsOpen = false },
+                      viewModel = viewModel,
+                      dashboardCalendar = dashboardCalendar,
+                      budgetCalendar = budgetCalendar,
+                      onOpenAddTransaction = { prefilledType ->
+                        editingTransaction = null
+                        prefilledDateTimestamp = null
+                        prefilledTxType = prefilledType
+                        showAddEditTransactionSheet = true
+                      },
+                      onOpenSetBudget = { key, label ->
+                        targetBudgetMonthKey = key
+                        targetBudgetMonthLabel = label
+                        showSetBudgetSheet = true
+                      },
+                      onAddTransactionForDate = { timestamp ->
+                        editingTransaction = null
+                        prefilledDateTimestamp = timestamp
+                        prefilledTxType = null
+                        showAddEditTransactionSheet = true
+                      },
+                      onEditTransaction = { item ->
+                        editingTransaction = item
+                        showAddEditTransactionSheet = true
+                      },
+                      onOpenAddRecurringRule = {
+                        editingRecurringRule = null
+                        showAddEditRecurringSheet = true
+                      },
+                      onEditRecurringRule = { rule ->
+                        editingRecurringRule = rule
+                        showAddEditRecurringSheet = true
+                      },
+                      onOpenExportModal = { showExportModal = true }
+                    )
+                  }
+                }
+              }
+            }
+          }
+
+          AppNavigationType.NAVIGATION_RAIL -> {
+            Row(modifier = Modifier.fillMaxSize()) {
+              // Space-efficient NavigationRail for landscape phones & medium tablets
+              NavigationRail(
+                modifier = Modifier.fillMaxHeight(),
+                containerColor = MaterialTheme.colorScheme.surface,
+                header = {
+                  Spacer(modifier = Modifier.height(if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp))
+                  AppBrandLogo(size = if (adaptiveInfo.isLandscapePhone) 26.dp else 32.dp)
+                  Spacer(modifier = Modifier.height(if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp))
+                }
+              ) {
+                Column(
+                  modifier = Modifier.fillMaxHeight(),
+                  verticalArrangement = Arrangement.SpaceBetween,
+                  horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                  Column(
+                    verticalArrangement = Arrangement.spacedBy(if (adaptiveInfo.isLandscapePhone) 2.dp else 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                  ) {
                     val navItems = listOf(
                       AppDestination.Dashboard,
                       AppDestination.Calendar,
@@ -548,81 +727,53 @@ fun MainAppScreen(
                     )
 
                     navItems.forEach { destination ->
-                      val isSelected = selectedTab == destination.index
-                      Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
-                        modifier = Modifier
-                          .fillMaxWidth()
-                          .clip(RoundedCornerShape(14.dp))
-                          .clickable { selectedTab = destination.index }
-                          .testTag("desktop_nav_${destination.label.lowercase()}")
-                      ) {
-                        Row(
-                          modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                          verticalAlignment = Alignment.CenterVertically,
-                          horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
+                      val isSelected = !isSettingsOpen && selectedTab == destination.index
+                      NavigationRailItem(
+                        selected = isSelected,
+                        onClick = {
+                          isSettingsOpen = false
+                          selectedTab = destination.index
+                        },
+                        icon = {
                           Icon(
                             imageVector = destination.icon,
                             contentDescription = destination.label,
-                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(if (adaptiveInfo.isLandscapePhone) 20.dp else 22.dp)
                           )
-                          Text(
-                            text = destination.label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                          )
-                        }
-                      }
-                    }
-                  }
-                }
-
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                  androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-
-                  // Export & Portability Item
-                  Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = Color.Transparent,
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .clip(RoundedCornerShape(14.dp))
-                      .clickable { showExportModal = true }
-                      .testTag("desktop_nav_export")
-                  ) {
-                    Row(
-                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                      Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                      Text(
-                        text = "Export & Reports",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        },
+                        label = if (!adaptiveInfo.isLandscapePhone) {
+                          {
+                            Text(
+                              text = destination.label,
+                              style = MaterialTheme.typography.labelSmall,
+                              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                          }
+                        } else null,
+                        colors = NavigationRailItemDefaults.colors(
+                          selectedIconColor = MaterialTheme.colorScheme.primary,
+                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                        ),
+                        modifier = Modifier.testTag("desktop_nav_${destination.label.lowercase()}")
                       )
                     }
                   }
 
-                  // Settings Item
-                  Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isSettingsOpen) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .clip(RoundedCornerShape(14.dp))
-                      .clickable { isSettingsOpen = !isSettingsOpen }
-                      .testTag("desktop_nav_settings")
+                  // Rail Bottom Actions
+                  Column(
+                    verticalArrangement = Arrangement.spacedBy(if (adaptiveInfo.isLandscapePhone) 2.dp else 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(bottom = if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp)
                   ) {
-                    Row(
-                      modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    IconButton(
+                      onClick = { showExportModal = true },
+                      modifier = Modifier.testTag("desktop_nav_export")
+                    ) {
+                      Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(
+                      onClick = { isSettingsOpen = !isSettingsOpen },
+                      modifier = Modifier.testTag("desktop_nav_settings")
                     ) {
                       Icon(
                         imageVector = Icons.Default.Settings,
@@ -630,39 +781,159 @@ fun MainAppScreen(
                         tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)
                       )
-                      Text(
-                        text = "Settings",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isSettingsOpen) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                      )
                     }
                   }
                 }
               }
-            }
 
-            // Right Content Area with TopAppBar & Action Buttons
+              // Content Scaffold for NavigationRail
+              Scaffold(
+                modifier = Modifier
+                  .weight(1f)
+                  .fillMaxHeight(),
+                topBar = {
+                  TopAppBar(
+                    title = {
+                      Text(
+                        text = when {
+                          isSettingsOpen -> "Settings"
+                          else -> listOf("Dashboard", "Calendar", "Transactions", "Budgets", "Recurring")[selectedTab]
+                        },
+                        style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                      )
+                    },
+                    navigationIcon = {
+                      if (isSettingsOpen) {
+                        IconButton(onClick = { isSettingsOpen = false }) {
+                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        }
+                      }
+                    },
+                    actions = {
+                      if (!isSettingsOpen) {
+                        IconButton(
+                          onClick = { showExportModal = true },
+                          modifier = Modifier.testTag("landscape_top_bar_export")
+                        ) {
+                          Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        IconButton(
+                          onClick = { isSettingsOpen = true },
+                          modifier = Modifier.testTag("landscape_top_bar_settings")
+                        ) {
+                          Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                      }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                      containerColor = MaterialTheme.colorScheme.surface,
+                      titleContentColor = MaterialTheme.colorScheme.onSurface
+                    )
+                  )
+                },
+                containerColor = MaterialTheme.colorScheme.background,
+                floatingActionButton = {
+                  if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                    FloatingActionButton(
+                      onClick = {
+                        editingTransaction = null
+                        prefilledDateTimestamp = null
+                        prefilledTxType = null
+                        showAddEditTransactionSheet = true
+                      },
+                      containerColor = MaterialTheme.colorScheme.primary,
+                      contentColor = Color.White,
+                      shape = CircleShape,
+                      elevation = FloatingActionButtonDefaults.elevation(4.dp),
+                      modifier = Modifier
+                        .padding(if (adaptiveInfo.isLandscapePhone) 8.dp else 16.dp)
+                        .testTag("global_add_transaction_fab")
+                    ) {
+                      Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
+                    }
+                  }
+                }
+              ) { innerPadding ->
+                Box(
+                  modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = if (adaptiveInfo.isLandscapePhone) 10.dp else 16.dp),
+                  contentAlignment = Alignment.TopCenter
+                ) {
+                  Box(
+                    modifier = Modifier
+                      .fillMaxSize()
+                      .widthIn(max = 1100.dp)
+                  ) {
+                    MainScreenContent(
+                      selectedTab = selectedTab,
+                      isSettingsOpen = isSettingsOpen,
+                      onBackFromSettings = { isSettingsOpen = false },
+                      viewModel = viewModel,
+                      dashboardCalendar = dashboardCalendar,
+                      budgetCalendar = budgetCalendar,
+                      onOpenAddTransaction = { prefilledType ->
+                        editingTransaction = null
+                        prefilledDateTimestamp = null
+                        prefilledTxType = prefilledType
+                        showAddEditTransactionSheet = true
+                      },
+                      onOpenSetBudget = { key, label ->
+                        targetBudgetMonthKey = key
+                        targetBudgetMonthLabel = label
+                        showSetBudgetSheet = true
+                      },
+                      onAddTransactionForDate = { timestamp ->
+                        editingTransaction = null
+                        prefilledDateTimestamp = timestamp
+                        prefilledTxType = null
+                        showAddEditTransactionSheet = true
+                      },
+                      onEditTransaction = { item ->
+                        editingTransaction = item
+                        showAddEditTransactionSheet = true
+                      },
+                      onOpenAddRecurringRule = {
+                        editingRecurringRule = null
+                        showAddEditRecurringSheet = true
+                      },
+                      onEditRecurringRule = { rule ->
+                        editingRecurringRule = rule
+                        showAddEditRecurringSheet = true
+                      },
+                      onOpenExportModal = { showExportModal = true }
+                    )
+                  }
+                }
+              }
+            }
+          }
+
+          AppNavigationType.BOTTOM_BAR -> {
+            // Standard portrait phone scaffold
             Scaffold(
-              modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight(),
               topBar = {
                 TopAppBar(
                   title = {
-                    Text(
-                      text = when {
-                        isSettingsOpen -> "Settings"
-                        else -> listOf("Dashboard", "Calendar", "Transactions", "Budgets", "Recurring")[selectedTab]
-                      },
-                      style = MaterialTheme.typography.titleLarge,
-                      fontWeight = FontWeight.Bold
-                    )
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                      AppBrandLogo(size = 26.dp)
+                      Text(
+                        text = if (isSettingsOpen) "Settings" else "Paisa",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                      )
+                    }
                   },
                   navigationIcon = {
                     if (isSettingsOpen) {
                       IconButton(onClick = { isSettingsOpen = false }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back to Dashboard")
                       }
                     }
                   },
@@ -670,13 +941,13 @@ fun MainAppScreen(
                     if (!isSettingsOpen) {
                       IconButton(
                         onClick = { showExportModal = true },
-                        modifier = Modifier.testTag("landscape_top_bar_export")
+                        modifier = Modifier.testTag("top_bar_export")
                       ) {
                         Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                       }
                       IconButton(
                         onClick = { isSettingsOpen = true },
-                        modifier = Modifier.testTag("landscape_top_bar_settings")
+                        modifier = Modifier.testTag("top_bar_settings")
                       ) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
                       }
@@ -689,7 +960,49 @@ fun MainAppScreen(
                   )
                 )
               },
-              containerColor = MaterialTheme.colorScheme.background,
+              bottomBar = {
+                if (!isSettingsOpen) {
+                  NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 3.dp
+                  ) {
+                    val navItems = listOf(
+                      AppDestination.Dashboard,
+                      AppDestination.Calendar,
+                      AppDestination.Transactions,
+                      AppDestination.Budgets,
+                      AppDestination.Recurring
+                    )
+
+                    navItems.forEach { destination ->
+                      val isSelected = selectedTab == destination.index
+                      NavigationBarItem(
+                        selected = isSelected,
+                        onClick = { selectedTab = destination.index },
+                        icon = {
+                          Icon(
+                            imageVector = destination.icon,
+                            contentDescription = destination.label,
+                            modifier = Modifier.size(22.dp)
+                          )
+                        },
+                        label = {
+                          Text(
+                            text = destination.label,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                          )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                          selectedIconColor = MaterialTheme.colorScheme.primary,
+                          selectedTextColor = MaterialTheme.colorScheme.primary,
+                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.testTag("nav_${destination.label.lowercase()}")
+                      )
+                    }
+                  }
+                }
+              },
               floatingActionButton = {
                 if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
                   FloatingActionButton(
@@ -702,12 +1015,10 @@ fun MainAppScreen(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color.White,
                     shape = CircleShape,
-                    elevation = FloatingActionButtonDefaults.elevation(6.dp),
-                    modifier = Modifier
-                      .padding(24.dp)
-                      .testTag("global_add_transaction_fab")
+                    elevation = FloatingActionButtonDefaults.elevation(4.dp),
+                    modifier = Modifier.testTag("global_add_transaction_fab")
                   ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(28.dp))
+                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
                   }
                 }
               }
@@ -716,274 +1027,45 @@ fun MainAppScreen(
                 modifier = Modifier
                   .fillMaxSize()
                   .padding(innerPadding)
-                  .padding(16.dp),
-                contentAlignment = Alignment.Center
               ) {
-                Box(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .widthIn(max = 1100.dp)
-                    .graphicsLayer(scaleX = 0.92f, scaleY = 0.92f)
-                ) {
-                  if (isSettingsOpen) {
-                    BackHandler { isSettingsOpen = false }
-                    SettingsScreen(
-                      viewModel = viewModel,
-                      onOpenExportModal = { showExportModal = true }
-                    )
-                  } else {
-                    when (selectedTab) {
-                      0 -> DashboardScreen(
-                        viewModel = viewModel,
-                        onOpenAddTransaction = { prefilledType ->
-                          editingTransaction = null
-                          prefilledDateTimestamp = null
-                          prefilledTxType = prefilledType
-                          showAddEditTransactionSheet = true
-                        },
-                        onOpenSetBudget = {
-                          targetBudgetMonthKey = DateUtils.getMonthKey(dashboardCalendar)
-                          targetBudgetMonthLabel = DateUtils.getMonthLabel(dashboardCalendar)
-                          showSetBudgetSheet = true
-                        },
-                        onOpenCopilot = { showCopilotSheet = true },
-                        onOpenForecast = { showForecastSheet = true },
-                        onOpenWhatIf = { showWhatIfSheet = true },
-                        onOpenProUpgrade = { feature ->
-                          targetProFeature = feature
-                          showProUpgradeSheet = true
-                        }
-                      )
-                      1 -> CalendarScreen(
-                        viewModel = viewModel,
-                        onAddTransactionForDate = { timestamp ->
-                          editingTransaction = null
-                          prefilledDateTimestamp = timestamp
-                          prefilledTxType = null
-                          showAddEditTransactionSheet = true
-                        },
-                        onEditTransaction = { item ->
-                          editingTransaction = item
-                          showAddEditTransactionSheet = true
-                        }
-                      )
-                      2 -> TransactionsScreen(
-                        viewModel = viewModel,
-                        onEditTransaction = { item ->
-                          editingTransaction = item
-                          showAddEditTransactionSheet = true
-                        }
-                      )
-                      3 -> BudgetScreen(
-                        viewModel = viewModel,
-                        onOpenSetBudget = {
-                          targetBudgetMonthKey = DateUtils.getMonthKey(budgetCalendar)
-                          targetBudgetMonthLabel = DateUtils.getMonthLabel(budgetCalendar)
-                          showSetBudgetSheet = true
-                        }
-                      )
-                      4 -> RecurringScreen(
-                        viewModel = viewModel,
-                        onOpenAddRecurringRule = {
-                          editingRecurringRule = null
-                          showAddEditRecurringSheet = true
-                        },
-                        onEditRecurringRule = { rule ->
-                          editingRecurringRule = rule
-                          showAddEditRecurringSheet = true
-                        }
-                      )
-                    }
-                  }
-                }
-              }
-            }
-          }
-        } else {
-          // Portrait Mode Scaffold
-          Scaffold(
-            topBar = {
-              TopAppBar(
-                title = {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                  ) {
-                    AppBrandLogo(size = 26.dp)
-                    Text(
-                      text = if (isSettingsOpen) "Settings" else "Paisa",
-                      style = MaterialTheme.typography.titleLarge,
-                      fontWeight = FontWeight.Bold
-                    )
-                  }
-                },
-                navigationIcon = {
-                  if (isSettingsOpen) {
-                    IconButton(onClick = { isSettingsOpen = false }) {
-                      Icon(Icons.Default.ArrowBack, contentDescription = "Back to Dashboard")
-                    }
-                  }
-                },
-                actions = {
-                  if (!isSettingsOpen) {
-                    IconButton(
-                      onClick = { showExportModal = true },
-                      modifier = Modifier.testTag("top_bar_export")
-                    ) {
-                      Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(
-                      onClick = { isSettingsOpen = true },
-                      modifier = Modifier.testTag("top_bar_settings")
-                    ) {
-                      Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                  }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                  containerColor = MaterialTheme.colorScheme.surface,
-                  titleContentColor = MaterialTheme.colorScheme.onSurface
-                )
-              )
-            },
-            bottomBar = {
-              if (!isSettingsOpen) {
-                NavigationBar(
-                  containerColor = MaterialTheme.colorScheme.surface,
-                  tonalElevation = 6.dp
-                ) {
-                  val navItems = listOf(
-                    AppDestination.Dashboard,
-                    AppDestination.Calendar,
-                    AppDestination.Transactions,
-                    AppDestination.Budgets,
-                    AppDestination.Recurring
-                  )
-
-                  navItems.forEach { destination ->
-                    val isSelected = selectedTab == destination.index
-                    NavigationBarItem(
-                      selected = isSelected,
-                      onClick = { selectedTab = destination.index },
-                      icon = {
-                        Icon(
-                          imageVector = destination.icon,
-                          contentDescription = destination.label,
-                          modifier = Modifier.size(22.dp)
-                        )
-                      },
-                      label = {
-                        Text(
-                          text = destination.label,
-                          fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
-                      },
-                      colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = MaterialTheme.colorScheme.primary,
-                        selectedTextColor = MaterialTheme.colorScheme.primary,
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
-                      ),
-                      modifier = Modifier.testTag("nav_${destination.label.lowercase()}")
-                    )
-                  }
-                }
-              }
-            },
-            floatingActionButton = {
-              if (!isSettingsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
-                FloatingActionButton(
-                  onClick = {
+                MainScreenContent(
+                  selectedTab = selectedTab,
+                  isSettingsOpen = isSettingsOpen,
+                  onBackFromSettings = { isSettingsOpen = false },
+                  viewModel = viewModel,
+                  dashboardCalendar = dashboardCalendar,
+                  budgetCalendar = budgetCalendar,
+                  onOpenAddTransaction = { prefilledType ->
                     editingTransaction = null
                     prefilledDateTimestamp = null
+                    prefilledTxType = prefilledType
+                    showAddEditTransactionSheet = true
+                  },
+                  onOpenSetBudget = { key, label ->
+                    targetBudgetMonthKey = key
+                    targetBudgetMonthLabel = label
+                    showSetBudgetSheet = true
+                  },
+                  onAddTransactionForDate = { timestamp ->
+                    editingTransaction = null
+                    prefilledDateTimestamp = timestamp
                     prefilledTxType = null
                     showAddEditTransactionSheet = true
                   },
-                  containerColor = MaterialTheme.colorScheme.primary,
-                  contentColor = Color.White,
-                  shape = CircleShape,
-                  elevation = FloatingActionButtonDefaults.elevation(6.dp),
-                  modifier = Modifier.testTag("global_add_transaction_fab")
-                ) {
-                  Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(28.dp))
-                }
-              }
-            }
-          ) { innerPadding ->
-            Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-            ) {
-              if (isSettingsOpen) {
-                BackHandler { isSettingsOpen = false }
-                SettingsScreen(
-                  viewModel = viewModel,
+                  onEditTransaction = { item ->
+                    editingTransaction = item
+                    showAddEditTransactionSheet = true
+                  },
+                  onOpenAddRecurringRule = {
+                    editingRecurringRule = null
+                    showAddEditRecurringSheet = true
+                  },
+                  onEditRecurringRule = { rule ->
+                    editingRecurringRule = rule
+                    showAddEditRecurringSheet = true
+                  },
                   onOpenExportModal = { showExportModal = true }
                 )
-              } else {
-                when (selectedTab) {
-                  0 -> DashboardScreen(
-                    viewModel = viewModel,
-                    onOpenAddTransaction = { prefilledType ->
-                      editingTransaction = null
-                      prefilledDateTimestamp = null
-                      prefilledTxType = prefilledType
-                      showAddEditTransactionSheet = true
-                    },
-                    onOpenSetBudget = {
-                      targetBudgetMonthKey = DateUtils.getMonthKey(dashboardCalendar)
-                      targetBudgetMonthLabel = DateUtils.getMonthLabel(dashboardCalendar)
-                      showSetBudgetSheet = true
-                    },
-                    onOpenCopilot = { showCopilotSheet = true },
-                    onOpenForecast = { showForecastSheet = true },
-                    onOpenWhatIf = { showWhatIfSheet = true },
-                    onOpenProUpgrade = { feature ->
-                      targetProFeature = feature
-                      showProUpgradeSheet = true
-                    }
-                  )
-                  1 -> CalendarScreen(
-                    viewModel = viewModel,
-                    onAddTransactionForDate = { timestamp ->
-                      editingTransaction = null
-                      prefilledDateTimestamp = timestamp
-                      prefilledTxType = null
-                      showAddEditTransactionSheet = true
-                    },
-                    onEditTransaction = { item ->
-                      editingTransaction = item
-                      showAddEditTransactionSheet = true
-                    }
-                  )
-                  2 -> TransactionsScreen(
-                    viewModel = viewModel,
-                    onEditTransaction = { item ->
-                      editingTransaction = item
-                      showAddEditTransactionSheet = true
-                    }
-                  )
-                  3 -> BudgetScreen(
-                    viewModel = viewModel,
-                    onOpenSetBudget = {
-                      targetBudgetMonthKey = DateUtils.getMonthKey(budgetCalendar)
-                      targetBudgetMonthLabel = DateUtils.getMonthLabel(budgetCalendar)
-                      showSetBudgetSheet = true
-                    }
-                  )
-                  4 -> RecurringScreen(
-                    viewModel = viewModel,
-                    onOpenAddRecurringRule = {
-                      editingRecurringRule = null
-                      showAddEditRecurringSheet = true
-                    },
-                    onEditRecurringRule = { rule ->
-                      editingRecurringRule = rule
-                      showAddEditRecurringSheet = true
-                    }
-                  )
-                }
               }
             }
           }
@@ -1012,3 +1094,65 @@ fun MainAppScreen(
       }
     }
   }
+}
+
+@Composable
+private fun MainScreenContent(
+  selectedTab: Int,
+  isSettingsOpen: Boolean,
+  onBackFromSettings: () -> Unit,
+  viewModel: FinanceViewModel,
+  dashboardCalendar: java.util.Calendar,
+  budgetCalendar: java.util.Calendar,
+  onOpenAddTransaction: (prefilledType: TransactionType?) -> Unit,
+  onOpenSetBudget: (monthKey: String, monthLabel: String) -> Unit,
+  onAddTransactionForDate: (timestamp: Long) -> Unit,
+  onEditTransaction: (item: TransactionItem) -> Unit,
+  onOpenAddRecurringRule: () -> Unit,
+  onEditRecurringRule: (rule: RecurringRule) -> Unit,
+  onOpenExportModal: () -> Unit
+) {
+  if (isSettingsOpen) {
+    BackHandler { onBackFromSettings() }
+    SettingsScreen(
+      viewModel = viewModel,
+      onOpenExportModal = onOpenExportModal
+    )
+  } else {
+    when (selectedTab) {
+      0 -> DashboardScreen(
+        viewModel = viewModel,
+        onOpenAddTransaction = onOpenAddTransaction,
+        onOpenSetBudget = {
+          onOpenSetBudget(
+            DateUtils.getMonthKey(dashboardCalendar),
+            DateUtils.getMonthLabel(dashboardCalendar)
+          )
+        }
+      )
+      1 -> CalendarScreen(
+        viewModel = viewModel,
+        onAddTransactionForDate = onAddTransactionForDate,
+        onEditTransaction = onEditTransaction
+      )
+      2 -> TransactionsScreen(
+        viewModel = viewModel,
+        onEditTransaction = onEditTransaction
+      )
+      3 -> BudgetScreen(
+        viewModel = viewModel,
+        onOpenSetBudget = {
+          onOpenSetBudget(
+            DateUtils.getMonthKey(budgetCalendar),
+            DateUtils.getMonthLabel(budgetCalendar)
+          )
+        }
+      )
+      4 -> RecurringScreen(
+        viewModel = viewModel,
+        onOpenAddRecurringRule = onOpenAddRecurringRule,
+        onEditRecurringRule = onEditRecurringRule
+      )
+    }
+  }
+}

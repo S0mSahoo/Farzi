@@ -1,0 +1,88 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidTransaction(data) {
+      return data.title is string && data.title.size() <= 100 &&
+             data.amount is number && data.amount >= 0 &&
+             data.type is string &&
+             data.category is string &&
+             data.timestamp is timestamp &&
+             data.note is string && data.note.size() <= 500 &&
+             data.paymentMethod is string &&
+             data.isRecurring is bool &&
+             (!('recurringRuleId' in data) || data.recurringRuleId is number) &&
+             data.createdAt is timestamp &&
+             data.updatedAt is timestamp &&
+             data.userId is string;
+    }
+
+    function isValidBudget(data) {
+      return data.category is string &&
+             data.amountLimit is number && data.amountLimit >= 0 &&
+             data.month is number && data.month >= 1 && data.month <= 12 &&
+             data.year is number &&
+             data.userId is string;
+    }
+
+    function isValidRecurringRule(data) {
+      return data.title is string && data.title.size() <= 100 &&
+             data.amount is number && data.amount >= 0 &&
+             data.type is string &&
+             data.category is string &&
+             data.frequency is string &&
+             data.startDate is timestamp &&
+             data.userId is string;
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+                         incoming().userId == userId &&
+                         isValidTransaction(incoming());
+        allow update: if isOwner(userId) &&
+                         incoming().userId == userId &&
+                         isValidTransaction(incoming()) &&
+                         incoming().createdAt == existing().createdAt;
+        allow delete: if isOwner(userId);
+      }
+
+      match /budgets/{budgetId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+                         incoming().userId == userId &&
+                         isValidBudget(incoming());
+        allow update: if isOwner(userId) &&
+                         incoming().userId == userId &&
+                         isValidBudget(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      match /recurringRules/{ruleId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && 
+                         incoming().userId == userId &&
+                         isValidRecurringRule(incoming());
+        allow update: if isOwner(userId) &&
+                         incoming().userId == userId &&
+                         isValidRecurringRule(incoming());
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

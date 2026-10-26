@@ -304,22 +304,6 @@ data class RecurringOccurrence(
   val paidTransactionId: Long? = null
 )
 
-enum class InsightType {
-  ALERT,
-  WARNING,
-  INFO,
-  POSITIVE
-}
-
-@Immutable
-data class FinancialInsight(
-  val id: String,
-  val title: String,
-  val description: String,
-  val type: InsightType,
-  val category: TransactionCategory? = null
-)
-
 @Immutable
 data class CategorySpendingDetail(
   val category: TransactionCategory,
