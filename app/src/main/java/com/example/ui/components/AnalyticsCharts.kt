@@ -80,14 +80,14 @@ fun BudgetProgressBar(
         }
 
         LinearProgressIndicator(
-            progress = { progress },
+            progress = progress,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape),
             color = when {
                 isOverBudget -> ExpenseRed
-                progress >= 0.85f -> WarningBudgetColor
+                progress >= 0.85f -> MaterialTheme.colorScheme.tertiary
                 else -> IncomeGreen
             },
             trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -200,7 +200,7 @@ fun CategorySpendingBreakdown(
                     }
 
                     LinearProgressIndicator(
-                        progress = { item.percentage.coerceIn(0f, 1f) },
+                        progress = item.percentage.coerceIn(0f, 1f),
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(5.dp)
@@ -244,7 +244,7 @@ fun IncomeExpenseComparisonBar(
                 )
             }
             LinearProgressIndicator(
-                progress = { incomeProgress },
+                progress = incomeProgress,
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                 color = IncomeGreen,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -266,7 +266,7 @@ fun IncomeExpenseComparisonBar(
                 )
             }
             LinearProgressIndicator(
-                progress = { expenseProgress },
+                progress = expenseProgress,
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                 color = ExpenseRed,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -274,6 +274,3 @@ fun IncomeExpenseComparisonBar(
         }
     }
 }
-
-private val WarningBudgetColor
-    @Composable get() = MaterialTheme.colorScheme.tertiary
