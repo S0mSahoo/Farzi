@@ -613,7 +613,7 @@ fun MainAppScreen(
                       }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                      containerColor = MaterialTheme.colorScheme.surface,
+                      containerColor = MaterialTheme.colorScheme.background,
                       titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
                   )
@@ -828,7 +828,7 @@ fun MainAppScreen(
                       }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                      containerColor = MaterialTheme.colorScheme.surface,
+                      containerColor = MaterialTheme.colorScheme.background,
                       titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
                   )
@@ -955,7 +955,7 @@ fun MainAppScreen(
                     }
                   },
                   colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
+                    containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
                   )
                 )
@@ -963,8 +963,8 @@ fun MainAppScreen(
               bottomBar = {
                 if (!isSettingsOpen) {
                   NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 3.dp
+                    containerColor = MaterialTheme.colorScheme.background,
+                    tonalElevation = 0.dp
                   ) {
                     val navItems = listOf(
                       AppDestination.Dashboard,
@@ -995,7 +995,7 @@ fun MainAppScreen(
                         colors = NavigationBarItemDefaults.colors(
                           selectedIconColor = MaterialTheme.colorScheme.primary,
                           selectedTextColor = MaterialTheme.colorScheme.primary,
-                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
                         ),
                         modifier = Modifier.testTag("nav_${destination.label.lowercase()}")
                       )

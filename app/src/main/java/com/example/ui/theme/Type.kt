@@ -87,21 +87,21 @@ val Typography = Typography(
     fontWeight = FontWeight.Normal,
     fontSize = 16.sp,
     lineHeight = 24.sp,
-    letterSpacing = 0.15.sp
+    letterSpacing = 0.5.sp
   ),
   bodyMedium = TextStyle(
     fontFamily = FontFamily.SansSerif,
     fontWeight = FontWeight.Normal,
     fontSize = 14.sp,
     lineHeight = 20.sp,
-    letterSpacing = 0.15.sp
+    letterSpacing = 0.25.sp
   ),
   bodySmall = TextStyle(
     fontFamily = FontFamily.SansSerif,
     fontWeight = FontWeight.Normal,
     fontSize = 12.sp,
     lineHeight = 16.sp,
-    letterSpacing = 0.2.sp
+    letterSpacing = 0.4.sp
   ),
 
   // Label styles - Buttons, chips, status pills, timestamps
@@ -124,6 +124,6 @@ val Typography = Typography(
     fontWeight = FontWeight.Medium,
     fontSize = 11.sp,
     lineHeight = 16.sp,
-    letterSpacing = 0.25.sp
+    letterSpacing = 0.5.sp
   )
 )

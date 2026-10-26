@@ -63,7 +63,6 @@ import androidx.compose.ui.unit.dp
 import com.example.data.model.CategorySpending
 import com.example.data.model.MonthlyFinancialSummary as MonthlySummary
 import com.example.data.model.TransactionType
-import com.example.data.model.TransactionItem
 import com.example.data.model.YearlyFinancialSummary as YearlySummary
 import com.example.ui.components.BudgetProgressBar
 import com.example.ui.components.CategoryDetailSheet
@@ -91,10 +90,6 @@ fun DashboardScreen(
   val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
   val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
   val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
-  val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
-  val recentTransactions = remember(allTransactions) {
-    allTransactions.sortedByDescending { it.timestamp }.take(5)
-  }
 
   val adaptiveInfo = LocalAdaptiveInfo.current
 
@@ -305,128 +300,6 @@ fun DashboardScreen(
               )
             }
           }
-        }
-      }
-    }
-
-    // Recent activity is shared across monthly and annual views and uses persisted data.
-    if (recentTransactions.isNotEmpty()) {
-      item {
-        RecentTransactionsCard(
-          transactions = recentTransactions,
-          currencySymbol = currencySymbol
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun RecentTransactionsCard(
-  transactions: List<TransactionItem>,
-  currencySymbol: String
-) {
-  Card(
-    shape = RoundedCornerShape(22.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-    modifier = Modifier.fillMaxWidth()
-  ) {
-    Column(
-      modifier = Modifier.padding(18.dp),
-      verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-          Text(
-            text = "Recent activity",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            text = "Your latest recorded transactions",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-        Surface(
-          shape = RoundedCornerShape(12.dp),
-          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
-        ) {
-          Icon(
-            imageVector = Icons.Default.AccountBalanceWallet,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(10.dp).size(20.dp)
-          )
-        }
-      }
-
-      transactions.forEachIndexed { index, transaction ->
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-          Surface(
-            shape = RoundedCornerShape(13.dp),
-            color = transaction.category.color.copy(alpha = 0.15f),
-            modifier = Modifier.size(42.dp)
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = transaction.category.icon,
-                contentDescription = transaction.category.displayName,
-                tint = transaction.category.color,
-                modifier = Modifier.size(21.dp)
-              )
-            }
-          }
-
-          Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-          ) {
-            Text(
-              text = transaction.title.ifBlank { transaction.category.displayName },
-              style = MaterialTheme.typography.bodyMedium,
-              fontWeight = FontWeight.SemiBold,
-              color = MaterialTheme.colorScheme.onSurface,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis
-            )
-            Text(
-              text = "${transaction.category.displayName} · ${DateUtils.getDisplayDate(transaction.timestamp)}",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis
-            )
-          }
-
-          val isIncome = transaction.type == TransactionType.INCOME
-          val signedAmount = if (isIncome) kotlin.math.abs(transaction.amount) else -kotlin.math.abs(transaction.amount)
-          Text(
-            text = IndianCurrencyFormatter.formatWithSymbol(
-              amount = signedAmount,
-              symbol = currencySymbol,
-              includeSign = true
-            ),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            color = if (isIncome) IncomeGreen else ExpenseRed,
-            maxLines = 1
-          )
-        }
-        if (index < transactions.lastIndex) {
-          androidx.compose.material3.HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-          )
         }
       }
     }
@@ -651,14 +524,12 @@ private fun NetSavingsHeroCard(
   currencySymbol: String
 ) {
   Card(
-    shape = RoundedCornerShape(22.dp),
-    colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
-    ),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    shape = RoundedCornerShape(20.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier.fillMaxWidth()
   ) {
-    Column(modifier = Modifier.padding(20.dp)) {
+    Column(modifier = Modifier.padding(18.dp)) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
