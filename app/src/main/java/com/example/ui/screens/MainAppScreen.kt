@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionItem
@@ -1088,7 +1089,7 @@ fun MainAppScreen(
                           modifier = Modifier.size(22.dp)
                         )
                       },
-                      label = { Text("Home", maxLines = 1, softWrap = false) },
+                      label = { Text("Home", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                       colors = NavigationBarItemDefaults.colors(
                         indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
                       ),
@@ -1109,7 +1110,7 @@ fun MainAppScreen(
                           modifier = Modifier.size(22.dp)
                         )
                       },
-                      label = { Text("Transactions", maxLines = 1, softWrap = false, overflow = TextOverflow.Clip) },
+                      label = { Text("Transactions", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                       colors = NavigationBarItemDefaults.colors(
                         indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
                       ),
@@ -1142,7 +1143,7 @@ fun MainAppScreen(
                           }
                         }
                       },
-                      label = { Text("Add", maxLines = 1, softWrap = false) },
+                      label = { Text("Add", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                       colors = NavigationBarItemDefaults.colors(
                         indicatorColor = Color.Transparent,
                         selectedIconColor = Color.White,
@@ -1167,7 +1168,7 @@ fun MainAppScreen(
                           modifier = Modifier.size(22.dp)
                         )
                       },
-                      label = { Text("Budgets", maxLines = 1, softWrap = false) },
+                      label = { Text("Budgets", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                       colors = NavigationBarItemDefaults.colors(
                         indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
                       ),
@@ -1187,7 +1188,7 @@ fun MainAppScreen(
                           modifier = Modifier.size(22.dp)
                         )
                       },
-                      label = { Text("More", maxLines = 1, softWrap = false) },
+                      label = { Text("More", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
                       colors = NavigationBarItemDefaults.colors(
                         indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
                       ),

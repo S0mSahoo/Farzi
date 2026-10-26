@@ -413,16 +413,23 @@ private fun RecentTransactionsCard(
 
           val isIncome = transaction.type == TransactionType.INCOME
           val signedAmount = if (isIncome) kotlin.math.abs(transaction.amount) else -kotlin.math.abs(transaction.amount)
+          val exactAmount = IndianCurrencyFormatter.formatWithSymbol(
+            amount = signedAmount,
+            symbol = currencySymbol,
+            includeSign = true
+          )
+          val compactAmount = if (exactAmount.length > 12) {
+            val compact = IndianCurrencyFormatter.formatCompact(signedAmount, currencySymbol)
+            if (signedAmount > 0.0) "+$compact" else compact
+          } else exactAmount
           Text(
-            text = IndianCurrencyFormatter.formatWithSymbol(
-              amount = signedAmount,
-              symbol = currencySymbol,
-              includeSign = true
-            ),
+            text = compactAmount,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = if (isIncome) IncomeGreen else ExpenseRed,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
           )
         }
         if (index < transactions.lastIndex) {

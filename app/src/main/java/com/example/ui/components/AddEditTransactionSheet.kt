@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -164,8 +165,13 @@ fun AddEditTransactionSheet(
       color = MaterialTheme.colorScheme.surface,
       tonalElevation = 6.dp
     ) {
+      Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+      ) {
       Column(
         modifier = Modifier
+          .widthIn(max = 760.dp)
           .fillMaxSize()
           .statusBarsPadding()
           .padding(top = 8.dp, bottom = 4.dp)
@@ -601,6 +607,7 @@ fun AddEditTransactionSheet(
           softWrap = false,
           overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
+      }
       }
       }
     }
