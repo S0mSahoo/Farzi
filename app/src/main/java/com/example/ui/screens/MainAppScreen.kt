@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -1328,7 +1329,11 @@ private fun MainScreenContent(
       onOpenSettings = onOpenMoreSettings
     )
   } else {
-    when (selectedTab) {
+    Crossfade(
+      targetState = selectedTab,
+      label = "paisa_primary_navigation"
+    ) { destination ->
+      when (destination) {
       0 -> DashboardScreen(
         viewModel = viewModel,
         onOpenAddTransaction = onOpenAddTransaction,
@@ -1364,6 +1369,7 @@ private fun MainScreenContent(
       )
       5 -> CategoriesScreen(viewModel = viewModel)
       6 -> InsightsScreen(viewModel = viewModel)
+      }
     }
   }
 }

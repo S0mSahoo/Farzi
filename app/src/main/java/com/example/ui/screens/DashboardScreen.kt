@@ -663,9 +663,9 @@ private fun NetSavingsHeroCard(
   dailyTrend: List<DailySpendingPoint>
 ) {
   Card(
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(30.dp),
     colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+      containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)
     ),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
@@ -696,7 +696,7 @@ private fun NetSavingsHeroCard(
         }
 
         Surface(
-          shape = RoundedCornerShape(10.dp),
+          shape = RoundedCornerShape(16.dp),
           color = if (monthlySummary.savings >= 0) IncomeGreen.copy(alpha = 0.12f) else ExpenseRed.copy(alpha = 0.12f)
         ) {
           Text(
@@ -757,8 +757,8 @@ private fun DailyNetSparkline(
   val activePoints = remember(points) {
     points.filter { it.income != 0.0 || it.expense != 0.0 || it.net != 0.0 }
   }
-  val positive = activePoints.any { it.net > 0.0 }
-  val lineColor = if (positive) IncomeGreen else ExpenseRed
+  val netTotal = activePoints.sumOf { it.net }
+  val lineColor = if (netTotal >= 0.0) IncomeGreen else ExpenseRed
   val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
 
   Canvas(modifier = modifier) {
