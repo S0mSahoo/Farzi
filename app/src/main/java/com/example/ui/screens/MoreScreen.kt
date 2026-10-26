@@ -120,70 +120,75 @@ fun MoreScreen(
         }
 
         item {
-            Text(
-                text = "Finance",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-            )
-            MoreActionRow(
-                title = "Calendar",
-                description = "Review transactions by date",
-                icon = Icons.Default.CalendarMonth,
-                onClick = onOpenCalendar
-            )
-            Spacer(Modifier.height(10.dp))
-            MoreActionRow(
-                title = "Recurring payments",
-                description = "Manage upcoming bills and rules",
-                icon = Icons.Default.Repeat,
-                onClick = onOpenRecurring
-            )
-            Spacer(Modifier.height(10.dp))
-            MoreActionRow(
-                title = "Categories",
-                description = "Explore category totals and activity",
-                icon = Icons.Default.Category,
-                onClick = onOpenCategories
-            )
-            Spacer(Modifier.height(10.dp))
-            MoreActionRow(
-                title = "Analytics",
-                description = "Explore monthly and annual breakdowns",
-                icon = Icons.Default.TrendingUp,
-                onClick = onOpenAnalytics
-            )
-            Spacer(Modifier.height(10.dp))
-            MoreActionRow(
-                title = "Insights",
-                description = "See clear takeaways from recorded activity",
-                icon = Icons.Default.Lightbulb,
-                onClick = onOpenInsights
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Finance",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                )
+                MoreActionRow(
+                    title = "Calendar",
+                    description = "Review transactions by date",
+                    icon = Icons.Default.CalendarMonth,
+                    onClick = onOpenCalendar
+                )
+                MoreActionRow(
+                    title = "Recurring payments",
+                    description = "Manage upcoming bills and rules",
+                    icon = Icons.Default.Repeat,
+                    onClick = onOpenRecurring
+                )
+                MoreActionRow(
+                    title = "Categories",
+                    description = "Explore category totals and activity",
+                    icon = Icons.Default.Category,
+                    onClick = onOpenCategories
+                )
+                MoreActionRow(
+                    title = "Analytics",
+                    description = "Explore monthly and annual breakdowns",
+                    icon = Icons.Default.TrendingUp,
+                    onClick = onOpenAnalytics
+                )
+                MoreActionRow(
+                    title = "Insights",
+                    description = "See clear takeaways from recorded activity",
+                    icon = Icons.Default.Lightbulb,
+                    onClick = onOpenInsights
+                )
+            }
         }
 
         item {
-            Text(
-                text = "App & data",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
-            )
-            MoreActionRow(
-                title = "Backup, export & reports",
-                description = "Google Drive sync, JSON backup, and PDF reports",
-                icon = Icons.Default.PictureAsPdf,
-                onClick = onOpenExport
-            )
-            Spacer(Modifier.height(10.dp))
-            MoreActionRow(
-                title = "Settings & security",
-                description = "Appearance, currency, app lock, and preferences",
-                icon = Icons.Default.Settings,
-                onClick = onOpenSettings
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "App & data",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 2.dp)
+                )
+                MoreActionRow(
+                    title = "Backup, export & reports",
+                    description = "Google Drive sync, JSON backup, and PDF reports",
+                    icon = Icons.Default.PictureAsPdf,
+                    onClick = onOpenExport
+                )
+                MoreActionRow(
+                    title = "Settings & security",
+                    description = "Appearance, currency, app lock, and preferences",
+                    icon = Icons.Default.Settings,
+                    onClick = onOpenSettings
+                )
+            }
         }
     }
 }
