@@ -158,7 +158,7 @@ fun TransactionsScreen(
               )
             }
             Surface(
-              shape = RoundedCornerShape(18.dp),
+              shape = RoundedCornerShape(24.dp),
               color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
             ) {
               Text(
@@ -196,7 +196,7 @@ fun TransactionsScreen(
             }
           },
           singleLine = true,
-          shape = RoundedCornerShape(24.dp),
+          shape = RoundedCornerShape(30.dp),
           colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -219,7 +219,7 @@ fun TransactionsScreen(
             selected = filterType == null,
             onClick = { viewModel.setFilterType(null) },
             label = { Text("All", fontWeight = if (filterType == null) FontWeight.Bold else FontWeight.Normal) },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier.testTag("filter_all")
           )
           FilterChip(
@@ -232,7 +232,7 @@ fun TransactionsScreen(
               selectedContainerColor = ExpenseRed.copy(alpha = 0.12f),
               selectedLabelColor = ExpenseRed
             ),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier.testTag("filter_expenses")
           )
           FilterChip(
@@ -245,7 +245,7 @@ fun TransactionsScreen(
               selectedContainerColor = IncomeGreen.copy(alpha = 0.12f),
               selectedLabelColor = IncomeGreen
             ),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier.testTag("filter_income")
           )
         }
@@ -262,10 +262,10 @@ fun TransactionsScreen(
           TransactionCategory.values().forEach { category ->
             val isSelected = filterCategory == category
             Surface(
-              shape = RoundedCornerShape(16.dp),
+              shape = RoundedCornerShape(22.dp),
               color = if (isSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(22.dp))
                 .clickable {
                   viewModel.setFilterCategory(if (isSelected) null else category)
                 }
@@ -341,7 +341,7 @@ fun TransactionsScreen(
                 viewModel.setFilterType(null)
                 viewModel.setFilterCategory(null)
               },
-              shape = RoundedCornerShape(18.dp)
+              shape = RoundedCornerShape(24.dp)
             ) {
               Text("Reset Filters")
             }
@@ -392,12 +392,12 @@ fun TransactionsScreen(
 
           items(itemsInGroup, key = { it.id }, contentType = { "transaction_item" }) { item ->
             Surface(
-              shape = RoundedCornerShape(24.dp),
+              shape = RoundedCornerShape(30.dp),
               color = MaterialTheme.colorScheme.surface,
               tonalElevation = 0.dp,
               modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
+                .clip(RoundedCornerShape(28.dp))
                 .clickable { onEditTransaction(item) }
                 .testTag("transaction_item_${item.id}")
             ) {
@@ -484,17 +484,24 @@ fun TransactionsScreen(
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                  val signedAmount = if (item.type == TransactionType.INCOME) kotlin.math.abs(item.amount) else -kotlin.math.abs(item.amount)
+                  val exactAmountLabel = IndianCurrencyFormatter.formatWithSymbol(
+                    amount = signedAmount,
+                    symbol = currencySymbol,
+                    includeSign = true
+                  )
+                  val amountLabel = if (exactAmountLabel.length > 12) {
+                    val compact = IndianCurrencyFormatter.formatCompact(signedAmount, currencySymbol)
+                    if (signedAmount > 0.0) "+$compact" else compact
+                  } else exactAmountLabel
                   Text(
-                    text = IndianCurrencyFormatter.formatWithSymbol(
-                      amount = item.amount,
-                      symbol = currencySymbol,
-                      includeSign = true
-                    ),
-                    style = MaterialTheme.typography.titleMedium,
+                    text = amountLabel,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = if (item.type == TransactionType.INCOME) IncomeGreen else ExpenseRed,
                     maxLines = 1,
-                    softWrap = false
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                   )
 
                   IconButton(

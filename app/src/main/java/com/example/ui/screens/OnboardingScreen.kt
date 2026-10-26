@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
@@ -41,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -162,34 +166,38 @@ fun OnboardingScreen(
           horizontalAlignment = Alignment.CenterHorizontally,
           verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+          val glowPrimary = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+          val glowPrimaryInner = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
+          val glowTertiary = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
+          val glowIncome = IncomeGreen.copy(alpha = 0.14f)
           Canvas(
             modifier = Modifier
               .fillMaxWidth()
               .height(132.dp)
           ) {
             drawCircle(
-              color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+              color = glowPrimary,
               radius = size.minDimension * 0.47f,
               center = Offset(size.width * 0.5f, size.height * 0.48f)
             )
             drawCircle(
-              color = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f),
+              color = glowPrimaryInner,
               radius = size.minDimension * 0.31f,
               center = Offset(size.width * 0.5f, size.height * 0.48f)
             )
             drawCircle(
-              color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+              color = glowTertiary,
               radius = size.minDimension * 0.14f,
               center = Offset(size.width * 0.72f, size.height * 0.28f)
             )
             drawCircle(
-              color = IncomeGreen.copy(alpha = 0.14f),
+              color = glowIncome,
               radius = size.minDimension * 0.11f,
               center = Offset(size.width * 0.28f, size.height * 0.74f)
             )
           }
           Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(30.dp),
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(70.dp)
           ) {
@@ -257,7 +265,7 @@ fun OnboardingScreen(
 
       if (errorMessage != null) {
         Surface(
-          shape = RoundedCornerShape(22.dp),
+          shape = RoundedCornerShape(28.dp),
           color = ExpenseRed.copy(alpha = 0.11f),
           modifier = Modifier
             .fillMaxWidth()
@@ -295,7 +303,7 @@ fun OnboardingScreen(
           }
         },
         enabled = !isSigningIn,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = ButtonDefaults.buttonColors(
           containerColor = MaterialTheme.colorScheme.primary,
           contentColor = Color.White
