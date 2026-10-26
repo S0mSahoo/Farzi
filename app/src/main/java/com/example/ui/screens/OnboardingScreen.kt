@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -21,6 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Button
@@ -38,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -110,93 +114,177 @@ fun OnboardingScreen(
   Box(
     modifier = Modifier
       .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background)
-      .padding(24.dp),
-    contentAlignment = Alignment.Center
+      .background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter
   ) {
     Column(
       modifier = Modifier
-        .fillMaxWidth()
+        .fillMaxSize()
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 8.dp),
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center
+        .padding(horizontal = 20.dp, vertical = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-      // Abstract Minimal Brand Logo
-      AppBrandLogo(size = 80.dp)
-
-      Spacer(modifier = Modifier.height(24.dp))
-
-      Text(
-        text = "Paisa",
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
-        textAlign = TextAlign.Center
-      )
-
-      Spacer(modifier = Modifier.height(8.dp))
-
-      Text(
-        text = "Personal finance management with seamless Google Drive cloud sync.",
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.padding(horizontal = 16.dp)
-      )
-
-      Spacer(modifier = Modifier.height(32.dp))
-
-      // Cloud & Security Benefits Surface
-      Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        modifier = Modifier.fillMaxWidth()
+      // Brand row
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        Column(
-          modifier = Modifier.padding(20.dp),
-          verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-          FeatureRow(
-            icon = Icons.Default.CloudDone,
-            title = "Google Drive Cloud Storage",
-            description = "Your financial records are saved to your private Google Drive app storage."
+        AppBrandLogo(size = 46.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+          Text(
+            text = "Paisa",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
           )
-          FeatureRow(
-            icon = Icons.Default.Sync,
-            title = "Cross-Device Synchronization",
-            description = "Access and update your income, expenses, and budgets seamlessly anywhere."
-          )
-          FeatureRow(
-            icon = Icons.Default.Lock,
-            title = "Private & Secure",
-            description = "Zero manual onboarding. Your profile is automatically linked to your Google Account."
+          Text(
+            text = "Your personal finance companion",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
-
-      if (errorMessage != null) {
-        Surface(
-          shape = RoundedCornerShape(12.dp),
-          color = ExpenseRed.copy(alpha = 0.1f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 16.dp)
+      // Rounded hero panel with subtle native illustration rather than a static screenshot.
+      Surface(
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(
+          modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
+          horizontalAlignment = Alignment.CenterHorizontally,
+          verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+          Canvas(
+            modifier = Modifier
+              .fillMaxWidth()
+              .height(132.dp)
+          ) {
+            drawCircle(
+              color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+              radius = size.minDimension * 0.47f,
+              center = Offset(size.width * 0.5f, size.height * 0.48f)
+            )
+            drawCircle(
+              color = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f),
+              radius = size.minDimension * 0.31f,
+              center = Offset(size.width * 0.5f, size.height * 0.48f)
+            )
+            drawCircle(
+              color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f),
+              radius = size.minDimension * 0.14f,
+              center = Offset(size.width * 0.72f, size.height * 0.28f)
+            )
+            drawCircle(
+              color = IncomeGreen.copy(alpha = 0.14f),
+              radius = size.minDimension * 0.11f,
+              center = Offset(size.width * 0.28f, size.height * 0.74f)
+            )
+          }
+          Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(70.dp)
+          ) {
+            Box(contentAlignment = Alignment.Center) {
+              Icon(
+                imageVector = Icons.Default.AccountBalanceWallet,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(34.dp)
+              )
+            }
+          }
           Text(
-            text = errorMessage ?: "",
-            style = MaterialTheme.typography.bodySmall,
-            color = ExpenseRed,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(12.dp),
+            text = "Your finances, all in one place",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+          )
+          Text(
+            text = "Track. Plan. Grow.",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
+            textAlign = TextAlign.Center
+          )
+          Text(
+            text = "Understand your money with a clear view of income, spending, budgets, and savings.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
           )
         }
       }
 
-      // Sign In with Google Button
+      // Features use the real app capabilities; no additional permissions or services are implied.
+      Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Column(
+          modifier = Modifier.padding(18.dp),
+          verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+          FeatureRow(
+            icon = Icons.Default.TrendingUp,
+            title = "See your money clearly",
+            description = "Track recorded income, expenses, budgets, and monthly summaries."
+          )
+          FeatureRow(
+            icon = Icons.Default.CloudDone,
+            title = "Google Drive backup",
+            description = "Keep your records in the private app storage area of your Google Drive."
+          )
+          FeatureRow(
+            icon = Icons.Default.Lock,
+            title = "Privacy and control",
+            description = "Use your Google account to connect and manage your financial records."
+          )
+        }
+      }
+
+      if (errorMessage != null) {
+        Surface(
+          shape = RoundedCornerShape(22.dp),
+          color = ExpenseRed.copy(alpha = 0.11f),
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("google_sign_in_error")
+        ) {
+          Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.Lock,
+              contentDescription = null,
+              tint = ExpenseRed,
+              modifier = Modifier.size(20.dp)
+            )
+            Text(
+              text = errorMessage ?: "",
+              style = MaterialTheme.typography.bodySmall,
+              color = ExpenseRed,
+              fontWeight = FontWeight.Medium,
+              modifier = Modifier.weight(1f)
+            )
+          }
+        }
+      }
+
       Button(
         onClick = {
           if (!isSigningIn) {
@@ -207,14 +295,15 @@ fun OnboardingScreen(
           }
         },
         enabled = !isSigningIn,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = ButtonDefaults.buttonColors(
           containerColor = MaterialTheme.colorScheme.primary,
           contentColor = Color.White
         ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
         modifier = Modifier
           .fillMaxWidth()
-          .height(54.dp)
+          .heightIn(min = 58.dp)
           .testTag("google_sign_in_button")
       ) {
         if (isSigningIn) {
@@ -225,38 +314,56 @@ fun OnboardingScreen(
           )
           Spacer(modifier = Modifier.width(12.dp))
           Text(
-            text = statusMessage ?: "Signing In...",
+            text = statusMessage ?: "Signing in...",
             style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
           )
         } else {
           Row(
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
           ) {
             Surface(
               shape = CircleShape,
               color = Color.White,
-              modifier = Modifier.size(24.dp)
+              modifier = Modifier.size(28.dp)
             ) {
               Box(contentAlignment = Alignment.Center) {
                 Text(
                   text = "G",
                   fontWeight = FontWeight.Black,
-                  fontSize = 14.sp,
+                  fontSize = 16.sp,
                   color = MaterialTheme.colorScheme.primary
                 )
               }
             }
             Spacer(modifier = Modifier.width(12.dp))
             Text(
-              text = "Sign in with Google",
+              text = "Continue with Google",
               style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold
+              fontWeight = FontWeight.Bold,
+              maxLines = 1,
+              softWrap = false,
+              overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
           }
         }
       }
+
+      Text(
+        text = "You can review backup, privacy, and security options in Settings after signing in.",
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 8.dp)
+          .padding(bottom = 12.dp)
+      )
     }
   }
 }
