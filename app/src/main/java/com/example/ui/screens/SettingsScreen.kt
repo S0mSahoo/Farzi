@@ -202,7 +202,7 @@ fun SettingsScreen(
           )
 
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.fillMaxWidth()
           ) {
@@ -254,7 +254,7 @@ fun SettingsScreen(
               }
             )
           },
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           Text("Merge & Restore")
         }
@@ -266,7 +266,7 @@ fun SettingsScreen(
             pendingBackupToImport = null
             importValidationSummary = null
           },
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           Text("Cancel")
         }
@@ -338,12 +338,12 @@ fun SettingsScreen(
           )
 
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             color = if (bulkDeleteOption == "MONTH") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
             border = BorderStroke(1.dp, if (bulkDeleteOption == "MONTH") MaterialTheme.colorScheme.primary else Color.Transparent),
             modifier = Modifier
               .fillMaxWidth()
-              .clip(RoundedCornerShape(12.dp))
+              .clip(RoundedCornerShape(18.dp))
               .clickable { bulkDeleteOption = "MONTH" }
           ) {
             Row(
@@ -361,12 +361,12 @@ fun SettingsScreen(
           }
 
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             color = if (bulkDeleteOption == "OLDER_30") MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
             border = BorderStroke(1.dp, if (bulkDeleteOption == "OLDER_30") MaterialTheme.colorScheme.primary else Color.Transparent),
             modifier = Modifier
               .fillMaxWidth()
-              .clip(RoundedCornerShape(12.dp))
+              .clip(RoundedCornerShape(18.dp))
               .clickable { bulkDeleteOption = "OLDER_30" }
           ) {
             Row(
@@ -413,7 +413,7 @@ fun SettingsScreen(
           },
           enabled = !isDeletingBulk,
           colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           if (isDeletingBulk) {
             CircularProgressIndicator(
@@ -430,7 +430,7 @@ fun SettingsScreen(
         OutlinedButton(
           onClick = { showBulkDeleteDialog = false },
           enabled = !isDeletingBulk,
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           Text("Cancel")
         }
@@ -462,7 +462,7 @@ fun SettingsScreen(
     item {
       SettingsSection(title = "Google Account") {
         Card(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
@@ -526,7 +526,7 @@ fun SettingsScreen(
             // Sign Out Button
             OutlinedButton(
               onClick = { showSignOutDialog = true },
-              shape = RoundedCornerShape(12.dp),
+              shape = RoundedCornerShape(18.dp),
               colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = ExpenseRed
               ),
@@ -557,7 +557,7 @@ fun SettingsScreen(
     item {
       SettingsSection(title = "Cloud Synchronization") {
         Card(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
@@ -620,7 +620,7 @@ fun SettingsScreen(
 
               // Status Pill
               Surface(
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = if (isSyncing) MinimalBlue.copy(alpha = 0.12f) else if (syncErrorMessage != null) ExpenseRed.copy(alpha = 0.12f) else IncomeGreen.copy(alpha = 0.12f)
               ) {
                 Text(
@@ -718,7 +718,7 @@ fun SettingsScreen(
                 }
               },
               enabled = !isSyncing,
-              shape = RoundedCornerShape(12.dp),
+              shape = RoundedCornerShape(18.dp),
               colors = ButtonDefaults.buttonColors(
                 containerColor = if (driveConsentIntent != null) MinimalBlue else MaterialTheme.colorScheme.primary,
                 contentColor = Color.White
@@ -749,7 +749,7 @@ fun SettingsScreen(
     item {
       SettingsSection(title = "Regional & Display") {
         Card(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
@@ -798,10 +798,10 @@ fun SettingsScreen(
                   ThemeMode.values().forEach { mode ->
                     val isSelected = themeMode == mode
                     Surface(
-                      shape = RoundedCornerShape(8.dp),
+                      shape = RoundedCornerShape(16.dp),
                       color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                       modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .clickable { viewModel.setThemeMode(mode) }
                     ) {
                       Text(
@@ -829,7 +829,7 @@ fun SettingsScreen(
     item {
       SettingsSection(title = "Security & Privacy") {
         Card(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
@@ -884,7 +884,7 @@ fun SettingsScreen(
     item {
       SettingsSection(title = "Data & Reports") {
         Card(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
@@ -899,10 +899,10 @@ fun SettingsScreen(
               subtitle = "Generate human-readable financial statements",
               action = {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                   modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { onOpenExportModal() }
                 ) {
                   Text(
@@ -930,10 +930,10 @@ fun SettingsScreen(
               subtitle = "Complete machine-readable application data portability",
               action = {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = MinimalBlue.copy(alpha = 0.12f),
                   modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable {
                       isExportingJson = true
                       viewModel.exportJson(
@@ -984,10 +984,10 @@ fun SettingsScreen(
               subtitle = "Validate and merge Paisa data files safely",
               action = {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = IncomeGreen.copy(alpha = 0.12f),
                   modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable {
                       try {
                         jsonPickerLauncher.launch("*/*")
@@ -1031,10 +1031,10 @@ fun SettingsScreen(
               subtitle = "Batch clear transactions by month or historical range",
               action = {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = ExpenseRed.copy(alpha = 0.12f),
                   modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { showBulkDeleteDialog = true }
                 ) {
                   Text(
@@ -1062,10 +1062,10 @@ fun SettingsScreen(
               subtitle = "Permanently erase local and cloud financial records",
               action = {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = ExpenseRed.copy(alpha = 0.12f),
                   modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(16.dp))
                     .clickable { showClearDataDialog = true }
                 ) {
                   Text(

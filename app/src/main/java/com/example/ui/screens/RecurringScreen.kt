@@ -149,7 +149,7 @@ fun RecurringScreen(
 
         Button(
           onClick = onOpenAddRecurringRule,
-          shape = RoundedCornerShape(12.dp),
+          shape = RoundedCornerShape(18.dp),
           contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
           modifier = Modifier.testTag("add_recurring_rule_button")
         ) {
@@ -163,18 +163,18 @@ fun RecurringScreen(
     // 2. Segmented Navigation (Upcoming Bills vs Rules)
     item {
       Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         modifier = Modifier.fillMaxWidth()
       ) {
         Row(modifier = Modifier.padding(4.dp)) {
           Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             color = if (selectedTab == 0) MaterialTheme.colorScheme.surface else Color.Transparent,
             tonalElevation = if (selectedTab == 0) 2.dp else 0.dp,
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(10.dp))
+              .clip(RoundedCornerShape(16.dp))
               .clickable { selectedTab = 0 }
           ) {
             Box(
@@ -191,12 +191,12 @@ fun RecurringScreen(
           }
 
           Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(16.dp),
             color = if (selectedTab == 1) MaterialTheme.colorScheme.surface else Color.Transparent,
             tonalElevation = if (selectedTab == 1) 2.dp else 0.dp,
             modifier = Modifier
               .weight(1f)
-              .clip(RoundedCornerShape(10.dp))
+              .clip(RoundedCornerShape(16.dp))
               .clickable { selectedTab = 1 }
           ) {
             Box(
@@ -220,7 +220,7 @@ fun RecurringScreen(
       if (scheduledOccurrences.isEmpty()) {
         item {
           Card(
-            shape = RoundedCornerShape(22.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier.fillMaxWidth()
@@ -259,7 +259,7 @@ fun RecurringScreen(
           val isPaid = occ.status == OccurrenceStatus.PAID
 
           Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
             modifier = Modifier.fillMaxWidth()
@@ -350,7 +350,7 @@ fun RecurringScreen(
                 verticalAlignment = Alignment.CenterVertically
               ) {
                 Surface(
-                  shape = RoundedCornerShape(8.dp),
+                  shape = RoundedCornerShape(16.dp),
                   color = statusColor.copy(alpha = 0.12f)
                 ) {
                   Row(
@@ -377,7 +377,7 @@ fun RecurringScreen(
                   isCancelled -> {
                     OutlinedButton(
                       onClick = { viewModel.restoreRecurringOccurrence(occ) },
-                      shape = RoundedCornerShape(10.dp),
+                      shape = RoundedCornerShape(16.dp),
                       modifier = Modifier.testTag("restore_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
                     ) {
                       Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -392,7 +392,7 @@ fun RecurringScreen(
                     ) {
                       OutlinedButton(
                         onClick = { occurrenceToCancel = occ },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(16.dp),
                         modifier = Modifier.testTag("cancel_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
                       ) {
                         Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(14.dp))
@@ -402,7 +402,7 @@ fun RecurringScreen(
 
                       Button(
                         onClick = { viewModel.markRecurringPaymentPaid(occ) },
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen, contentColor = Color.White),
                         modifier = Modifier.testTag("pay_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
                       ) {
@@ -429,7 +429,7 @@ fun RecurringScreen(
       // ACTIVE RULES TAB
       item {
         Surface(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           color = MaterialTheme.colorScheme.surface,
           tonalElevation = 1.dp,
           modifier = Modifier.fillMaxWidth()
@@ -478,7 +478,7 @@ fun RecurringScreen(
       if (recurringRules.isEmpty()) {
         item {
           Card(
-            shape = RoundedCornerShape(22.dp),
+            shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier.fillMaxWidth()
@@ -520,7 +520,7 @@ fun RecurringScreen(
 
               Button(
                 onClick = onOpenAddRecurringRule,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(18.dp)
               ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
@@ -532,7 +532,7 @@ fun RecurringScreen(
       } else {
         items(recurringRules, key = { it.id }) { rule ->
           Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surface,
             tonalElevation = 1.dp,
             modifier = Modifier
