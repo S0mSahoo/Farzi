@@ -169,7 +169,7 @@ fun SetBudgetSheet(
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("total_budget_input")
@@ -199,7 +199,7 @@ fun SetBudgetSheet(
         Box {
           OutlinedButton(
             onClick = { showAddCategoryMenu = true },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             modifier = Modifier.testTag("add_category_budget_button")
           ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -238,7 +238,7 @@ fun SetBudgetSheet(
 
       if (categoryBudgetsState.isEmpty()) {
         Surface(
-          shape = RoundedCornerShape(14.dp),
+          shape = RoundedCornerShape(20.dp),
           color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -253,7 +253,7 @@ fun SetBudgetSheet(
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           categoryBudgetsState.keys.toList().forEach { category ->
             Surface(
-              shape = RoundedCornerShape(18.dp),
+              shape = RoundedCornerShape(24.dp),
               color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               modifier = Modifier.fillMaxWidth()
             ) {
@@ -292,7 +292,7 @@ fun SetBudgetSheet(
                   leadingIcon = { Text(currencySymbol, style = MaterialTheme.typography.bodyMedium) },
                   keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                   singleLine = true,
-                  shape = RoundedCornerShape(10.dp),
+                  shape = RoundedCornerShape(16.dp),
                   modifier = Modifier.width(110.dp)
                 )
 
@@ -339,7 +339,7 @@ fun SetBudgetSheet(
           onSave(monthKey, totalAmt, catMap)
           onDismiss()
         },
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
           .height(52.dp)

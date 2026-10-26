@@ -116,7 +116,7 @@ fun CategoryDetailSheet(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
       ) {
         Surface(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           color = ExpenseRed.copy(alpha = 0.08f),
           border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.2f)),
           modifier = Modifier.weight(1f)
@@ -139,7 +139,7 @@ fun CategoryDetailSheet(
 
         if (detail.totalIncome > 0) {
           Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(24.dp),
             color = IncomeGreen.copy(alpha = 0.08f),
             border = androidx.compose.foundation.BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.2f)),
             modifier = Modifier.weight(1f)
@@ -198,7 +198,7 @@ fun CategoryDetailSheet(
             val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.timestamp))
 
             Surface(
-              shape = RoundedCornerShape(14.dp),
+              shape = RoundedCornerShape(20.dp),
               color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
               modifier = Modifier.fillMaxWidth()
             ) {
