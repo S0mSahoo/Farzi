@@ -111,7 +111,7 @@ fun ConfirmationDialog(
       }
     },
     containerColor = MaterialTheme.colorScheme.surface,
-    shape = RoundedCornerShape(22.dp)
+    shape = RoundedCornerShape(28.dp)
   )
 }
 
@@ -127,7 +127,7 @@ fun MonthYearPickerDialog(
 
   Dialog(onDismissRequest = onDismiss) {
     Surface(
-      shape = RoundedCornerShape(24.dp),
+      shape = RoundedCornerShape(30.dp),
       color = MaterialTheme.colorScheme.surface,
       tonalElevation = 6.dp,
       modifier = Modifier
@@ -151,7 +151,7 @@ fun MonthYearPickerDialog(
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 8.dp, vertical = 4.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -186,7 +186,7 @@ fun MonthYearPickerDialog(
 
             Box(
               modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                   if (isSelected) MaterialTheme.colorScheme.primary
                   else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -234,7 +234,7 @@ fun YearPickerDialog(
 
   Dialog(onDismissRequest = onDismiss) {
     Surface(
-      shape = RoundedCornerShape(24.dp),
+      shape = RoundedCornerShape(30.dp),
       color = MaterialTheme.colorScheme.surface,
       tonalElevation = 6.dp,
       modifier = Modifier
@@ -259,7 +259,7 @@ fun YearPickerDialog(
         Row(
           modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(horizontal = 8.dp, vertical = 4.dp),
           horizontalArrangement = Arrangement.SpaceBetween,
@@ -293,7 +293,7 @@ fun YearPickerDialog(
 
             Box(
               modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(
                   if (isSelected) MaterialTheme.colorScheme.primary
                   else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)

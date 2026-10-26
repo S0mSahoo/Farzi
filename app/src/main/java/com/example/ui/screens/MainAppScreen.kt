@@ -1001,30 +1001,36 @@ fun MainAppScreen(
                     }
                   },
                   actions = {
-                    if (!isSettingsOpen && !isAnalyticsOpen) {
+                    if (!isSettingsOpen && !isAnalyticsOpen && !isMoreOpen) {
                       IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = true },
-                          modifier = Modifier.testTag("analytics_open_button")
-                        ) {
-                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = false; selectedTab = 6 },
-                          modifier = Modifier.testTag("insights_open_button")
-                        ) {
-                          Icon(Icons.Default.Lightbulb, contentDescription = "Insights", tint = MaterialTheme.colorScheme.primary)
-                        }
-                        IconButton(
-                        onClick = { showExportModal = true },
-                        modifier = Modifier.testTag("top_bar_export")
+                        onClick = { showProfileSheet = true },
+                        modifier = Modifier.testTag("top_bar_profile")
                       ) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
-                      }
-                      IconButton(
-                        onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
-                        modifier = Modifier.testTag("top_bar_settings")
-                      ) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
+                        if (!userProfile.photoUrl.isNullOrBlank()) {
+                          AsyncImage(
+                            model = userProfile.photoUrl,
+                            contentDescription = "Profile",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                              .size(34.dp)
+                              .clip(CircleShape)
+                          )
+                        } else {
+                          Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.size(34.dp)
+                          ) {
+                            Box(contentAlignment = Alignment.Center) {
+                              Text(
+                                text = userProfile.name.trim().firstOrNull()?.uppercase() ?: "G",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                              )
+                            }
+                          }
+                        }
                       }
                       Spacer(modifier = Modifier.width(4.dp))
                     }
