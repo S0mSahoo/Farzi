@@ -165,7 +165,7 @@ fun TransactionsScreen(
             }
           },
           singleLine = true,
-          shape = RoundedCornerShape(24.dp),
+          shape = RoundedCornerShape(18.dp),
           colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
@@ -326,7 +326,7 @@ fun TransactionsScreen(
           top = 12.dp,
           bottom = if (adaptiveInfo.isLandscapePhone) 32.dp else 96.dp
         ),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
       ) {
         groupedTransactions.forEach { (dateHeader, itemsInGroup) ->
           item(key = "header_$dateHeader", contentType = "header") {
@@ -357,9 +357,9 @@ fun TransactionsScreen(
 
           items(itemsInGroup, key = { it.id }, contentType = { "transaction_item" }) { item ->
             Surface(
-              shape = RoundedCornerShape(16.dp),
+              shape = RoundedCornerShape(18.dp),
               color = MaterialTheme.colorScheme.surface,
-              tonalElevation = 1.dp,
+              tonalElevation = 0.dp,
               modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(16.dp))
@@ -378,8 +378,8 @@ fun TransactionsScreen(
                 ) {
                   // Category Icon badge
                   Surface(
-                    shape = CircleShape,
-                    color = item.category.color.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(13.dp),
+                    color = item.category.color.copy(alpha = 0.14f),
                     modifier = Modifier.size(42.dp)
                   ) {
                     Box(contentAlignment = Alignment.Center) {

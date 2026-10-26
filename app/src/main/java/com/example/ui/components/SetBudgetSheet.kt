@@ -169,7 +169,7 @@ fun SetBudgetSheet(
         },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("total_budget_input")
@@ -253,7 +253,7 @@ fun SetBudgetSheet(
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           categoryBudgetsState.keys.toList().forEach { category ->
             Surface(
-              shape = RoundedCornerShape(16.dp),
+              shape = RoundedCornerShape(18.dp),
               color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               modifier = Modifier.fillMaxWidth()
             ) {
@@ -339,7 +339,7 @@ fun SetBudgetSheet(
           onSave(monthKey, totalAmt, catMap)
           onDismiss()
         },
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier
           .fillMaxWidth()
           .height(52.dp)
