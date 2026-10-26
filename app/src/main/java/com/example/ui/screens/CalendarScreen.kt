@@ -257,7 +257,7 @@ private fun CalendarMonthHeader(
   onOpenDatePicker: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(18.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier.fillMaxWidth()
@@ -336,9 +336,9 @@ private fun CalendarGridCard(
   }
 
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(22.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier
 .fillMaxWidth()
   ) {
@@ -476,9 +476,9 @@ private fun SelectedDaySummaryCard(
   onAddTransaction: () -> Unit
 ) {
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(22.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
   ) {
     Column(modifier = Modifier.padding(16.dp)) {
@@ -586,7 +586,7 @@ private fun SelectedDaySummaryCard(
 @Composable
 private fun DayTransactionsEmptyState() {
   Surface(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(18.dp),
     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     modifier = Modifier.fillMaxWidth()
   ) {
@@ -618,12 +618,12 @@ private fun DayTransactionItem(
   onDelete: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(18.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(16.dp))
+      .clip(RoundedCornerShape(18.dp))
       .clickable { onEdit() }
   ) {
     Row(

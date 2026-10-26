@@ -182,7 +182,7 @@ fun BudgetScreen(
           }
         } else {
           Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
             modifier = Modifier.fillMaxWidth()
           ) {
@@ -269,7 +269,7 @@ private fun BudgetMonthHeader(
   onOpenPicker: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(18.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier.fillMaxWidth()
@@ -324,9 +324,9 @@ private fun BudgetOverviewCard(
 ) {
   if (currentBudget == null || currentBudget.totalBudget <= 0) {
     Card(
-      shape = RoundedCornerShape(20.dp),
+      shape = RoundedCornerShape(22.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-      elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+      elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
       modifier = Modifier.fillMaxWidth()
     ) {
       Column(
@@ -376,9 +376,9 @@ private fun BudgetOverviewCard(
     }
   } else {
     Card(
-      shape = RoundedCornerShape(20.dp),
+      shape = RoundedCornerShape(22.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-      elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+      elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
       modifier = Modifier.fillMaxWidth()
     ) {
       Column(modifier = Modifier.padding(18.dp)) {
@@ -441,9 +441,9 @@ private fun CategoryBudgetCard(
   }
 
   Card(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(18.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
   ) {
     Column(modifier = Modifier.padding(16.dp)) {
