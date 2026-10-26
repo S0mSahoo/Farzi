@@ -86,10 +86,11 @@ fun calculateAdaptiveInfo(width: Dp, height: Dp): WindowAdaptiveInfo {
     else -> AppNavigationType.PERMANENT_DRAWER
   }
 
-  // Use two-pane master-detail/split when width is sufficient:
-  // - On tablets with width >= 720dp (or medium width with standard height >= 600dp)
-  // - On landscape phones with width >= 640dp, side-by-side or compact split is also viable
-  val useTwoPaneLayout = (width >= 720.dp) || (width >= 600.dp && height >= 540.dp)
+  // Two-pane layouts are useful on tablets and tall windows, but landscape phones
+  // have very little vertical space. Keep them single-pane so the primary scrolling
+  // content can use the full available width and height.
+  val useTwoPaneLayout = height >= 480.dp &&
+    ((width >= 720.dp) || (width >= 600.dp && height >= 540.dp))
 
   return WindowAdaptiveInfo(
     width = width,
