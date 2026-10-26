@@ -27,6 +27,8 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.TrendingUp
@@ -97,6 +99,7 @@ sealed class AppDestination(val index: Int, val label: String, val icon: android
   object Calendar : AppDestination(2, "Calendar", Icons.Default.CalendarMonth)
   object Budgets : AppDestination(3, "Budgets", Icons.Default.AccountBalanceWallet)
   object Recurring : AppDestination(4, "Recurring", Icons.Default.Repeat)
+  object Categories : AppDestination(5, "Categories", Icons.Default.Category)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -113,6 +116,7 @@ fun MainAppScreen(
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
   var isAnalyticsOpen by remember { mutableStateOf(false) }
+  var isMoreOpen by remember { mutableStateOf(false) }
   var showProfileSheet by remember { mutableStateOf(false) }
   var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -472,7 +476,8 @@ fun MainAppScreen(
                         AppDestination.Transactions,
                         AppDestination.Calendar,
                         AppDestination.Budgets,
-                        AppDestination.Recurring
+                        AppDestination.Recurring,
+                        AppDestination.Categories
                       )
 
                       navItems.forEach { destination ->
@@ -486,6 +491,7 @@ fun MainAppScreen(
                             .clickable {
                               isSettingsOpen = false
                               isAnalyticsOpen = false
+                              isMoreOpen = false
                               selectedTab = destination.index
                             }
                             .testTag("desktop_nav_${destination.label.lowercase()}")
@@ -586,7 +592,7 @@ fun MainAppScreen(
                         text = when {
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -600,7 +606,7 @@ fun MainAppScreen(
                       }
                     },
                     actions = {
-                      if (!isSettingsOpen && !isAnalyticsOpen) {
+                      if (!isSettingsOpen && !isAnalyticsOpen && !isMoreOpen) {
                         IconButton(
                           onClick = { isSettingsOpen = false; isAnalyticsOpen = true },
                           modifier = Modifier.testTag("analytics_open_button")
@@ -667,7 +673,17 @@ fun MainAppScreen(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
                       isAnalyticsOpen = isAnalyticsOpen,
+                      isMoreOpen = isMoreOpen,
                       onBackFromAnalytics = { isAnalyticsOpen = false },
+                      onBackFromMore = { isMoreOpen = false },
+                      onOpenMoreDestination = { destination ->
+                        isMoreOpen = false
+                        isAnalyticsOpen = false
+                        isSettingsOpen = false
+                        selectedTab = destination
+                      },
+                      onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
+                      onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -701,7 +717,7 @@ fun MainAppScreen(
                         editingRecurringRule = rule
                         showAddEditRecurringSheet = true
                       },
-                      onOpenExportModal = { showExportModal = true }
+                      onOpenExportModal = { isMoreOpen = false; showExportModal = true }
                     )
                   }
                 }
@@ -735,7 +751,8 @@ fun MainAppScreen(
                       AppDestination.Transactions,
                       AppDestination.Calendar,
                       AppDestination.Budgets,
-                      AppDestination.Recurring
+                      AppDestination.Recurring,
+                        AppDestination.Categories
                     )
 
                     navItems.forEach { destination ->
@@ -745,6 +762,7 @@ fun MainAppScreen(
                         onClick = {
                           isSettingsOpen = false
                           isAnalyticsOpen = false
+                          isMoreOpen = false
                           selectedTab = destination.index
                         },
                         icon = {
@@ -811,7 +829,7 @@ fun MainAppScreen(
                         text = when {
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
                         },
                         style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -892,7 +910,17 @@ fun MainAppScreen(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
                       isAnalyticsOpen = isAnalyticsOpen,
+                      isMoreOpen = isMoreOpen,
                       onBackFromAnalytics = { isAnalyticsOpen = false },
+                      onBackFromMore = { isMoreOpen = false },
+                      onOpenMoreDestination = { destination ->
+                        isMoreOpen = false
+                        isAnalyticsOpen = false
+                        isSettingsOpen = false
+                        selectedTab = destination
+                      },
+                      onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
+                      onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -926,7 +954,7 @@ fun MainAppScreen(
                         editingRecurringRule = rule
                         showAddEditRecurringSheet = true
                       },
-                      onOpenExportModal = { showExportModal = true }
+                      onOpenExportModal = { isMoreOpen = false; showExportModal = true }
                     )
                   }
                 }
@@ -946,7 +974,7 @@ fun MainAppScreen(
                     ) {
                       AppBrandLogo(size = 26.dp)
                       Text(
-                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; else -> "Paisa" },
+                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; else -> "Paisa" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
@@ -994,62 +1022,130 @@ fun MainAppScreen(
                     containerColor = MaterialTheme.colorScheme.background,
                     tonalElevation = 0.dp
                   ) {
-                    val navItems = listOf(
-                      AppDestination.Dashboard,
-                      AppDestination.Transactions,
-                      AppDestination.Calendar,
-                      AppDestination.Budgets,
-                      AppDestination.Recurring
+                    NavigationBarItem(
+                      selected = !isMoreOpen && selectedTab == AppDestination.Dashboard.index,
+                      onClick = {
+                        isMoreOpen = false
+                        isSettingsOpen = false
+                        isAnalyticsOpen = false
+                        selectedTab = AppDestination.Dashboard.index
+                      },
+                      icon = {
+                        Icon(
+                          imageVector = AppDestination.Dashboard.icon,
+                          contentDescription = "Home",
+                          modifier = Modifier.size(22.dp)
+                        )
+                      },
+                      label = { Text("Home", maxLines = 1, softWrap = false) },
+                      colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                      ),
+                      modifier = Modifier.testTag("nav_home")
                     )
-
-                    navItems.forEach { destination ->
-                      val isSelected = selectedTab == destination.index
-                      NavigationBarItem(
-                        selected = isSelected,
-                        onClick = { isAnalyticsOpen = false; selectedTab = destination.index },
-                        icon = {
-                          Icon(
-                            imageVector = destination.icon,
-                            contentDescription = destination.label,
-                            modifier = Modifier.size(22.dp)
-                          )
-                        },
-                        label = {
-                          Text(
-                            text = destination.label,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                          )
-                        },
-                        colors = NavigationBarItemDefaults.colors(
-                          selectedIconColor = MaterialTheme.colorScheme.primary,
-                          selectedTextColor = MaterialTheme.colorScheme.primary,
-                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-                        ),
-                        modifier = Modifier.testTag("nav_${destination.label.lowercase()}")
-                      )
-                    }
+                    NavigationBarItem(
+                      selected = !isMoreOpen && selectedTab == AppDestination.Transactions.index,
+                      onClick = {
+                        isMoreOpen = false
+                        isSettingsOpen = false
+                        isAnalyticsOpen = false
+                        selectedTab = AppDestination.Transactions.index
+                      },
+                      icon = {
+                        Icon(
+                          imageVector = AppDestination.Transactions.icon,
+                          contentDescription = "Transactions",
+                          modifier = Modifier.size(22.dp)
+                        )
+                      },
+                      label = { Text("Transactions", maxLines = 1, softWrap = false, overflow = TextOverflow.Clip) },
+                      colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                      ),
+                      modifier = Modifier.testTag("nav_transactions")
+                    )
+                    NavigationBarItem(
+                      selected = false,
+                      onClick = {
+                        isMoreOpen = false
+                        isSettingsOpen = false
+                        isAnalyticsOpen = false
+                        editingTransaction = null
+                        prefilledDateTimestamp = null
+                        prefilledTxType = null
+                        showAddEditTransactionSheet = true
+                      },
+                      icon = {
+                        Surface(
+                          shape = CircleShape,
+                          color = MaterialTheme.colorScheme.primary,
+                          modifier = Modifier.size(40.dp)
+                        ) {
+                          Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                              imageVector = Icons.Default.Add,
+                              contentDescription = "Add transaction",
+                              tint = Color.White,
+                              modifier = Modifier.size(23.dp)
+                            )
+                          }
+                        }
+                      },
+                      label = { Text("Add", maxLines = 1, softWrap = false) },
+                      colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = Color.Transparent,
+                        selectedIconColor = Color.White,
+                        unselectedIconColor = Color.White,
+                        selectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                      ),
+                      modifier = Modifier.testTag("nav_add_transaction")
+                    )
+                    NavigationBarItem(
+                      selected = !isMoreOpen && selectedTab == AppDestination.Budgets.index,
+                      onClick = {
+                        isMoreOpen = false
+                        isSettingsOpen = false
+                        isAnalyticsOpen = false
+                        selectedTab = AppDestination.Budgets.index
+                      },
+                      icon = {
+                        Icon(
+                          imageVector = AppDestination.Budgets.icon,
+                          contentDescription = "Budgets",
+                          modifier = Modifier.size(22.dp)
+                        )
+                      },
+                      label = { Text("Budgets", maxLines = 1, softWrap = false) },
+                      colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                      ),
+                      modifier = Modifier.testTag("nav_budgets")
+                    )
+                    NavigationBarItem(
+                      selected = isMoreOpen || selectedTab == AppDestination.Calendar.index || selectedTab == AppDestination.Recurring.index || selectedTab == AppDestination.Categories.index,
+                      onClick = {
+                        isMoreOpen = true
+                        isSettingsOpen = false
+                        isAnalyticsOpen = false
+                      },
+                      icon = {
+                        Icon(
+                          imageVector = Icons.Default.MoreHoriz,
+                          contentDescription = "More",
+                          modifier = Modifier.size(22.dp)
+                        )
+                      },
+                      label = { Text("More", maxLines = 1, softWrap = false) },
+                      colors = NavigationBarItemDefaults.colors(
+                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
+                      ),
+                      modifier = Modifier.testTag("nav_more")
+                    )
                   }
                 }
               },
-              floatingActionButton = {
-                if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
-                  FloatingActionButton(
-                    onClick = {
-                      editingTransaction = null
-                      prefilledDateTimestamp = null
-                      prefilledTxType = null
-                      showAddEditTransactionSheet = true
-                    },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White,
-                    shape = CircleShape,
-                    elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                    modifier = Modifier.testTag("global_add_transaction_fab")
-                  ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
-                  }
-                }
-              }
+              floatingActionButton = { }
             ) { innerPadding ->
               Box(
                 modifier = Modifier
@@ -1060,7 +1156,17 @@ fun MainAppScreen(
                   selectedTab = selectedTab,
                   isSettingsOpen = isSettingsOpen,
                   isAnalyticsOpen = isAnalyticsOpen,
+                  isMoreOpen = isMoreOpen,
                   onBackFromAnalytics = { isAnalyticsOpen = false },
+                  onBackFromMore = { isMoreOpen = false },
+                  onOpenMoreDestination = { destination ->
+                    isMoreOpen = false
+                    isAnalyticsOpen = false
+                    isSettingsOpen = false
+                    selectedTab = destination
+                  },
+                  onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
+                  onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                   onBackFromSettings = { isSettingsOpen = false },
                   viewModel = viewModel,
                   dashboardCalendar = dashboardCalendar,
@@ -1094,7 +1200,7 @@ fun MainAppScreen(
                     editingRecurringRule = rule
                     showAddEditRecurringSheet = true
                   },
-                  onOpenExportModal = { showExportModal = true }
+                  onOpenExportModal = { isMoreOpen = false; showExportModal = true }
                 )
               }
             }
@@ -1131,7 +1237,12 @@ private fun MainScreenContent(
   selectedTab: Int,
   isSettingsOpen: Boolean,
   isAnalyticsOpen: Boolean,
+  isMoreOpen: Boolean,
   onBackFromAnalytics: () -> Unit,
+  onBackFromMore: () -> Unit,
+  onOpenMoreDestination: (Int) -> Unit,
+  onOpenMoreAnalytics: () -> Unit,
+  onOpenMoreSettings: () -> Unit,
   onBackFromSettings: () -> Unit,
   viewModel: FinanceViewModel,
   dashboardCalendar: java.util.Calendar,
@@ -1153,6 +1264,16 @@ private fun MainScreenContent(
   } else if (isAnalyticsOpen) {
     BackHandler { onBackFromAnalytics() }
     AnalyticsScreen(viewModel = viewModel)
+  } else if (isMoreOpen) {
+    BackHandler { onBackFromMore() }
+    MoreScreen(
+      onOpenCalendar = { onOpenMoreDestination(2) },
+      onOpenRecurring = { onOpenMoreDestination(4) },
+      onOpenAnalytics = onOpenMoreAnalytics,
+      onOpenCategories = { onOpenMoreDestination(5) },
+      onOpenExport = onOpenExportModal,
+      onOpenSettings = onOpenMoreSettings
+    )
   } else {
     when (selectedTab) {
       0 -> DashboardScreen(
@@ -1188,6 +1309,7 @@ private fun MainScreenContent(
         onOpenAddRecurringRule = onOpenAddRecurringRule,
         onEditRecurringRule = onEditRecurringRule
       )
+      5 -> CategoriesScreen(viewModel = viewModel)
     }
   }
 }
