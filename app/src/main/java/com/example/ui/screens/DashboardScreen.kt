@@ -759,11 +759,12 @@ private fun DailyNetSparkline(
   }
   val positive = activePoints.any { it.net > 0.0 }
   val lineColor = if (positive) IncomeGreen else ExpenseRed
+  val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
 
   Canvas(modifier = modifier) {
     if (activePoints.isEmpty()) {
       drawLine(
-        color = MaterialTheme.colorScheme.outlineVariant,
+        color = baselineColor,
         start = Offset(0f, size.height / 2f),
         end = Offset(size.width, size.height / 2f),
         strokeWidth = 2.dp.toPx(),
@@ -782,7 +783,7 @@ private fun DailyNetSparkline(
 
       val zeroY = size.height - (((0.0 - minValue) / range).toFloat() * (size.height - 6.dp.toPx())) - 3.dp.toPx()
       drawLine(
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f),
+        color = baselineColor,
         start = Offset(0f, zeroY),
         end = Offset(size.width, zeroY),
         strokeWidth = 1.dp.toPx()
