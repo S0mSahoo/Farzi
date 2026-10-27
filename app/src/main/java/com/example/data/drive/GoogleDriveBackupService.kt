@@ -372,7 +372,7 @@ class GoogleDriveBackupService(private val context: Context) {
         metadataBody
       )
       .addPart(
-        Headers.headersOf("Content-Type", "application/json; charset=UTF-8"),
+        Headers.Builder().add("Content-Type", "application/json; charset=UTF-8").build(),
         mediaBody
       )
       .build()
