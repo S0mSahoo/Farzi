@@ -1445,24 +1445,46 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  fun signOut(onComplete: () -> Unit) {
+  fun signOut(onComplete: (Boolean) -> Unit) {
     viewModelScope.launch {
       syncMutex.withLock {
         val wasGuest = isGuestSession()
+        val account = if (wasGuest) null else driveService.getLastSignedInAccount()
+
+        // Do not discard local data until an authenticated account's cloud state has been
+        // checked and the latest local snapshot has been persisted successfully.
+        if (account != null) {
+          val reconciled = pullFromDriveAndMerge(account)
+          if (!reconciled) {
+            _syncErrorMessage.value = _syncErrorMessage.value
+              ?: "Sign-out stopped because the latest backup could not be verified. Local data was kept."
+            onComplete(false)
+            return@withLock
+          }
+          try {
+            syncCurrentStateToDriveLocked(account)
+          } catch (e: Exception) {
+            _syncErrorMessage.value = "Sign-out stopped because the latest backup failed: ${e.localizedMessage ?: "unknown error"}. Local data was kept."
+            onComplete(false)
+            return@withLock
+          }
+        }
+
         val signedOut = driveService.signOut()
         if (!signedOut) {
           _syncErrorMessage.value = "Could not complete Google sign-out. Local data was left untouched."
-          onComplete()
+          onComplete(false)
           return@withLock
         }
-        // Guest records are local-only and must survive leaving guest mode.
-        if (!wasGuest) repository.clearLocalCache()
+
+        // Keep local-only data for guests or sessions that never connected Google Drive.
+        if (!wasGuest && account != null) repository.clearLocalCache()
         repository.clearUserProfile()
         _userProfile.value = UserProfile()
         _googleDriveState.value = GoogleDriveState.NotConnected
         _lastSyncTimestamp.value = null
         _syncErrorMessage.value = null
-        onComplete()
+        onComplete(true)
       }
     }
   }
