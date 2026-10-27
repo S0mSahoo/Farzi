@@ -1,6 +1,13 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +49,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Star
@@ -65,7 +73,10 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -78,11 +89,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
@@ -133,6 +147,30 @@ fun SettingsScreen(
   var recoveryPassphraseInput by remember { mutableStateOf("") }
   var recoveryPassphraseConfirm by remember { mutableStateOf("") }
   var recoveryPassphraseError by remember { mutableStateOf<String?>(null) }
+
+  var notificationsAllowed by remember { mutableStateOf(hasNotificationAccess(context)) }
+  val notificationPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { granted ->
+    notificationsAllowed = hasNotificationAccess(context)
+    Toast.makeText(
+      context,
+      if (notificationsAllowed) "Payment reminders are enabled"
+      else if (granted) "Notifications are disabled in Android Settings"
+      else "Permission not granted. You can enable notifications in Android Settings.",
+      Toast.LENGTH_LONG
+    ).show()
+  }
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        notificationsAllowed = hasNotificationAccess(context)
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -1064,6 +1102,66 @@ fun SettingsScreen(
                 )
               }
             )
+            HorizontalDivider(
+              modifier = Modifier.padding(horizontal = 16.dp),
+              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+            )
+            SettingsRow(
+              icon = Icons.Default.Notifications,
+              iconTint = MaterialTheme.colorScheme.primary,
+              iconBg = MaterialTheme.colorScheme.primaryContainer,
+              title = "Payment Reminders",
+              subtitle = if (notificationsAllowed) {
+                "Notifications are enabled for scheduled bills"
+              } else {
+                "Enable notifications to receive payment due reminders"
+              },
+              action = {
+                OutlinedButton(
+                  onClick = {
+                    val runtimePermissionMissing =
+                      Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                          context,
+                          Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    val permissionPrefs = context.getSharedPreferences(
+                      "paisa_permissions",
+                      Context.MODE_PRIVATE
+                    )
+                    val alreadyAsked = permissionPrefs.getBoolean("notification_permission_requested", false)
+                    if (runtimePermissionMissing && !alreadyAsked) {
+                      permissionPrefs.edit().putBoolean("notification_permission_requested", true).apply()
+                      notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                      try {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(
+                            Settings.EXTRA_APP_PACKAGE,
+                            context.packageName
+                          )
+                        } else {
+                          Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                          )
+                        }
+                        context.startActivity(intent)
+                      } catch (_: Exception) {
+                        Toast.makeText(
+                          context,
+                          "Open Paisa's notification settings in Android Settings.",
+                          Toast.LENGTH_LONG
+                        ).show()
+                      }
+                    }
+                  },
+                  shape = RoundedCornerShape(14.dp)
+                ) {
+                  Text(if (notificationsAllowed) "Manage" else "Enable")
+                }
+              }
+            )
           }
         }
       }
@@ -1374,6 +1472,15 @@ private fun SettingsRow(
 
     action()
   }
+}
+
+private fun hasNotificationAccess(context: Context): Boolean {
+  val runtimePermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+    ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.POST_NOTIFICATIONS
+    ) == PackageManager.PERMISSION_GRANTED
+  return runtimePermissionGranted && NotificationManagerCompat.from(context).areNotificationsEnabled()
 }
 
 private fun formatLastSync(timestamp: Long?): String {
