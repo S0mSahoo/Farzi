@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Repeat
@@ -248,7 +249,7 @@ private fun MoreActionRow(
                 )
             }
             Icon(
-                imageVector = androidx.compose.material.icons.Icons.Default.ArrowForwardIos,
+                imageVector = Icons.Default.ChevronRight,
                 contentDescription = "Open $title",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(14.dp)
