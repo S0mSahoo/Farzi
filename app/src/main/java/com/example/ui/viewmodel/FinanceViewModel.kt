@@ -1345,42 +1345,45 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       syncMutex.withLock {
         _isSyncing.value = true
-        val original = repository.getAllLocalData()
+        var original: com.example.data.model.LocalDataDump? = null
         try {
-          repository.clearAllData()
-          // Explicitly clear the linked cloud snapshot as well, if this is an account session.
-          // If that upload fails, restore the local tables so stale Drive data cannot silently
-          // reappear after the user has been told that everything was erased.
-          val account = if (isGuestSession()) null else driveService.getLastSignedInAccount()
-          if (account != null) {
-            try {
-              syncCurrentStateToDriveLocked(account)
-            } catch (e: Exception) {
-              repository.replaceCacheWithCloudData(
-                transactions = original.transactions,
-                budgets = original.budgets,
-                recurringRules = original.recurringRules,
-                paidOccurrences = original.paidOccurrences
-              )
-              _syncErrorMessage.value = "Could not clear the Google Drive backup; local records were restored. ${e.localizedMessage ?: "Sync failed"}"
-              onComplete(false)
-              return@withLock
-            }
+          original = repository.getAllLocalData()
+          val wasGuest = isGuestSession()
+          val account = if (wasGuest) null else driveService.getLastSignedInAccount()
+
+          if (!wasGuest && !_userProfile.value.googleId.isNullOrBlank() && account == null) {
+            _syncErrorMessage.value = "Google account is unavailable. Financial records were kept; reconnect to verify the backup before erasing."
+            onComplete(false)
+            return@withLock
           }
+          if (account != null && !isActiveGoogleAccount(account)) {
+            _syncErrorMessage.value = accountMismatchMessage()
+            onComplete(false)
+            return@withLock
+          }
+
+          repository.clearAllData()
+          // An explicit full erase replaces the connected account's snapshot with an empty one.
+          // If the upload fails, restore local data so stale Drive data cannot silently return.
+          if (account != null) syncCurrentStateToDriveLocked(account)
+          if (wasGuest) repository.setGuestDataMode(false)
+          _lastSyncTimestamp.value = null
           _syncErrorMessage.value = null
           onComplete(true)
         } catch (e: Exception) {
           try {
-            repository.replaceCacheWithCloudData(
-              transactions = original.transactions,
-              budgets = original.budgets,
-              recurringRules = original.recurringRules,
-              paidOccurrences = original.paidOccurrences
-            )
+            original?.let { dump ->
+              repository.replaceCacheWithCloudData(
+                transactions = dump.transactions,
+                budgets = dump.budgets,
+                recurringRules = dump.recurringRules,
+                paidOccurrences = dump.paidOccurrences
+              )
+            }
           } catch (_: Exception) {
-            // Preserve the original failure message; the next local export is still available.
+            // Report the original error; a JSON export should still be attempted before retrying.
           }
-          _syncErrorMessage.value = "Could not clear financial data safely. ${e.localizedMessage ?: "Unknown error"}"
+          _syncErrorMessage.value = "Could not clear financial data safely. Existing records were restored when possible. ${e.localizedMessage ?: "Unknown error"}"
           onComplete(false)
         } finally {
           _isSyncing.value = false
