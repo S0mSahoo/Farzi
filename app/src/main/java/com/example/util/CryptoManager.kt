@@ -6,10 +6,9 @@ import java.security.KeyStore
 import java.security.SecureRandom
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
+import javax.crypto.Mac
 import javax.crypto.SecretKey
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -40,26 +39,64 @@ object CryptoManager {
    * Legacy key derivation retained exclusively to decrypt backups created by older app versions.
    * A Google account identifier is not a secret and must not protect newly written backups.
    */
-  fun deriveKey(userIdentifier: String, salt: ByteArray): SecretKey {
-    val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-    val spec = PBEKeySpec(userIdentifier.toCharArray(), salt, PBKDF2_ITERATIONS, KEY_LENGTH)
-    return try {
-      val tmp = factory.generateSecret(spec)
-      SecretKeySpec(tmp.encoded, "AES")
-    } finally {
-      spec.clearPassword()
-    }
-  }
+  fun deriveKey(userIdentifier: String, salt: ByteArray): SecretKey =
+    derivePbkdf2HmacSha256(userIdentifier, salt, PBKDF2_ITERATIONS)
 
   private fun deriveRecoveryKey(passphrase: String, salt: ByteArray): SecretKey {
     require(passphrase.length >= 12) { "Recovery passphrase must contain at least 12 characters." }
-    val factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
-    val spec = PBEKeySpec(passphrase.toCharArray(), salt, RECOVERY_PBKDF2_ITERATIONS, KEY_LENGTH)
-    return try {
-      val tmp = factory.generateSecret(spec)
-      SecretKeySpec(tmp.encoded, "AES")
+    return derivePbkdf2HmacSha256(passphrase, salt, RECOVERY_PBKDF2_ITERATIONS)
+  }
+
+  /**
+   * PBKDF2-HMAC-SHA256 implemented using Mac (supported from API 23) rather than
+   * SecretKeyFactory("PBKDF2WithHmacSHA256", which Android only provides from API 26.
+   * UTF-8 password bytes match Android's PBKDF2WithHmacSHA256 implementation and preserve
+   * compatibility with keys produced by earlier Paisa versions on API 26+.
+   */
+  private fun derivePbkdf2HmacSha256(passphrase: String, salt: ByteArray, iterations: Int): SecretKey {
+    require(iterations > 0) { "PBKDF2 iteration count must be positive." }
+    val passwordBytes = passphrase.toByteArray(Charsets.UTF_8)
+    val mac = Mac.getInstance("HmacSHA256")
+    mac.init(SecretKeySpec(passwordBytes, "HmacSHA256"))
+
+    val hashLength = mac.macLength
+    val keyLengthBytes = KEY_LENGTH / 8
+    val blockCount = (keyLengthBytes + hashLength - 1) / hashLength
+    val saltAndCounter = ByteArray(salt.size + 4)
+    System.arraycopy(salt, 0, saltAndCounter, 0, salt.size)
+    val derivedBytes = ByteArray(keyLengthBytes)
+
+    try {
+      var offset = 0
+      for (blockIndex in 1..blockCount) {
+        saltAndCounter[salt.size] = (blockIndex ushr 24).toByte()
+        saltAndCounter[salt.size + 1] = (blockIndex ushr 16).toByte()
+        saltAndCounter[salt.size + 2] = (blockIndex ushr 8).toByte()
+        saltAndCounter[salt.size + 3] = blockIndex.toByte()
+
+        var u = mac.doFinal(saltAndCounter)
+        val block = u.clone()
+        for (iteration in 1 until iterations) {
+          val nextU = mac.doFinal(u)
+          u.fill(0)
+          u = nextU
+          for (index in block.indices) {
+            block[index] = (block[index].toInt() xor u[index].toInt()).toByte()
+          }
+        }
+
+        val copyLength = minOf(hashLength, keyLengthBytes - offset)
+        System.arraycopy(block, 0, derivedBytes, offset, copyLength)
+        offset += copyLength
+        u.fill(0)
+        block.fill(0)
+      }
+      return SecretKeySpec(derivedBytes, "AES")
     } finally {
-      spec.clearPassword()
+      passwordBytes.fill(0)
+      saltAndCounter.fill(0)
+      derivedBytes.fill(0)
+      mac.reset()
     }
   }
 
