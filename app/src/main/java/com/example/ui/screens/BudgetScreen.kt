@@ -148,7 +148,7 @@ fun BudgetScreen(
 
       item {
         if (currentBudget == null || currentBudget.totalBudget <= 0.0) {
-          PremiumCard(containerColor = MaterialTheme.colorScheme.surface) {
+          PremiumCard(containerColor = com.example.ui.theme.resolveCardSurfaceColor()) {
             PremiumEmptyState(
               title = "Build your first monthly plan",
               body = "Set an overall limit, add category caps, and get a clearer view of what is left.",

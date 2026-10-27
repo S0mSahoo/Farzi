@@ -255,7 +255,7 @@ fun TransactionsScreen(
                   color = when {
                     isSelected -> MaterialTheme.colorScheme.primary
                     hasTxOnDay -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    else -> MaterialTheme.colorScheme.surface
+                    else -> com.example.ui.theme.resolveCardSurfaceColor()
                   },
                   border = androidx.compose.foundation.BorderStroke(
                     1.dp,

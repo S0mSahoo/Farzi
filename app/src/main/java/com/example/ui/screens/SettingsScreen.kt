@@ -646,7 +646,7 @@ fun SettingsScreen(
       SettingsSection(title = "Google Account") {
         Card(
           shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -741,7 +741,7 @@ fun SettingsScreen(
       SettingsSection(title = "Cloud Synchronization") {
         Card(
           shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -979,7 +979,7 @@ fun SettingsScreen(
       SettingsSection(title = "Regional & Display") {
         Card(
           shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -1059,7 +1059,7 @@ fun SettingsScreen(
       SettingsSection(title = "Security & Privacy") {
         Card(
           shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
         ) {
@@ -1184,7 +1184,7 @@ fun SettingsScreen(
       SettingsSection(title = "Data & Reports") {
         Card(
           shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
           elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
           modifier = Modifier.fillMaxWidth()
         ) {

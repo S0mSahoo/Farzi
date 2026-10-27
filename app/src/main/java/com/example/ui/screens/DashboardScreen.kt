@@ -544,7 +544,7 @@ private fun PremiumQuickAction(
     onClick = onClick,
     modifier = modifier,
     shape = RoundedCornerShape(18.dp),
-    color = MaterialTheme.colorScheme.surface,
+    color = com.example.ui.theme.resolveCardSurfaceColor(),
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
   ) {
     Column(

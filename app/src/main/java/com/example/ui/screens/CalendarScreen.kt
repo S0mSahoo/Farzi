@@ -250,7 +250,7 @@ fun CalendarScreen(
                         val fill = when {
                           selected -> MaterialTheme.colorScheme.primary
                           day.isToday -> MaterialTheme.colorScheme.primaryContainer
-                          else -> MaterialTheme.colorScheme.surface
+                          else -> com.example.ui.theme.resolveCardSurfaceColor()
                         }
                         val content = when {
                           selected -> Color.White
