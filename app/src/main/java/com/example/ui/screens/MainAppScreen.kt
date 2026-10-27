@@ -147,18 +147,36 @@ fun MainAppScreen(
   val activeBudgetMonthKey = targetBudgetMonthKey ?: DateUtils.getMonthKey(budgetCalendar)
   val activeBudgetMonthLabel = targetBudgetMonthLabel ?: DateUtils.getMonthLabel(budgetCalendar)
   val currentBudget = allBudgets.find { it.monthKey == activeBudgetMonthKey }
+  val isGuestSession = userProfile.email.equals("guest@paisa.local", ignoreCase = true) &&
+    userProfile.googleId.isNullOrBlank()
 
   if (showSignOutDialog) {
     ConfirmationDialog(
-      title = "Sign Out from Google Account?",
-      message = "Signing out will end your session and clear local device cache. Your financial data is securely preserved on Google Drive and will reload when you sign in again.",
-      confirmButtonText = "Sign Out",
+      title = if (isGuestSession) "Leave Guest Mode?" else "Sign Out from Google Account?",
+      message = if (isGuestSession) {
+        "Your guest financial records will remain on this device and will not be uploaded to Google Drive."
+      } else {
+        "Paisa will verify and save your latest backup before clearing the local cache. If verification or upload fails, your local records will be kept and sign-out will be stopped."
+      },
+      confirmButtonText = if (isGuestSession) "Leave Guest Mode" else "Sign Out",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
-        viewModel.signOut {
-          Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+        viewModel.signOut { success ->
+          if (success) {
+            Toast.makeText(
+              context,
+              if (isGuestSession) "Guest mode closed. Local records were kept." else "Signed out successfully",
+              Toast.LENGTH_SHORT
+            ).show()
+            showSignOutDialog = false
+          } else {
+            Toast.makeText(
+              context,
+              viewModel.syncErrorMessage.value ?: "Sign-out failed. Local records were kept.",
+              Toast.LENGTH_LONG
+            ).show()
+          }
         }
-        showSignOutDialog = false
       },
       onDismiss = { showSignOutDialog = false }
     )
@@ -411,7 +429,7 @@ fun MainAppScreen(
         ) {
           Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(modifier = Modifier.width(8.dp))
-          Text("Sign Out of Account", fontWeight = FontWeight.Bold)
+          Text(if (isGuestSession) "Leave Guest Mode" else "Sign Out of Account", fontWeight = FontWeight.Bold)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
