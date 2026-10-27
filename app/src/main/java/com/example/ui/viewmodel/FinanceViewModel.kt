@@ -44,6 +44,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -54,6 +56,7 @@ import java.util.Locale
 class FinanceViewModel(application: Application) : AndroidViewModel(application) {
   private val repository = FinanceRepository(application.applicationContext)
   val driveService = GoogleDriveBackupService(application.applicationContext)
+  private val syncMutex = Mutex()
 
   // Google Drive Real State Flow
   private val _googleDriveState = MutableStateFlow<GoogleDriveState>(GoogleDriveState.NotConnected)
@@ -76,12 +79,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _driveConsentIntent.value = null
   }
 
-  init {
-    initGoogleDriveState()
-    checkAndAutoSync()
-  }
-
   private fun initGoogleDriveState() {
+    if (isGuestSession()) {
+      _googleDriveState.value = GoogleDriveState.NotConnected
+      return
+    }
     val account = driveService.getLastSignedInAccount()
     val savedEmail = driveService.getSavedEmail()
     val lastBackup = driveService.getLastBackupTimestamp()
@@ -116,6 +118,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   private var lastAutoSyncCheckTime = 0L
   var lastStopTime: Long = 0L
 
+  private fun isGuestSession(): Boolean {
+    val profile = _userProfile.value
+    return profile.email.equals("guest@paisa.local", ignoreCase = true) && profile.googleId.isNullOrBlank()
+  }
+
   private fun checkAndAutoSync() {
     triggerAutoSyncOnResume(force = true)
   }
@@ -125,23 +132,46 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
    * Throttled to avoid excessive calls within 30 seconds.
    */
   fun triggerAutoSyncOnResume(force: Boolean = false) {
+    if (isGuestSession()) return
     val now = System.currentTimeMillis()
-    if (!force && (now - lastAutoSyncCheckTime < 30_000L)) {
-      return
-    }
-    if (_isSyncing.value) return
+    if (!force && (now - lastAutoSyncCheckTime < 30_000L)) return
     lastAutoSyncCheckTime = now
 
     viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount()
-      if (account != null && account.email != null) {
+      syncMutex.withLock {
+        if (isGuestSession()) return@withLock
+        val account = driveService.getLastSignedInAccount()
+        if (account != null && account.email != null) {
+          _isSyncing.value = true
+          _syncErrorMessage.value = null
+          try {
+            pullFromDriveAndMerge(account)
+            if (!isGuestSession()) repository.processDueRecurringRules()
+          } catch (e: Exception) {
+            _syncErrorMessage.value = e.localizedMessage ?: "Sync error"
+          } finally {
+            _isSyncing.value = false
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Uploads local changes serially. In guest mode the Drive account is intentionally ignored.
+   */
+  fun syncCurrentStateToDrive() {
+    if (isGuestSession()) return
+    viewModelScope.launch {
+      syncMutex.withLock {
+        if (isGuestSession()) return@withLock
+        val account = driveService.getLastSignedInAccount() ?: return@withLock
         _isSyncing.value = true
         _syncErrorMessage.value = null
         try {
-          pullFromDriveAndMerge(account)
-          repository.processDueRecurringRules()
+          syncCurrentStateToDriveLocked(account)
         } catch (e: Exception) {
-          _syncErrorMessage.value = e.localizedMessage ?: "Sync error"
+          _syncErrorMessage.value = "Offline: Changes saved locally; sync will retry when reconnected. " + (e.localizedMessage ?: "")
         } finally {
           _isSyncing.value = false
         }
@@ -149,76 +179,81 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  /**
-   * Persists the current local state to Google Drive automatically in background.
-   */
-  fun syncCurrentStateToDrive() {
-    if (_isSyncing.value) return
-    viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount() ?: return@launch
-      _isSyncing.value = true
-      _syncErrorMessage.value = null
-      try {
-        val dump = repository.getAllLocalData()
-        val payload = com.example.data.drive.BackupPayload(
-          version = "4.0.0",
-          exportTimestamp = System.currentTimeMillis(),
-          userProfile = _userProfile.value,
-          transactions = dump.transactions,
-          budgets = dump.budgets,
-          recurringRules = dump.recurringRules,
-          paidOccurrences = dump.paidOccurrences
-        )
-        val ts = driveService.saveCloudData(account, payload)
-        _lastSyncTimestamp.value = ts
-        _googleDriveState.value = GoogleDriveState.BackupSuccess(
-          email = account.email ?: "Google Drive",
-          timestampMillis = ts
-        )
-      } catch (e: Exception) {
-        _syncErrorMessage.value = "Offline: Changes saved locally and will sync when reconnected."
-      } finally {
-        _isSyncing.value = false
-      }
-    }
+  /** Caller must hold syncMutex. */
+  private suspend fun syncCurrentStateToDriveLocked(account: GoogleSignInAccount) {
+    val dump = repository.getAllLocalData()
+    val payload = com.example.data.drive.BackupPayload(
+      version = "5.0.0",
+      exportTimestamp = System.currentTimeMillis(),
+      userProfile = _userProfile.value,
+      transactions = dump.transactions,
+      budgets = dump.budgets,
+      recurringRules = dump.recurringRules,
+      paidOccurrences = dump.paidOccurrences
+    )
+    val ts = driveService.saveCloudData(account, payload)
+    _lastSyncTimestamp.value = ts
+    _googleDriveState.value = GoogleDriveState.BackupSuccess(
+      email = account.email ?: "Google Drive",
+      timestampMillis = ts
+    )
   }
 
   private suspend fun pullFromDriveAndMerge(account: GoogleSignInAccount): Boolean {
     _syncErrorMessage.value = null
     return try {
       val cloudPayload = driveService.fetchCloudData(account)
+      // A user may have switched to guest mode while the network request was in flight.
+      if (isGuestSession()) return false
       _driveConsentIntent.value = null
       if (cloudPayload != null) {
-        // Cloud has existing authoritative data
-        repository.replaceCacheWithCloudData(
-          transactions = cloudPayload.transactions,
-          budgets = cloudPayload.budgets,
-          recurringRules = cloudPayload.recurringRules,
-          paidOccurrences = cloudPayload.paidOccurrences
-        )
+        val local = repository.getAllLocalData()
+        val localHasRecords = local.transactions.isNotEmpty() ||
+          local.budgets.isNotEmpty() ||
+          local.recurringRules.isNotEmpty() ||
+          local.paidOccurrences.isNotEmpty()
+        val cloudHasRecords = cloudPayload.transactions.isNotEmpty() ||
+          cloudPayload.budgets.isNotEmpty() ||
+          cloudPayload.recurringRules.isNotEmpty() ||
+          cloudPayload.paidOccurrences.isNotEmpty()
+
+        if (localHasRecords && cloudHasRecords) {
+          val snapshotsMatch =
+            local.transactions == cloudPayload.transactions &&
+              local.budgets == cloudPayload.budgets &&
+              local.recurringRules == cloudPayload.recurringRules &&
+              local.paidOccurrences == cloudPayload.paidOccurrences
+          if (!snapshotsMatch) {
+            val message = "Local and Google Drive backups both contain financial records and differ. Automatic sync was stopped to prevent data loss. Export a JSON backup before resolving the conflict."
+            _syncErrorMessage.value = message
+            _googleDriveState.value = GoogleDriveState.BackupFailed(
+              email = account.email,
+              errorMessage = "Local/cloud data conflict"
+            )
+            return false
+          }
+          // Identical snapshots: leave Room untouched.
+        } else if (localHasRecords && !cloudHasRecords) {
+          // Repair an empty cloud backup; never replace valuable local records with emptiness.
+          syncCurrentStateToDriveLocked(account)
+          return true
+        } else {
+          // Local store is empty, so restoring this cloud snapshot cannot delete local records.
+          repository.replaceCacheWithCloudData(
+            transactions = cloudPayload.transactions,
+            budgets = cloudPayload.budgets,
+            recurringRules = cloudPayload.recurringRules,
+            paidOccurrences = cloudPayload.paidOccurrences
+          )
+        }
         _lastSyncTimestamp.value = cloudPayload.exportTimestamp
         _googleDriveState.value = GoogleDriveState.Connected(
           email = account.email ?: "Google Drive",
           lastBackupTimestampMillis = cloudPayload.exportTimestamp
         )
       } else {
-        // Cloud has no data yet: migrate existing local database data to Drive
-        val dump = repository.getAllLocalData()
-        val payload = com.example.data.drive.BackupPayload(
-          version = "4.0.0",
-          exportTimestamp = System.currentTimeMillis(),
-          userProfile = _userProfile.value,
-          transactions = dump.transactions,
-          budgets = dump.budgets,
-          recurringRules = dump.recurringRules,
-          paidOccurrences = dump.paidOccurrences
-        )
-        val ts = driveService.saveCloudData(account, payload)
-        _lastSyncTimestamp.value = ts
-        _googleDriveState.value = GoogleDriveState.Connected(
-          email = account.email ?: "Google Drive",
-          lastBackupTimestampMillis = ts
-        )
+        // No cloud backup exists yet: first upload the local state.
+        syncCurrentStateToDriveLocked(account)
       }
       true
     } catch (e: ConsentRequiredException) {
@@ -266,6 +301,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   // User Profile
   private val _userProfile = MutableStateFlow(repository.getUserProfile())
   val userProfile: StateFlow<UserProfile> = _userProfile.asStateFlow()
+
+  // _userProfile must be initialized before Drive state checks read it.
+  init {
+    initGoogleDriveState()
+    checkAndAutoSync()
+  }
 
   // All Transactions from DB
   val allTransactions: StateFlow<List<TransactionItem>> = repository.allTransactions.stateIn(
@@ -1270,9 +1311,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun clearAllData(onComplete: () -> Unit) {
     viewModelScope.launch {
-      repository.clearAllTransactions()
-      syncCurrentStateToDrive()
-      onComplete()
+      syncMutex.withLock {
+        _isSyncing.value = true
+        try {
+          repository.clearAllData()
+          // An authenticated user's cloud backup is also cleared. Guest records remain local-only.
+          val account = if (isGuestSession()) null else driveService.getLastSignedInAccount()
+          if (account != null) {
+            try {
+              syncCurrentStateToDriveLocked(account)
+            } catch (e: Exception) {
+              _syncErrorMessage.value = "Local data was cleared, but Google Drive could not be updated: " + (e.localizedMessage ?: "sync failed")
+            }
+          } else {
+            _lastSyncTimestamp.value = null
+          }
+        } finally {
+          _isSyncing.value = false
+          onComplete()
+        }
+      }
     }
   }
 
@@ -1287,39 +1345,37 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val email = account.email ?: ""
     val name = account.displayName ?: email.substringBefore("@").ifBlank { "User" }
     val photo = account.photoUrl?.toString()
-    val id = account.id
-
     val profile = UserProfile(
       name = name,
       email = email,
       photoUrl = photo,
-      googleId = id,
+      googleId = account.id,
       hasCompletedOnboarding = true
     )
-    _userProfile.value = profile
-    repository.saveUserProfile(profile)
-
-    driveService.saveConnectedEmail(email)
 
     viewModelScope.launch {
-      if (_isSyncing.value) return@launch
-      _isSyncing.value = true
-      _googleDriveState.value = GoogleDriveState.Connecting
-      _syncErrorMessage.value = null
-      try {
-        val success = pullFromDriveAndMerge(account)
-        repository.processDueRecurringRules()
-        if (success) {
-          onResult?.invoke(true, null)
-        } else {
-          onResult?.invoke(false, _syncErrorMessage.value)
+      syncMutex.withLock {
+        _userProfile.value = profile
+        repository.saveUserProfile(profile)
+        driveService.saveConnectedEmail(email)
+        _isSyncing.value = true
+        _googleDriveState.value = GoogleDriveState.Connecting
+        _syncErrorMessage.value = null
+        try {
+          val success = pullFromDriveAndMerge(account)
+          if (success) {
+            repository.processDueRecurringRules()
+            onResult?.invoke(true, null)
+          } else {
+            onResult?.invoke(false, _syncErrorMessage.value)
+          }
+        } catch (e: Exception) {
+          val msg = e.localizedMessage ?: "Sign-in sync failed"
+          _syncErrorMessage.value = msg
+          onResult?.invoke(false, msg)
+        } finally {
+          _isSyncing.value = false
         }
-      } catch (e: Exception) {
-        val msg = e.localizedMessage ?: "Sign-in sync failed"
-        _syncErrorMessage.value = msg
-        onResult?.invoke(false, msg)
-      } finally {
-        _isSyncing.value = false
       }
     }
   }
@@ -1330,8 +1386,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       email = "guest@paisa.local",
       hasCompletedOnboarding = true
     )
+    // Flip the guard immediately so an in-flight sync cannot upload guest data.
     _userProfile.value = profile
     repository.saveUserProfile(profile)
+    _googleDriveState.value = GoogleDriveState.NotConnected
+    viewModelScope.launch {
+      syncMutex.withLock {
+        // Disconnect a previously cached Google session; guest mode never uses Drive.
+        driveService.signOut()
+        _lastSyncTimestamp.value = null
+      }
+    }
   }
 
   fun onDriveSignInFailure(errorMessage: String) {
@@ -1344,60 +1409,63 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   fun syncNow(onSuccessMessage: (String) -> Unit, onErrorMessage: (String) -> Unit) {
-    if (_isSyncing.value) return
+    if (isGuestSession()) {
+      onErrorMessage("Google Drive backup is unavailable in guest mode.")
+      return
+    }
     viewModelScope.launch {
-      val account = driveService.getLastSignedInAccount()
-      if (account == null) {
-        onErrorMessage("Not signed in to Google Drive")
-        return@launch
-      }
-      _isSyncing.value = true
-      _googleDriveState.value = GoogleDriveState.BackingUp
-      _syncErrorMessage.value = null
-      try {
-        val success = pullFromDriveAndMerge(account)
-        if (success) {
-          val dump = repository.getAllLocalData()
-          val payload = com.example.data.drive.BackupPayload(
-            version = "4.0.0",
-            exportTimestamp = System.currentTimeMillis(),
-            userProfile = _userProfile.value,
-            transactions = dump.transactions,
-            budgets = dump.budgets,
-            recurringRules = dump.recurringRules,
-            paidOccurrences = dump.paidOccurrences
-          )
-          val ts = driveService.saveCloudData(account, payload)
-          _lastSyncTimestamp.value = ts
-          _googleDriveState.value = GoogleDriveState.BackupSuccess(
-            email = account.email ?: "Google Drive",
-            timestampMillis = ts
-          )
-          onSuccessMessage("Successfully synchronized with Google Drive")
-        } else {
-          val msg = _syncErrorMessage.value ?: "Failed to connect to Google Drive"
-          onErrorMessage(msg)
+      syncMutex.withLock {
+        if (isGuestSession()) {
+          onErrorMessage("Google Drive backup is unavailable in guest mode.")
+          return@withLock
         }
-      } catch (e: Exception) {
-        val msg = e.localizedMessage ?: "Sync error"
-        _syncErrorMessage.value = msg
-        _googleDriveState.value = GoogleDriveState.BackupFailed(email = account.email, errorMessage = msg)
-        onErrorMessage(msg)
-      } finally {
-        _isSyncing.value = false
+        val account = driveService.getLastSignedInAccount()
+        if (account == null) {
+          onErrorMessage("Not signed in to Google Drive")
+          return@withLock
+        }
+        _isSyncing.value = true
+        _googleDriveState.value = GoogleDriveState.BackingUp
+        _syncErrorMessage.value = null
+        try {
+          val success = pullFromDriveAndMerge(account)
+          if (success) {
+            syncCurrentStateToDriveLocked(account)
+            onSuccessMessage("Successfully synchronized with Google Drive")
+          } else {
+            onErrorMessage(_syncErrorMessage.value ?: "Sync stopped to protect local data.")
+          }
+        } catch (e: Exception) {
+          val msg = e.localizedMessage ?: "Sync error"
+          _syncErrorMessage.value = msg
+          _googleDriveState.value = GoogleDriveState.BackupFailed(email = account.email, errorMessage = msg)
+          onErrorMessage(msg)
+        } finally {
+          _isSyncing.value = false
+        }
       }
     }
   }
 
   fun signOut(onComplete: () -> Unit) {
     viewModelScope.launch {
-      driveService.signOut()
-      repository.clearLocalCache()
-      repository.clearUserProfile()
-      _userProfile.value = UserProfile()
-      _googleDriveState.value = GoogleDriveState.NotConnected
-      _lastSyncTimestamp.value = null
-      onComplete()
+      syncMutex.withLock {
+        val wasGuest = isGuestSession()
+        val signedOut = driveService.signOut()
+        if (!signedOut) {
+          _syncErrorMessage.value = "Could not complete Google sign-out. Local data was left untouched."
+          onComplete()
+          return@withLock
+        }
+        // Guest records are local-only and must survive leaving guest mode.
+        if (!wasGuest) repository.clearLocalCache()
+        repository.clearUserProfile()
+        _userProfile.value = UserProfile()
+        _googleDriveState.value = GoogleDriveState.NotConnected
+        _lastSyncTimestamp.value = null
+        _syncErrorMessage.value = null
+        onComplete()
+      }
     }
   }
 
