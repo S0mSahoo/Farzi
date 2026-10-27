@@ -211,12 +211,12 @@ private fun importLegacyTransactionsIfNeeded(context: Context, target: SupportSQ
       if (!alreadyImported) {
         // Deduplicate only against rows which existed before this import. Do not deduplicate
         // repeated legacy rows against one another; two identical entries may be real purchases.
-        val existingSignatures = hashSetOf<String>()
+        val existingCounts = mutableMapOf<String, Int>()
         target.query(
           "SELECT title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt FROM transactions"
         ).use { cursor ->
           while (cursor.moveToNext()) {
-            existingSignatures += legacyTransactionSignature(
+            val signature = legacyTransactionSignature(
               title = cursor.getString(0),
               amount = cursor.getDouble(1),
               type = cursor.getString(2),
@@ -227,6 +227,7 @@ private fun importLegacyTransactionsIfNeeded(context: Context, target: SupportSQ
               isRecurring = cursor.getInt(7) != 0,
               createdAt = cursor.getLong(8)
             )
+            existingCounts[signature] = (existingCounts[signature] ?: 0) + 1
           }
         }
 
@@ -244,9 +245,12 @@ private fun importLegacyTransactionsIfNeeded(context: Context, target: SupportSQ
             val paymentMethod = cursor.getString(6)
             val isRecurring = cursor.getInt(7) != 0
             val createdAt = cursor.getLong(8)
-            if (legacyTransactionSignature(
-                title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt
-              ) in existingSignatures) {
+            val signature = legacyTransactionSignature(
+              title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt
+            )
+            val priorCopies = existingCounts[signature] ?: 0
+            if (priorCopies > 0) {
+              existingCounts[signature] = priorCopies - 1
               continue
             }
 
