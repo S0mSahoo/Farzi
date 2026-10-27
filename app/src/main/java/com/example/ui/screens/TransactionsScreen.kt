@@ -190,8 +190,12 @@ fun TransactionsScreen(
               Text(
                 text = "Select Month & Date",
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
               )
+              Spacer(Modifier.width(8.dp))
               PremiumMonthNavigator(
                 label = monthLabel,
                 onPrevious = {

@@ -292,22 +292,26 @@ private fun BudgetHeroCard(
   val spent = summary.totalExpense.coerceAtLeast(0.0)
   val used = if (limit > 0.0) (spent / limit).toFloat().coerceIn(0f, 1f) else 0f
   val remaining = limit - spent
+  val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
   Surface(
     shape = RoundedCornerShape(28.dp),
     color = Color.Transparent,
-    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+    border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
     modifier = Modifier
       .fillMaxWidth()
       .background(
         brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-          colors = listOf(
-            Color(0xFF6D28D9),
-            Color(0xFF4C1D95)
-          )
+          colors = if (isLight) {
+            listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+          } else {
+            listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+          }
         ),
         shape = RoundedCornerShape(28.dp)
       )
   ) {
+    val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+    val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
     Column(
       modifier = Modifier.padding(22.dp),
       verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -318,43 +322,43 @@ private fun BudgetHeroCard(
         verticalAlignment = Alignment.Top
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-          Text("MONTHLY SPENDING LIMIT", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-          Text(IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol), style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.Bold)
+          Text("MONTHLY SPENDING LIMIT", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+          Text(IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol), style = MaterialTheme.typography.headlineMedium, color = textColor, fontWeight = FontWeight.Bold)
         }
         Row {
           IconButton(onClick = onEdit) {
-            Icon(Icons.Default.Edit, contentDescription = "Edit budget", tint = Color.White)
+            Icon(Icons.Default.Edit, contentDescription = "Edit budget", tint = textColor)
           }
           IconButton(onClick = onDelete) {
-            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete budget", tint = Color.White.copy(alpha = 0.85f))
+            Icon(Icons.Default.DeleteOutline, contentDescription = "Delete budget", tint = subTextColor)
           }
         }
       }
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         com.example.ui.components.PremiumProgressTrack(
           progress = used,
-          color = if (used >= 0.9f) Color(0xFFF87171) else Color(0xFF34D399),
-          trackColor = Color.White.copy(alpha = 0.16f),
+          color = if (used >= 0.9f) ExpenseRed else IncomeGreen,
+          trackColor = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.16f),
           height = 10.dp
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-          Text("${(used * 100).toInt()}% used", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.78f))
+          Text("${(used * 100).toInt()}% used", style = MaterialTheme.typography.labelMedium, color = subTextColor)
           Text(
             text = if (remaining >= 0) "${IndianCurrencyFormatter.formatWithSymbol(remaining, currencySymbol)} remaining"
               else "${IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(remaining), currencySymbol)} over",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            color = if (remaining >= 0) Color(0xFF34D399) else Color(0xFFF87171)
+            color = if (remaining >= 0) IncomeGreen else ExpenseRed
           )
         }
       }
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text("Spent", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f))
-          Text(IndianCurrencyFormatter.formatCompact(spent, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color.White)
+          Text("Spent", style = MaterialTheme.typography.labelMedium, color = subTextColor)
+          Text(IndianCurrencyFormatter.formatCompact(spent, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-          Text("Daily guide", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f))
+          Text("Daily guide", style = MaterialTheme.typography.labelMedium, color = subTextColor)
           val now = Calendar.getInstance()
           val isCurrentMonth = now.get(Calendar.YEAR) == selectedCalendar.get(Calendar.YEAR) &&
             now.get(Calendar.MONTH) == selectedCalendar.get(Calendar.MONTH)
@@ -362,7 +366,7 @@ private fun BudgetHeroCard(
           val days = selectedCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
           val remainingDays = (days - dayInPlan + 1).coerceAtLeast(1)
           val daily = (limit - spent).coerceAtLeast(0.0) / remainingDays
-          Text(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
+          Text(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = IncomeGreen)
         }
       }
     }

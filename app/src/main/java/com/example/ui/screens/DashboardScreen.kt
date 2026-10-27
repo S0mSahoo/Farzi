@@ -207,32 +207,38 @@ fun DashboardScreen(
           )
         }
 
-        if (maxWidth < 560.dp) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
           Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
           ) {
-            greetingBlock()
-            Column(
-              modifier = Modifier.fillMaxWidth(),
-              verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              periodSwitcher()
-              periodNavigator()
-            }
+            Text(
+              text = "$greeting, $firstName",
+              style = MaterialTheme.typography.titleLarge,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onBackground,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
+            Text(
+              text = "Here is your overall financial dashboard.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
           }
-        } else {
+          Spacer(Modifier.width(8.dp))
           Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
           ) {
-            Column(modifier = Modifier.weight(1f)) { greetingBlock() }
-            Spacer(Modifier.width(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-              periodSwitcher()
-              periodNavigator()
-            }
+            periodSwitcher()
+            periodNavigator()
           }
         }
       }

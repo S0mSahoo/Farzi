@@ -163,53 +163,57 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
       if (!isAnnualView) {
         item {
+          val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
           Surface(
             shape = RoundedCornerShape(28.dp),
             color = Color.Transparent,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
             modifier = Modifier
               .fillMaxWidth()
               .background(
                 brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                  colors = listOf(
-                    Color(0xFF6D28D9),
-                    Color(0xFF4C1D95)
-                  )
+                  colors = if (isLight) {
+                    listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                  } else {
+                    listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                  }
                 ),
                 shape = RoundedCornerShape(28.dp)
               )
           ) {
+            val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+            val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
             Column(modifier = Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
-              Text("NET CASH FLOW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text("NET CASH FLOW", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
               Text(
                 IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = textColor
               )
               Text(
                 if (monthlySummary.totalIncome > 0) "${String.format(java.util.Locale.getDefault(), "%.1f", monthlySummary.savingsRate)}% of recorded income retained"
                 else "Add income to see your savings rate.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.72f)
+                color = subTextColor
               )
               Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
+                  Text("Income", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = IncomeGreen, fontWeight = FontWeight.Bold)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
+                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
               }
               com.example.ui.components.PremiumTrendChart(
                 points = dailyTrend,
-                lineColor = Color(0xFFC084FC),
-                trackColor = Color.White.copy(alpha = 0.15f),
+                lineColor = if (isLight) Color(0xFF8B5CF6) else Color(0xFFC084FC),
+                trackColor = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f),
                 height = 92.dp
               )
-              Text("Daily spending trend", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
+              Text("Daily spending trend", style = MaterialTheme.typography.labelSmall, color = subTextColor)
             }
           }
         }

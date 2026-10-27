@@ -137,37 +137,41 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         }
       }
       item {
+        val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
         Surface(
           shape = RoundedCornerShape(28.dp),
           color = Color.Transparent,
-          border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
           modifier = Modifier
             .fillMaxWidth()
             .background(
               brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = listOf(
-                  Color(0xFF6D28D9),
-                  Color(0xFF4C1D95)
-                )
+                colors = if (isLight) {
+                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                } else {
+                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                }
               ),
               shape = RoundedCornerShape(28.dp)
             )
         ) {
+          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
           Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-              Text(if (selectedType == TransactionType.EXPENSE) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-              Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
-              Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
+              Text(if (selectedType == TransactionType.EXPENSE) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
+              Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
             }
-            Surface(shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.15f)) {
+            Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
               Text(
                 if (selectedType == TransactionType.EXPENSE) "OUT" else "IN",
                 modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                color = Color.White,
+                color = textColor,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
               )
