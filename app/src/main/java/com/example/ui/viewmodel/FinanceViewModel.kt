@@ -1529,6 +1529,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val wasGuest = isGuestSession()
         val account = if (wasGuest) null else driveService.getLastSignedInAccount()
 
+        if (!wasGuest && !_userProfile.value.googleId.isNullOrBlank() && account == null) {
+          _syncErrorMessage.value = "Google account is unavailable. Local records were kept; reconnect to verify the backup before signing out."
+          onComplete(false)
+          return@withLock
+        }
+        if (!wasGuest && account != null && !isActiveGoogleAccount(account)) {
+          _syncErrorMessage.value = accountMismatchMessage()
+          onComplete(false)
+          return@withLock
+        }
+
         // Do not discard local data until an authenticated account's cloud state has been
         // checked and the latest local snapshot has been persisted successfully.
         if (account != null) {
@@ -1555,8 +1566,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           return@withLock
         }
 
-        // Keep local-only data for guests or sessions that never connected Google Drive.
-        if (!wasGuest && account != null) repository.clearLocalCache()
+        // Authenticated records are removed only after successful verification and upload.
+        if (!wasGuest && account != null) {
+          repository.clearLocalCache()
+          repository.setGuestDataMode(false)
+        } else if (!wasGuest) {
+          // If there are records without a verifiable Google account, retain them as isolated
+          // local-only data. A future sign-in must not upload them implicitly.
+          val dump = repository.getAllLocalData()
+          val hasLocalData = dump.transactions.isNotEmpty() || dump.budgets.isNotEmpty() ||
+            dump.recurringRules.isNotEmpty() || dump.paidOccurrences.isNotEmpty()
+          if (hasLocalData) repository.setGuestDataMode(true)
+        }
         repository.clearUserProfile()
         _userProfile.value = UserProfile()
         _googleDriveState.value = GoogleDriveState.NotConnected
