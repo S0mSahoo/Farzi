@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -122,7 +123,7 @@ fun PremiumPageHeader(
   androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
     val titleBlock: @Composable () -> Unit = {
       Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().testTag("premium_page_header_title"),
         verticalArrangement = Arrangement.spacedBy(3.dp)
       ) {
         Text(
