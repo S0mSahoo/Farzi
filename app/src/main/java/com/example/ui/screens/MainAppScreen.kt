@@ -1332,7 +1332,8 @@ private fun MainScreenContent(
             DateUtils.getMonthKey(dashboardCalendar),
             DateUtils.getMonthLabel(dashboardCalendar)
           )
-        }
+        },
+        onOpenAllTransactions = { onOpenMoreDestination(1) }
       )
       1 -> TransactionsScreen(
         viewModel = viewModel,
