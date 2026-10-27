@@ -85,32 +85,24 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       return
     }
     val account = driveService.getLastSignedInAccount()
-    val savedEmail = driveService.getSavedEmail()
     val lastBackup = driveService.getLastBackupTimestamp()
 
-    if (account != null && account.email != null) {
-      _googleDriveState.value = GoogleDriveState.Connected(
-        email = account.email ?: savedEmail ?: "Connected",
-        lastBackupTimestampMillis = lastBackup
-      )
-      val currentProfile = repository.getUserProfile()
-      if (currentProfile.email.isBlank() || currentProfile.googleId == null) {
-        val updated = currentProfile.copy(
-          name = account.displayName ?: currentProfile.name.ifBlank { "User" },
-          email = account.email ?: "",
-          photoUrl = account.photoUrl?.toString(),
-          googleId = account.id,
-          hasCompletedOnboarding = true
+    if (account != null && !account.email.isNullOrBlank()) {
+      if (isActiveGoogleAccount(account)) {
+        _googleDriveState.value = GoogleDriveState.Connected(
+          email = account.email!!,
+          lastBackupTimestampMillis = lastBackup
         )
-        _userProfile.value = updated
-        repository.saveUserProfile(updated)
+      } else {
+        // Never infer profile ownership from a cached Google session. The user must explicitly
+        // sign in, and any existing unbound local records remain local-only.
+        _googleDriveState.value = GoogleDriveState.BackupFailed(
+          email = account.email,
+          errorMessage = "Cached Google account does not match the active Paisa profile"
+        )
       }
-    } else if (!savedEmail.isNullOrBlank()) {
-      _googleDriveState.value = GoogleDriveState.Connected(
-        email = savedEmail,
-        lastBackupTimestampMillis = lastBackup
-      )
     } else {
+      // A remembered email is informational only, not proof that Drive is authenticated.
       _googleDriveState.value = GoogleDriveState.NotConnected
     }
   }
@@ -1000,10 +992,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   fun refreshDriveStorageQuota() {
+    if (isGuestSession()) {
+      _driveStorageQuota.value = null
+      return
+    }
     viewModelScope.launch {
       val account = driveService.getLastSignedInAccount() ?: return@launch
+      if (!isActiveGoogleAccount(account)) return@launch
       val quota = driveService.fetchStorageQuota(account)
-      _driveStorageQuota.value = quota
+      // Do not display quota from a previous account after a session change.
+      if (isActiveGoogleAccount(account)) _driveStorageQuota.value = quota
     }
   }
 
@@ -1625,12 +1623,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
   fun resetDriveStateToConnected() {
+    if (isGuestSession()) {
+      _googleDriveState.value = GoogleDriveState.NotConnected
+      return
+    }
     val account = driveService.getLastSignedInAccount()
-    val savedEmail = driveService.getSavedEmail()
     val lastBackup = driveService.getLastBackupTimestamp()
-    if (account != null || !savedEmail.isNullOrBlank()) {
+    if (account != null && isActiveGoogleAccount(account)) {
       _googleDriveState.value = GoogleDriveState.Connected(
-        email = account?.email ?: savedEmail ?: "Google Drive",
+        email = account.email ?: "Google Drive",
         lastBackupTimestampMillis = lastBackup
       )
     } else {
