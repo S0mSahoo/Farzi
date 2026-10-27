@@ -61,7 +61,7 @@ import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
-import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
@@ -129,21 +129,17 @@ fun RecurringScreen(
       verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
       item {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          com.example.ui.components.PremiumSectionHeading(
-            title = "Recurring",
-            subtitle = "Bills, subscriptions and regular payments."
-          )
-          androidx.compose.material3.FilledTonalButton(onClick = onOpenAddRecurringRule) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(6.dp))
-            Text("Add rule")
+        PremiumPageHeader(
+          title = "Recurring",
+          subtitle = "Bills, subscriptions and regular payments.",
+          trailing = {
+            androidx.compose.material3.FilledTonalButton(onClick = onOpenAddRecurringRule) {
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+              Spacer(Modifier.width(6.dp))
+              Text("Add rule")
+            }
           }
-        }
+        )
       }
 
       item {
