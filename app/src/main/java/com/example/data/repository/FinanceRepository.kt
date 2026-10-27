@@ -381,6 +381,13 @@ class FinanceRepository(private val context: Context) {
 
   // ================= User Profile & Preferences =================
 
+  /** Persistent guard so clearing the UI profile cannot accidentally expose guest data to Drive. */
+  fun isGuestDataMode(): Boolean = prefs.getBoolean("paisa_guest_data_mode", false)
+
+  fun setGuestDataMode(enabled: Boolean) {
+    prefs.edit().putBoolean("paisa_guest_data_mode", enabled).apply()
+  }
+
   fun getUserProfile(): UserProfile {
     val name = prefs.getString("user_name", "") ?: ""
     val email = prefs.getString("user_email", "") ?: ""
