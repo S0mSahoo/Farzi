@@ -394,10 +394,20 @@ abstract class AppDatabase : RoomDatabase() {
         // When the old filename still exists alongside the active DB, import its transactions
         // once after Room has migrated/validated the current database schema.
         if (context.getDatabasePath("dailydraft_database").exists()) {
-          importLegacyTransactionsIfNeeded(
-            context.applicationContext,
-            instance.openHelper.writableDatabase
-          )
+          try {
+            importLegacyTransactionsIfNeeded(
+              context.applicationContext,
+              instance.openHelper.writableDatabase
+            )
+          } catch (e: Exception) {
+            // The current database remains usable and the legacy file is retained for recovery.
+            // Do not crash a user out of the app if an old file needs manual repair.
+            Log.e(
+              "PaisaDatabase",
+              "Could not import the legacy database; the original file was retained.",
+              e
+            )
+          }
         }
 
         INSTANCE = instance
