@@ -162,20 +162,15 @@ fun DashboardScreen(
       verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
       item {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(3.dp)
-          ) {
+        val greetingBlock: @Composable () -> Unit = {
+          Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
               text = "$greeting, $firstName",
               style = MaterialTheme.typography.headlineSmall,
               fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onBackground
+              color = MaterialTheme.colorScheme.onBackground,
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis
             )
             Text(
               text = "Here is your money at a glance.",
@@ -183,12 +178,33 @@ fun DashboardScreen(
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
+        }
+        val monthNavigator: @Composable () -> Unit = {
           com.example.ui.components.PremiumMonthNavigator(
             label = summary.monthLabel,
             onPrevious = { viewModel.previousDashboardMonth() },
             onNext = { viewModel.nextDashboardMonth() },
             onPick = { showMonthPicker = true }
           )
+        }
+        if (maxWidth < 460.dp) {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            greetingBlock()
+            monthNavigator()
+          }
+        } else {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) { greetingBlock() }
+            Spacer(Modifier.width(12.dp))
+            monthNavigator()
+          }
         }
       }
 
@@ -352,7 +368,7 @@ fun DashboardScreen(
               modifier = Modifier.weight(1.15f)
             )
             PremiumCategoryOverview(
-              categories = categorySpending.take(4),
+              categories = categorySpending.filter { it.amount > 0.0 }.take(4),
               currencySymbol = currencySymbol,
               onCategoryClick = { viewModel.selectCategoryForDetail(it) },
               modifier = Modifier.weight(1f)
@@ -371,7 +387,7 @@ fun DashboardScreen(
         if (categorySpending.isNotEmpty()) {
           item {
             PremiumCategoryOverview(
-              categories = categorySpending.take(4),
+              categories = categorySpending.filter { it.amount > 0.0 }.take(4),
               currencySymbol = currencySymbol,
               onCategoryClick = { viewModel.selectCategoryForDetail(it) }
             )
@@ -389,8 +405,12 @@ fun DashboardScreen(
         item {
           com.example.ui.components.PremiumCard {
             com.example.ui.components.PremiumEmptyState(
-              title = "A fresh start",
-              body = "Add your first transaction and your monthly picture will take shape.",
+              title = if (allTransactions.isEmpty()) "A fresh start" else "No activity this month",
+              body = if (allTransactions.isEmpty()) {
+                "Add your first transaction and your monthly picture will take shape."
+              } else {
+                "There are no entries for ${summary.monthLabel}. Choose another month or add a transaction for this period."
+              },
               action = {
                 androidx.compose.material3.FilledTonalButton(onClick = { onOpenAddTransaction(null) }) {
                   Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
