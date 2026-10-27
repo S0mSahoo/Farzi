@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,6 +57,18 @@ private val ForestInk = Color(0xFF163D2B)
 private val ForestDeep = Color(0xFF102C20)
 private val LimeGlow = Color(0xFFD4EF75)
 private val SoftSage = Color(0xFFE6EEE4)
+
+/**
+ * Chooses a foreground for filled category chips with the stronger contrast against that
+ * category's accent. This keeps light amber/sky accents readable without muting their identity.
+ */
+fun premiumContrastForeground(backgroundColor: Color): Color {
+  val luminance = backgroundColor.luminance()
+  val whiteContrast = 1.05f / (luminance + 0.05f)
+  val darkInk = Color(0xFF0B1410)
+  val darkContrast = (luminance + 0.05f) / (darkInk.luminance() + 0.05f)
+  return if (darkContrast >= whiteContrast) darkInk else Color.White
+}
 
 @Composable
 fun PremiumSectionHeading(
