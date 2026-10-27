@@ -23,6 +23,7 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Headers
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -331,7 +332,7 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   private fun findExistingBackupFileId(accessToken: String): String? {
-    val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&fields=files(id,name)"
+    val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&orderBy=modifiedTime%20desc&pageSize=10&fields=files(id,name,modifiedTime)"
     val request = Request.Builder()
       .url(url)
       .header("Authorization", "Bearer $accessToken")
@@ -366,8 +367,14 @@ class GoogleDriveBackupService(private val context: Context) {
 
     val requestBody = MultipartBody.Builder()
       .setType("multipart/related".toMediaType())
-      .addPart(metadataBody)
-      .addPart(mediaBody)
+      .addPart(
+        Headers.headersOf("Content-Type", "application/json; charset=UTF-8"),
+        metadataBody
+      )
+      .addPart(
+        Headers.headersOf("Content-Type", "application/json; charset=UTF-8"),
+        mediaBody
+      )
       .build()
 
     val request = Request.Builder()
