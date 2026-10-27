@@ -137,7 +137,22 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         }
       }
       item {
-        Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF163D2B), modifier = Modifier.fillMaxWidth()) {
+        Surface(
+          shape = RoundedCornerShape(28.dp),
+          color = Color.Transparent,
+          border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(
+              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = listOf(
+                  Color(0xFF6D28D9),
+                  Color(0xFF4C1D95)
+                )
+              ),
+              shape = RoundedCornerShape(28.dp)
+            )
+        ) {
           Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -148,11 +163,11 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
               Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Color.White)
               Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
             }
-            Surface(shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.10f)) {
+            Surface(shape = RoundedCornerShape(16.dp), color = Color.White.copy(alpha = 0.15f)) {
               Text(
                 if (selectedType == TransactionType.EXPENSE) "OUT" else "IN",
                 modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                color = Color(0xFFD4EF75),
+                color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
               )

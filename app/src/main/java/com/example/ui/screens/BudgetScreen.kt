@@ -294,8 +294,19 @@ private fun BudgetHeroCard(
   val remaining = limit - spent
   Surface(
     shape = RoundedCornerShape(28.dp),
-    color = Color(0xFF163D2B),
-    modifier = Modifier.fillMaxWidth()
+    color = Color.Transparent,
+    border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+    modifier = Modifier
+      .fillMaxWidth()
+      .background(
+        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+          colors = listOf(
+            Color(0xFF6D28D9),
+            Color(0xFF4C1D95)
+          )
+        ),
+        shape = RoundedCornerShape(28.dp)
+      )
   ) {
     Column(
       modifier = Modifier.padding(22.dp),
@@ -322,7 +333,7 @@ private fun BudgetHeroCard(
       Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         com.example.ui.components.PremiumProgressTrack(
           progress = used,
-          color = if (used >= 0.9f) Color(0xFFFFB5A9) else Color(0xFFD4EF75),
+          color = if (used >= 0.9f) Color(0xFFF87171) else Color(0xFF34D399),
           trackColor = Color.White.copy(alpha = 0.16f),
           height = 10.dp
         )
@@ -333,7 +344,7 @@ private fun BudgetHeroCard(
               else "${IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(remaining), currencySymbol)} over",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
-            color = if (remaining >= 0) Color(0xFFD4EF75) else Color(0xFFFFB5A9)
+            color = if (remaining >= 0) Color(0xFF34D399) else Color(0xFFF87171)
           )
         }
       }
@@ -351,7 +362,7 @@ private fun BudgetHeroCard(
           val days = selectedCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
           val remainingDays = (days - dayInPlan + 1).coerceAtLeast(1)
           val daily = (limit - spent).coerceAtLeast(0.0) / remainingDays
-          Text(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFFD4EF75))
+          Text(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = Color(0xFF34D399))
         }
       }
     }

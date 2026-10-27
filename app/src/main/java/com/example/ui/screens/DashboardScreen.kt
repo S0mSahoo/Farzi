@@ -1,9 +1,7 @@
 package com.example.ui.screens
 
-import androidx.compose.ui.unit.sp
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,27 +26,17 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,30 +45,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
-import com.example.ui.components.DateUtils
-import com.example.ui.theme.ExpenseRed
-import com.example.ui.theme.IncomeGreen
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.CategorySpending
-import com.example.data.model.DailySpendingPoint
-import com.example.data.model.MonthlyFinancialSummary as MonthlySummary
-import com.example.data.model.TransactionType
 import com.example.data.model.TransactionItem
-import com.example.data.model.YearlyFinancialSummary as YearlySummary
-import com.example.ui.components.BudgetProgressBar
+import com.example.data.model.TransactionType
 import com.example.ui.components.CategoryDetailSheet
+import com.example.ui.components.CategorySpendingBreakdown
+import com.example.ui.components.DateUtils
 import com.example.ui.components.IncomeExpenseComparisonBar
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
+import com.example.ui.components.PremiumCard
+import com.example.ui.components.PremiumEmptyState
+import com.example.ui.components.PremiumMonthNavigator
+import com.example.ui.components.PremiumProgressTrack
+import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumTransactionRow
+import com.example.ui.components.PremiumTrendChart
 import com.example.ui.components.YearPickerDialog
-import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 
@@ -96,35 +82,40 @@ fun DashboardScreen(
 ) {
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
-  val summary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
+  val monthlySummary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
+  val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
   val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
   val dailyTrend by viewModel.dashboardDailyTrend.collectAsStateWithLifecycle()
   val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val allBudgets by viewModel.allBudgets.collectAsStateWithLifecycle()
 
+  var isAnnualView by remember { mutableStateOf(false) }
   var showMonthPicker by remember { mutableStateOf(false) }
+  var showYearPicker by remember { mutableStateOf(false) }
+
   val currencySymbol = userProfile.currencySymbol
-  val currentMonthKey = com.example.ui.components.DateUtils.getMonthKey(selectedCalendar)
+  val currentMonthKey = DateUtils.getMonthKey(selectedCalendar)
+  val currentYear = selectedCalendar.get(Calendar.YEAR)
   val currentBudget = remember(allBudgets, currentMonthKey) {
     allBudgets.firstOrNull { it.monthKey == currentMonthKey }
   }
   val recentTransactions = remember(allTransactions, selectedCalendar) {
-    val start = com.example.ui.components.DateUtils.getStartOfMonth(selectedCalendar)
-    val end = com.example.ui.components.DateUtils.getEndOfMonth(selectedCalendar)
+    val start = DateUtils.getStartOfMonth(selectedCalendar)
+    val end = DateUtils.getEndOfMonth(selectedCalendar)
     allTransactions.filter { it.timestamp in start..end }
       .sortedByDescending { it.timestamp }
       .take(5)
   }
   val firstName = userProfile.name.trim().substringBefore(" ").ifBlank { "there" }
-  val greeting = when (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) {
+  val greeting = when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
     in 5..11 -> "Good morning"
     in 12..16 -> "Good afternoon"
     else -> "Good evening"
   }
 
   selectedCategoryDetail?.let { detail ->
-    com.example.ui.components.CategoryDetailSheet(
+    CategoryDetailSheet(
       detail = detail,
       currencySymbol = currencySymbol,
       onDismiss = { viewModel.clearSelectedCategoryDetail() }
@@ -132,12 +123,23 @@ fun DashboardScreen(
   }
 
   if (showMonthPicker) {
-    com.example.ui.components.MonthYearPickerDialog(
+    MonthYearPickerDialog(
       currentCalendar = selectedCalendar,
       onDismiss = { showMonthPicker = false },
       onMonthYearSelected = { year, month ->
         viewModel.setDashboardMonthAndYear(year, month)
         showMonthPicker = false
+      }
+    )
+  }
+
+  if (showYearPicker) {
+    YearPickerDialog(
+      currentYear = currentYear,
+      onDismiss = { showYearPicker = false },
+      onYearSelected = { year ->
+        viewModel.setDashboardYear(year)
+        showYearPicker = false
       }
     )
   }
@@ -174,27 +176,50 @@ fun DashboardScreen(
               overflow = TextOverflow.Ellipsis
             )
             Text(
-              text = "Here is your money at a glance.",
+              text = "Here is your overall financial dashboard & insights.",
               style = MaterialTheme.typography.bodyMedium,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
-        val monthNavigator: @Composable () -> Unit = {
-          com.example.ui.components.PremiumMonthNavigator(
-            label = summary.monthLabel,
-            onPrevious = { viewModel.previousDashboardMonth() },
-            onNext = { viewModel.nextDashboardMonth() },
-            onPick = { showMonthPicker = true }
+
+        val periodSwitcher: @Composable () -> Unit = {
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(
+              selected = !isAnnualView,
+              onClick = { isAnnualView = false },
+              label = { Text("Monthly", fontWeight = FontWeight.Bold) }
+            )
+            FilterChip(
+              selected = isAnnualView,
+              onClick = { isAnnualView = true },
+              label = { Text("Yearly", fontWeight = FontWeight.Bold) }
+            )
+          }
+        }
+
+        val periodNavigator: @Composable () -> Unit = {
+          PremiumMonthNavigator(
+            label = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel,
+            onPrevious = { if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth() },
+            onNext = { if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth() },
+            onPick = { if (isAnnualView) showYearPicker = true else showMonthPicker = true }
           )
         }
-        if (maxWidth < 460.dp) {
+
+        if (maxWidth < 560.dp) {
           Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
           ) {
             greetingBlock()
-            monthNavigator()
+            Column(
+              modifier = Modifier.fillMaxWidth(),
+              verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              periodSwitcher()
+              periodNavigator()
+            }
           }
         } else {
           Row(
@@ -204,15 +229,25 @@ fun DashboardScreen(
           ) {
             Column(modifier = Modifier.weight(1f)) { greetingBlock() }
             Spacer(Modifier.width(12.dp))
-            monthNavigator()
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+              periodSwitcher()
+              periodNavigator()
+            }
           }
         }
       }
 
+      // Net Cash Flow Hero Card
       item {
+        val displaySavings = if (isAnnualView) yearlySummary.savings else monthlySummary.savings
+        val displayIncome = if (isAnnualView) yearlySummary.totalIncome else monthlySummary.totalIncome
+        val displayExpense = if (isAnnualView) yearlySummary.totalExpense else monthlySummary.totalExpense
+        val displayRate = if (isAnnualView) yearlySummary.savingsRate else monthlySummary.savingsRate
+
         Surface(
           shape = RoundedCornerShape(28.dp),
-          color = Color(0xFF163D2B),
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.92f),
+          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)),
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(
@@ -226,61 +261,63 @@ fun DashboardScreen(
             ) {
               Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(
-                  text = "NET CASH FLOW",
+                  text = if (isAnnualView) "ANNUAL NET SAVINGS" else "NET CASH FLOW",
                   style = MaterialTheme.typography.labelMedium,
-                  color = Color.White.copy(alpha = 0.72f),
-                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                  fontWeight = FontWeight.Bold,
                   letterSpacing = 1.2.sp
                 )
                 Text(
-                  text = com.example.ui.components.IndianCurrencyFormatter.formatWithSymbol(
-                    summary.savings,
+                  text = IndianCurrencyFormatter.formatWithSymbol(
+                    displaySavings,
                     currencySymbol,
                     includeSign = true
                   ),
                   style = MaterialTheme.typography.headlineLarge,
                   fontWeight = FontWeight.Bold,
-                  color = Color.White,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer,
                   maxLines = 1,
                   softWrap = false,
                   overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                  text = if (summary.totalIncome > 0.0 && summary.savingsRate < 0.0) {
-                    "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(summary.savingsRate).coerceAtMost(999.0))}%"
-                  } else if (summary.totalIncome > 0.0) {
-                    "${String.format(java.util.Locale.getDefault(), "%.1f", summary.savingsRate.coerceAtMost(999.0))}% of recorded income retained"
+                  text = if (displayIncome > 0.0 && displayRate < 0.0) {
+                    "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(displayRate).coerceAtMost(999.0))}%"
+                  } else if (displayIncome > 0.0) {
+                    "${String.format(java.util.Locale.getDefault(), "%.1f", displayRate.coerceAtMost(999.0))}% of recorded income retained"
                   } else {
                     "Income and spending, in one clear picture"
                   },
                   style = MaterialTheme.typography.bodySmall,
-                  color = Color.White.copy(alpha = 0.72f)
+                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                 )
               }
               Surface(
                 shape = RoundedCornerShape(16.dp),
-                color = Color.White.copy(alpha = 0.10f)
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
               ) {
                 Icon(
                   imageVector = Icons.Default.TrendingUp,
                   contentDescription = null,
-                  tint = Color(0xFFD4EF75),
+                  tint = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(12.dp).size(22.dp)
                 )
               }
             }
 
-            com.example.ui.components.PremiumTrendChart(
-              points = dailyTrend,
-              lineColor = Color(0xFFD4EF75),
-              trackColor = Color.White.copy(alpha = 0.16f),
-              height = if (wide) 104.dp else 76.dp
-            )
-            Text(
-              "Daily spending trend",
-              style = MaterialTheme.typography.labelSmall,
-              color = Color.White.copy(alpha = 0.64f)
-            )
+            if (!isAnnualView) {
+              PremiumTrendChart(
+                points = dailyTrend,
+                lineColor = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                height = if (wide) 104.dp else 76.dp
+              )
+              Text(
+                "Daily spending trend",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+              )
+            }
 
             Row(
               modifier = Modifier.fillMaxWidth(),
@@ -291,32 +328,32 @@ fun DashboardScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = Color(0xFFD4EF75), modifier = Modifier.size(15.dp))
-                  Text("Income", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f))
+                  Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                  Text("Total Income", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
                 }
                 Text(
-                  text = com.example.ui.components.IndianCurrencyFormatter.formatCompact(summary.totalIncome, currencySymbol),
+                  text = IndianCurrencyFormatter.formatCompact(displayIncome, currencySymbol),
                   style = MaterialTheme.typography.titleMedium,
                   fontWeight = FontWeight.Bold,
-                  color = Color.White,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer,
                   maxLines = 1,
                   softWrap = false
                 )
               }
-              Box(Modifier.width(1.dp).height(42.dp).background(Color.White.copy(alpha = 0.18f)))
+              Box(Modifier.width(1.dp).height(42.dp).background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)))
               Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
               ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFFFFB5A9), modifier = Modifier.size(15.dp))
-                  Text("Spent", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f))
+                  Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(15.dp))
+                  Text("Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
                 }
                 Text(
-                  text = com.example.ui.components.IndianCurrencyFormatter.formatCompact(summary.totalExpense, currencySymbol),
+                  text = IndianCurrencyFormatter.formatCompact(displayExpense, currencySymbol),
                   style = MaterialTheme.typography.titleMedium,
                   fontWeight = FontWeight.Bold,
-                  color = Color.White,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer,
                   maxLines = 1,
                   softWrap = false
                 )
@@ -326,6 +363,7 @@ fun DashboardScreen(
         }
       }
 
+      // Quick Actions
       item {
         Row(
           modifier = Modifier.fillMaxWidth(),
@@ -334,14 +372,14 @@ fun DashboardScreen(
           PremiumQuickAction(
             label = "Add expense",
             icon = Icons.Default.ArrowUpward,
-            color = Color(0xFFD64A46),
+            color = Color(0xFFF43F5E),
             modifier = Modifier.weight(1f),
             onClick = { onOpenAddTransaction(TransactionType.EXPENSE) }
           )
           PremiumQuickAction(
             label = "Add income",
             icon = Icons.Default.ArrowDownward,
-            color = Color(0xFF17845C),
+            color = Color(0xFF10B981),
             modifier = Modifier.weight(1f),
             onClick = { onOpenAddTransaction(TransactionType.INCOME) }
           )
@@ -355,6 +393,18 @@ fun DashboardScreen(
         }
       }
 
+      // Income vs Expense Comparison Bar
+      item {
+        val income = if (isAnnualView) yearlySummary.totalIncome else monthlySummary.totalIncome
+        val expense = if (isAnnualView) yearlySummary.totalExpense else monthlySummary.totalExpense
+        IncomeExpenseComparisonBar(
+          income = income,
+          expense = expense,
+          currencySymbol = currencySymbol
+        )
+      }
+
+      // Budget & Category Overview Cards
       if (wide) {
         item {
           Row(
@@ -362,7 +412,7 @@ fun DashboardScreen(
             horizontalArrangement = Arrangement.spacedBy(14.dp)
           ) {
             PremiumBudgetOverview(
-              summary = summary,
+              summary = monthlySummary,
               currencySymbol = currencySymbol,
               hasBudget = currentBudget != null,
               onOpenSetBudget = onOpenSetBudget,
@@ -379,46 +429,58 @@ fun DashboardScreen(
       } else {
         item {
           PremiumBudgetOverview(
-            summary = summary,
+            summary = monthlySummary,
             currencySymbol = currencySymbol,
             hasBudget = currentBudget != null,
             onOpenSetBudget = onOpenSetBudget
           )
         }
-        if (categorySpending.isNotEmpty()) {
-          item {
-            PremiumCategoryOverview(
-              categories = categorySpending.filter { it.amount > 0.0 }.take(4),
+      }
+
+      // Full Category Spending Analytics Breakdown
+      item {
+        PremiumCard {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+          ) {
+            PremiumSectionHeading(
+              title = "Spending Analytics & Categories",
+              subtitle = if (isAnnualView) "Category distribution for $currentYear" else "Category distribution for ${monthlySummary.monthLabel}"
+            )
+            CategorySpendingBreakdown(
+              categories = categorySpending,
               currencySymbol = currencySymbol,
-              onCategoryClick = { viewModel.selectCategoryForDetail(it) }
+              onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
             )
           }
         }
       }
 
+      // Recent Activity
       item {
-        com.example.ui.components.PremiumSectionHeading(
+        PremiumSectionHeading(
           title = "Recent activity",
-          subtitle = "Your latest entries for ${summary.monthLabel}",
+          subtitle = "Your latest entries for ${monthlySummary.monthLabel}",
           trailing = {
             TextButton(onClick = onOpenAllTransactions) {
-              Text("See all", fontWeight = FontWeight.SemiBold)
+              Text("See all", fontWeight = FontWeight.Bold)
             }
           }
         )
       }
       if (recentTransactions.isEmpty()) {
         item {
-          com.example.ui.components.PremiumCard {
-            com.example.ui.components.PremiumEmptyState(
+          PremiumCard {
+            PremiumEmptyState(
               title = if (allTransactions.isEmpty()) "A fresh start" else "No activity this month",
               body = if (allTransactions.isEmpty()) {
                 "Add your first transaction and your monthly picture will take shape."
               } else {
-                "There are no entries for ${summary.monthLabel}. Choose another month or add a transaction for this period."
+                "There are no entries for ${monthlySummary.monthLabel}. Choose another month or add a transaction for this period."
               },
               action = {
-                androidx.compose.material3.FilledTonalButton(onClick = { onOpenAddTransaction(null) }) {
+                FilledTonalButton(onClick = { onOpenAddTransaction(null) }) {
                   Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                   Spacer(Modifier.width(8.dp))
                   Text("Add transaction")
@@ -429,13 +491,13 @@ fun DashboardScreen(
         }
       } else {
         item {
-          com.example.ui.components.PremiumCard {
+          PremiumCard {
             Column(
               modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
               verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
               recentTransactions.forEachIndexed { index, transaction ->
-                com.example.ui.components.PremiumTransactionRow(
+                PremiumTransactionRow(
                   transaction = transaction,
                   currencySymbol = currencySymbol,
                   onClick = { onEditTransaction(transaction) }
@@ -508,7 +570,7 @@ private fun PremiumBudgetOverview(
   onOpenSetBudget: () -> Unit,
   modifier: Modifier = Modifier
 ) {
-  com.example.ui.components.PremiumCard(modifier = modifier) {
+  PremiumCard(modifier = modifier) {
     Column(
       modifier = Modifier.fillMaxWidth().padding(18.dp),
       verticalArrangement = Arrangement.spacedBy(13.dp)
@@ -529,28 +591,28 @@ private fun PremiumBudgetOverview(
       if (hasBudget && summary.budgetLimit > 0.0) {
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
           Text(
-            com.example.ui.components.IndianCurrencyFormatter.formatWithSymbol(summary.budgetUsed, currencySymbol),
+            IndianCurrencyFormatter.formatWithSymbol(summary.budgetUsed, currencySymbol),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold
           )
-          Text("of ${com.example.ui.components.IndianCurrencyFormatter.formatWithSymbol(summary.budgetLimit, currencySymbol)}",
+          Text("of ${IndianCurrencyFormatter.formatWithSymbol(summary.budgetLimit, currencySymbol)}",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 3.dp))
         }
         val used = (summary.budgetUsed / summary.budgetLimit).toFloat().coerceIn(0f, 1f)
-        com.example.ui.components.PremiumProgressTrack(
+        PremiumProgressTrack(
           progress = used,
-          color = if (used >= 0.9f) Color(0xFFD64A46) else Color(0xFF176B4D),
+          color = if (used >= 0.9f) Color(0xFFF43F5E) else MaterialTheme.colorScheme.primary,
           height = 9.dp
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Text("${(used * 100).toInt()}% used", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
           Text(
-            text = if (summary.budgetRemaining >= 0) "${com.example.ui.components.IndianCurrencyFormatter.formatWithSymbol(summary.budgetRemaining, currencySymbol)} left"
-              else "${com.example.ui.components.IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(summary.budgetRemaining), currencySymbol)} over",
+            text = if (summary.budgetRemaining >= 0) "${IndianCurrencyFormatter.formatWithSymbol(summary.budgetRemaining, currencySymbol)} left"
+              else "${IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(summary.budgetRemaining), currencySymbol)} over",
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
-            color = if (summary.budgetRemaining >= 0) Color(0xFF17845C) else Color(0xFFD64A46)
+            color = if (summary.budgetRemaining >= 0) Color(0xFF10B981) else Color(0xFFF43F5E)
           )
         }
       } else {
@@ -569,17 +631,17 @@ private fun PremiumBudgetOverview(
 
 @Composable
 private fun PremiumCategoryOverview(
-  categories: List<com.example.data.model.CategorySpending>,
+  categories: List<CategorySpending>,
   currencySymbol: String,
   onCategoryClick: (com.example.data.model.TransactionCategory) -> Unit,
   modifier: Modifier = Modifier
 ) {
-  com.example.ui.components.PremiumCard(modifier = modifier) {
+  PremiumCard(modifier = modifier) {
     Column(
       modifier = Modifier.padding(18.dp),
       verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-      com.example.ui.components.PremiumSectionHeading(
+      PremiumSectionHeading(
         title = "Spending mix",
         subtitle = "Top categories this month"
       )
@@ -609,14 +671,14 @@ private fun PremiumCategoryOverview(
                 overflow = TextOverflow.Ellipsis
               )
               Text(
-                com.example.ui.components.IndianCurrencyFormatter.formatCompact(item.amount, currencySymbol),
+                IndianCurrencyFormatter.formatCompact(item.amount, currencySymbol),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 softWrap = false
               )
             }
-            com.example.ui.components.PremiumProgressTrack(
+            PremiumProgressTrack(
               progress = (item.amount / max).toFloat(),
               color = item.category.color,
               height = 6.dp
@@ -627,4 +689,3 @@ private fun PremiumCategoryOverview(
     }
   }
 }
-

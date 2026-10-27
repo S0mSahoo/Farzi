@@ -10,23 +10,22 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 // ==========================================
-// Material 3 Shapes Scale
+// Modern M3 Shapes Scale
 // ==========================================
 val Shapes = Shapes(
-  extraSmall = RoundedCornerShape(6.dp),
-  small = RoundedCornerShape(10.dp),
-  medium = RoundedCornerShape(16.dp),
-  large = RoundedCornerShape(22.dp),
-  extraLarge = RoundedCornerShape(28.dp)
+  extraSmall = RoundedCornerShape(8.dp),
+  small = RoundedCornerShape(12.dp),
+  medium = RoundedCornerShape(18.dp),
+  large = RoundedCornerShape(24.dp),
+  extraLarge = RoundedCornerShape(32.dp)
 )
 
 // ==========================================
-// Farzi Material 3 Color Schemes
+// Material 3 Color Schemes
 // ==========================================
 private val M3DarkColorScheme = darkColorScheme(
   primary = DarkPrimary,
@@ -85,7 +84,7 @@ private val M3LightColorScheme = lightColorScheme(
 @Composable
 fun MyApplicationTheme(
   darkTheme: Boolean = isSystemInDarkTheme(),
-  dynamicColor: Boolean = false, // Disabled by default to fix theme issues
+  dynamicColor: Boolean = false,
   content: @Composable () -> Unit
 ) {
   val colorScheme = when {
@@ -96,7 +95,6 @@ fun MyApplicationTheme(
     darkTheme -> M3DarkColorScheme
     else -> M3LightColorScheme
   }
-
 
   MaterialTheme(
     colorScheme = colorScheme,

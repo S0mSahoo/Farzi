@@ -1,10 +1,10 @@
 package com.example.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.clickable
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -29,20 +29,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -61,12 +57,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import com.example.ui.util.AppNavigationType
-import com.example.ui.util.LocalAdaptiveInfo
-import com.example.ui.util.calculateAdaptiveInfo
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,13 +68,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionItem
@@ -94,9 +91,12 @@ import com.example.ui.components.DateUtils
 import com.example.ui.components.ExportDataModal
 import com.example.ui.components.SetBudgetSheet
 import com.example.ui.theme.ExpenseRed
+import com.example.ui.util.AppNavigationType
+import com.example.ui.util.LocalAdaptiveInfo
+import com.example.ui.util.calculateAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 
-sealed class AppDestination(val index: Int, val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+sealed class AppDestination(val index: Int, val label: String, val icon: ImageVector) {
   object Dashboard : AppDestination(0, "Home", Icons.Default.Dashboard)
   object Transactions : AppDestination(1, "Transactions", Icons.Default.ReceiptLong)
   object Calendar : AppDestination(2, "Calendar", Icons.Default.CalendarMonth)
@@ -118,8 +118,6 @@ fun MainAppScreen(
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
-  var isAnalyticsOpen by remember { mutableStateOf(false) }
-  var isMoreOpen by remember { mutableStateOf(false) }
   var showProfileSheet by remember { mutableStateOf(false) }
   var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -156,7 +154,7 @@ fun MainAppScreen(
       message = if (isGuestSession) {
         "Your guest financial records will remain on this device and will not be uploaded to Google Drive."
       } else {
-        "Paisa will verify and save your latest backup before clearing the local cache. If verification or upload fails, your local records will be kept and sign-out will be stopped."
+        "Paisa will verify and save your latest backup before clearing the local cache."
       },
       confirmButtonText = if (isGuestSession) "Leave Guest Mode" else "Sign Out",
       confirmButtonColor = ExpenseRed,
@@ -165,14 +163,14 @@ fun MainAppScreen(
           if (success) {
             Toast.makeText(
               context,
-              if (isGuestSession) "Guest mode closed. Local records were kept." else "Signed out successfully",
+              if (isGuestSession) "Guest mode closed." else "Signed out successfully",
               Toast.LENGTH_SHORT
             ).show()
             showSignOutDialog = false
           } else {
             Toast.makeText(
               context,
-              viewModel.syncErrorMessage.value ?: "Sign-out failed. Local records were kept.",
+              viewModel.syncErrorMessage.value ?: "Sign-out failed.",
               Toast.LENGTH_LONG
             ).show()
           }
@@ -294,8 +292,6 @@ fun MainAppScreen(
     )
   }
 
-  // Paisa Pro Sheets
-
   if (showProfileSheet) {
     ModalBottomSheet(
       onDismissRequest = { showProfileSheet = false },
@@ -310,10 +306,10 @@ fun MainAppScreen(
           .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(16.dp)
       ) {
-        // Account Profile Header
+        // Profile Header
         Surface(
           shape = RoundedCornerShape(20.dp),
-          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
           modifier = Modifier.fillMaxWidth()
         ) {
           Row(
@@ -326,10 +322,10 @@ fun MainAppScreen(
                 model = userProfile.photoUrl,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(50.dp).clip(CircleShape)
+                modifier = Modifier.size(52.dp).clip(CircleShape)
               )
             } else {
-              Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(50.dp)) {
+              Surface(shape = CircleShape, color = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp)) {
                 Box(contentAlignment = Alignment.Center) {
                   Text(
                     text = if (userProfile.name.isNotBlank()) userProfile.name.take(1).uppercase() else "G",
@@ -342,14 +338,14 @@ fun MainAppScreen(
             }
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = userProfile.name.ifBlank { "Google User" },
+                text = userProfile.name.ifBlank { "Guest User" },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
               )
               Text(
-                text = userProfile.email.ifBlank { "Google Account" },
+                text = userProfile.email.ifBlank { "Local Guest Session" },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -359,19 +355,15 @@ fun MainAppScreen(
           }
         }
 
-
-
-        // Export & Portability Item
+        // Export Item
         Surface(
           onClick = {
             showProfileSheet = false
             showExportModal = true
           },
           shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .testTag("profile_export_button")
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          modifier = Modifier.fillMaxWidth().testTag("profile_export_button")
         ) {
           Row(
             modifier = Modifier.padding(16.dp),
@@ -380,8 +372,8 @@ fun MainAppScreen(
           ) {
             Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
             Column(modifier = Modifier.weight(1f)) {
-              Text("Export & Portability", fontWeight = FontWeight.Bold)
-              Text("PDF reports & JSON backups", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              Text("Export Reports & Backup", fontWeight = FontWeight.Bold)
+              Text("PDF statements & JSON portability", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
         }
@@ -393,10 +385,8 @@ fun MainAppScreen(
             isSettingsOpen = true
           },
           shape = RoundedCornerShape(16.dp),
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .testTag("profile_settings_button")
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          modifier = Modifier.fillMaxWidth().testTag("profile_settings_button")
         ) {
           Row(
             modifier = Modifier.padding(16.dp),
@@ -422,10 +412,7 @@ fun MainAppScreen(
           shape = RoundedCornerShape(14.dp),
           colors = ButtonDefaults.outlinedButtonColors(contentColor = ExpenseRed),
           border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.5f)),
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(50.dp)
-            .testTag("profile_sign_out_button")
+          modifier = Modifier.fillMaxWidth().height(50.dp).testTag("profile_sign_out_button")
         ) {
           Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, modifier = Modifier.size(18.dp))
           Spacer(modifier = Modifier.width(8.dp))
@@ -437,20 +424,27 @@ fun MainAppScreen(
     }
   }
 
-  // Screen blocker overlay for recents
-  val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+  val lifecycleOwner = LocalLifecycleOwner.current
   var isAppInBackground by remember { mutableStateOf(false) }
-  androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
-    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
       when (event) {
-        androidx.lifecycle.Lifecycle.Event.ON_START -> isAppInBackground = false
-        androidx.lifecycle.Lifecycle.Event.ON_STOP -> isAppInBackground = true
+        Lifecycle.Event.ON_START -> isAppInBackground = false
+        Lifecycle.Event.ON_STOP -> isAppInBackground = true
         else -> {}
       }
     }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
+
+  val primaryDestinations = listOf(
+    AppDestination.Dashboard,
+    AppDestination.Transactions,
+    AppDestination.Calendar,
+    AppDestination.Budgets,
+    AppDestination.Recurring
+  )
 
   Box(modifier = Modifier.fillMaxSize()) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -460,18 +454,13 @@ fun MainAppScreen(
         when (adaptiveInfo.navigationType) {
           AppNavigationType.PERMANENT_DRAWER -> {
             Row(modifier = Modifier.fillMaxSize()) {
-              // Left Permanent Navigation Drawer (240dp)
               Surface(
-                modifier = Modifier
-                  .fillMaxHeight()
-                  .width(240.dp),
+                modifier = Modifier.fillMaxHeight().width(240.dp),
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 1.dp
               ) {
                 Column(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                  modifier = Modifier.fillMaxSize().padding(16.dp),
                   verticalArrangement = Arrangement.SpaceBetween
                 ) {
                   Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -481,38 +470,29 @@ fun MainAppScreen(
                       modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
                     ) {
                       AppBrandLogo(size = 32.dp)
-                      Text(
-                        text = "Paisa",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                      )
+                      Text("Paisa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
                     }
 
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                      val navItems = listOf(
+                      listOf(
                         AppDestination.Dashboard,
                         AppDestination.Transactions,
                         AppDestination.Calendar,
                         AppDestination.Budgets,
                         AppDestination.Recurring,
                         AppDestination.Categories
-                      )
-
-                      navItems.forEach { destination ->
-                        val isSelected = !isSettingsOpen && !isAnalyticsOpen && selectedTab == destination.index
+                      ).forEach { destination ->
+                        val isSelected = !isSettingsOpen && selectedTab == destination.index
                         Surface(
                           shape = RoundedCornerShape(12.dp),
-                          color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
+                          color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else Color.Transparent,
                           modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
                             .clickable {
                               isSettingsOpen = false
-                              isAnalyticsOpen = false
-                              isMoreOpen = false
                               selectedTab = destination.index
                             }
                             .testTag("desktop_nav_${destination.label.lowercase()}")
@@ -541,37 +521,10 @@ fun MainAppScreen(
                   }
 
                   Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-
-                    // Export & Portability Item
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                     Surface(
                       shape = RoundedCornerShape(12.dp),
-                      color = Color.Transparent,
-                      modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { showExportModal = true }
-                        .testTag("desktop_nav_export")
-                    ) {
-                      Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                      ) {
-                        Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
-                        Text(
-                          text = "Export & Reports",
-                          style = MaterialTheme.typography.bodyMedium,
-                          fontWeight = FontWeight.Medium,
-                          color = MaterialTheme.colorScheme.onSurface
-                        )
-                      }
-                    }
-
-                    // Settings Item
-                    Surface(
-                      shape = RoundedCornerShape(12.dp),
-                      color = if (isSettingsOpen) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f) else Color.Transparent,
+                      color = if (isSettingsOpen) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f) else Color.Transparent,
                       modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
@@ -583,91 +536,56 @@ fun MainAppScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                       ) {
-                        Icon(
-                          imageVector = Icons.Default.Settings,
-                          contentDescription = "Settings",
-                          tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                          modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                          text = "Settings",
-                          style = MaterialTheme.typography.bodyMedium,
-                          fontWeight = if (isSettingsOpen) FontWeight.Bold else FontWeight.Medium,
-                          color = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
+                        Icon(Icons.Default.Settings, contentDescription = "Settings", tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                        Text("Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = if (isSettingsOpen) FontWeight.Bold else FontWeight.Medium, color = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
                       }
                     }
                   }
                 }
               }
 
-              // Main content area for Drawer
               Scaffold(
-                modifier = Modifier
-                  .weight(1f)
-                  .fillMaxHeight(),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 topBar = {
                   TopAppBar(
                     title = {
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
-                          isAnalyticsOpen -> "Analytics"
-                          isMoreOpen -> "More"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
+                          selectedTab == 0 -> "Dashboard & Analytics"
+                          selectedTab == 1 -> "Transactions"
+                          selectedTab == 2 -> "Calendar"
+                          selectedTab == 3 -> "Monthly Budgets"
+                          selectedTab == 4 -> "Recurring & Bills"
+                          else -> "Categories"
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
-                        IconButton(
-                          onClick = {
-                            when {
-                              isSettingsOpen -> isSettingsOpen = false
-                              isAnalyticsOpen -> isAnalyticsOpen = false
-                              else -> isMoreOpen = false
-                            }
-                          }
-                        ) {
+                      if (isSettingsOpen) {
+                        IconButton(onClick = { isSettingsOpen = false }) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
                     actions = {
-                      if (!isSettingsOpen && !isAnalyticsOpen && !isMoreOpen) {
-                        IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = true },
-                          modifier = Modifier.testTag("analytics_open_button")
-                        ) {
-                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
-                        }
-
-                        IconButton(
-                          onClick = { showExportModal = true },
-                          modifier = Modifier.testTag("landscape_top_bar_export")
-                        ) {
+                      if (!isSettingsOpen) {
+                        IconButton(onClick = { showExportModal = true }, modifier = Modifier.testTag("landscape_top_bar_export")) {
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(
-                          onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
-                          modifier = Modifier.testTag("landscape_top_bar_settings")
-                        ) {
+                        IconButton(onClick = { isSettingsOpen = true }, modifier = Modifier.testTag("landscape_top_bar_settings")) {
                           Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
                       }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                      containerColor = MaterialTheme.colorScheme.background,
-                      titleContentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                   )
                 },
                 containerColor = MaterialTheme.colorScheme.background,
                 floatingActionButton = {
-                  if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                  if (!isSettingsOpen && selectedTab in listOf(0, 1, 2, 3, 4)) {
                     FloatingActionButton(
                       onClick = {
                         editingTransaction = null
@@ -679,42 +597,22 @@ fun MainAppScreen(
                       contentColor = Color.White,
                       shape = CircleShape,
                       elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                      modifier = Modifier
-                        .padding(20.dp)
-                        .testTag("global_add_transaction_fab")
+                      modifier = Modifier.padding(20.dp).testTag("global_add_transaction_fab")
                     ) {
                       Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
                     }
                   }
                 }
               ) { innerPadding ->
-                Box(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                  contentAlignment = Alignment.TopCenter
-                ) {
-                  Box(
-                    modifier = Modifier
-                      .fillMaxSize()
-                      .widthIn(max = 1200.dp)
-                  ) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 24.dp, vertical = 8.dp), contentAlignment = Alignment.TopCenter) {
+                  Box(modifier = Modifier.fillMaxSize().widthIn(max = 1200.dp)) {
                     MainScreenContent(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
-                      isAnalyticsOpen = isAnalyticsOpen,
-                      isMoreOpen = isMoreOpen,
-                      onBackFromAnalytics = { isAnalyticsOpen = false },
-                      onBackFromMore = { isMoreOpen = false },
-                      onOpenMoreDestination = { destination ->
-                        isMoreOpen = false
-                        isAnalyticsOpen = false
+                      onNavigateTab = { tab ->
                         isSettingsOpen = false
-                        selectedTab = destination
+                        selectedTab = tab
                       },
-                      onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
-                      onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -748,7 +646,7 @@ fun MainAppScreen(
                         editingRecurringRule = rule
                         showAddEditRecurringSheet = true
                       },
-                      onOpenExportModal = { isMoreOpen = false; showExportModal = true }
+                      onOpenExportModal = { showExportModal = true }
                     )
                   }
                 }
@@ -758,14 +656,13 @@ fun MainAppScreen(
 
           AppNavigationType.NAVIGATION_RAIL -> {
             Row(modifier = Modifier.fillMaxSize()) {
-              // Space-efficient NavigationRail for landscape phones & medium tablets
               NavigationRail(
                 modifier = Modifier.fillMaxHeight(),
                 containerColor = MaterialTheme.colorScheme.surface,
                 header = {
-                  Spacer(modifier = Modifier.height(if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp))
-                  AppBrandLogo(size = if (adaptiveInfo.isLandscapePhone) 26.dp else 32.dp)
-                  Spacer(modifier = Modifier.height(if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp))
+                  Spacer(modifier = Modifier.height(8.dp))
+                  AppBrandLogo(size = 28.dp)
+                  Spacer(modifier = Modifier.height(8.dp))
                 }
               ) {
                 Column(
@@ -774,147 +671,85 @@ fun MainAppScreen(
                   horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                   Column(
-                    verticalArrangement = Arrangement.spacedBy(if (adaptiveInfo.isLandscapePhone) 2.dp else 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                   ) {
-                    val navItems = listOf(
-                      AppDestination.Dashboard,
-                      AppDestination.Transactions,
-                      AppDestination.Calendar,
-                      AppDestination.Budgets,
-                      AppDestination.Recurring,
-                        AppDestination.Categories
-                    )
-
-                    navItems.forEach { destination ->
-                      val isSelected = !isSettingsOpen && !isAnalyticsOpen && selectedTab == destination.index
+                    primaryDestinations.forEach { destination ->
+                      val isSelected = !isSettingsOpen && selectedTab == destination.index
                       NavigationRailItem(
                         selected = isSelected,
                         onClick = {
                           isSettingsOpen = false
-                          isAnalyticsOpen = false
-                          isMoreOpen = false
                           selectedTab = destination.index
                         },
-                        icon = {
-                          Icon(
-                            imageVector = destination.icon,
-                            contentDescription = destination.label,
-                            modifier = Modifier.size(if (adaptiveInfo.isLandscapePhone) 20.dp else 22.dp)
-                          )
-                        },
-                        label = if (!adaptiveInfo.isLandscapePhone) {
-                          {
-                            Text(
-                              text = destination.label,
-                              style = MaterialTheme.typography.labelSmall,
-                              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                          }
-                        } else null,
+                        icon = { Icon(destination.icon, contentDescription = destination.label, modifier = Modifier.size(22.dp)) },
+                        label = { Text(destination.label, style = MaterialTheme.typography.labelSmall, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                         colors = NavigationRailItemDefaults.colors(
                           selectedIconColor = MaterialTheme.colorScheme.primary,
-                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
                         ),
                         modifier = Modifier.testTag("desktop_nav_${destination.label.lowercase()}")
                       )
                     }
                   }
 
-                  // Rail Bottom Actions
                   Column(
-                    verticalArrangement = Arrangement.spacedBy(if (adaptiveInfo.isLandscapePhone) 2.dp else 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(bottom = if (adaptiveInfo.isLandscapePhone) 4.dp else 12.dp)
+                    modifier = Modifier.padding(bottom = 8.dp)
                   ) {
-                    IconButton(
-                      onClick = { showExportModal = true },
-                      modifier = Modifier.testTag("desktop_nav_export")
-                    ) {
+                    IconButton(onClick = { showExportModal = true }, modifier = Modifier.testTag("desktop_nav_export")) {
                       Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     }
-                    IconButton(
-                      onClick = { isAnalyticsOpen = false; isSettingsOpen = !isSettingsOpen },
-                      modifier = Modifier.testTag("desktop_nav_settings")
-                    ) {
-                      Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = "Settings",
-                        tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
-                      )
+                    IconButton(onClick = { isSettingsOpen = !isSettingsOpen }, modifier = Modifier.testTag("desktop_nav_settings")) {
+                      Icon(Icons.Default.Settings, contentDescription = "Settings", tint = if (isSettingsOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                     }
                   }
                 }
               }
 
-              // Content Scaffold for NavigationRail
               Scaffold(
-                modifier = Modifier
-                  .weight(1f)
-                  .fillMaxHeight(),
+                modifier = Modifier.weight(1f).fillMaxHeight(),
                 topBar = {
                   TopAppBar(
                     title = {
                       Text(
                         text = when {
                           isSettingsOpen -> "Settings"
-                          isAnalyticsOpen -> "Analytics"
-                          isMoreOpen -> "More"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
+                          selectedTab == 0 -> "Home"
+                          selectedTab == 1 -> "Transactions"
+                          selectedTab == 2 -> "Calendar"
+                          selectedTab == 3 -> "Budgets"
+                          selectedTab == 4 -> "Recurring"
+                          else -> "Categories"
                         },
-                        style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                       )
                     },
                     navigationIcon = {
-                      if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
-                        IconButton(
-                          onClick = {
-                            when {
-                              isSettingsOpen -> isSettingsOpen = false
-                              isAnalyticsOpen -> isAnalyticsOpen = false
-                              else -> isMoreOpen = false
-                            }
-                          }
-                        ) {
+                      if (isSettingsOpen) {
+                        IconButton(onClick = { isSettingsOpen = false }) {
                           Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
                     actions = {
-                      if (!isSettingsOpen && !isAnalyticsOpen) {
-                        IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = true },
-                          modifier = Modifier.testTag("analytics_open_button")
-                        ) {
-                          Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
-                        }
-
-                        IconButton(
-                          onClick = { showExportModal = true },
-                          modifier = Modifier.testTag("landscape_top_bar_export")
-                        ) {
+                      if (!isSettingsOpen) {
+                        IconButton(onClick = { showExportModal = true }, modifier = Modifier.testTag("landscape_top_bar_export")) {
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(
-                          onClick = { isAnalyticsOpen = false; isSettingsOpen = true },
-                          modifier = Modifier.testTag("landscape_top_bar_settings")
-                        ) {
+                        IconButton(onClick = { isSettingsOpen = true }, modifier = Modifier.testTag("landscape_top_bar_settings")) {
                           Icon(Icons.Default.Settings, contentDescription = "Settings", tint = MaterialTheme.colorScheme.primary)
                         }
-                        Spacer(modifier = Modifier.width(4.dp))
                       }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                      containerColor = MaterialTheme.colorScheme.background,
-                      titleContentColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
                   )
                 },
                 containerColor = MaterialTheme.colorScheme.background,
                 floatingActionButton = {
-                  if (!isSettingsOpen && !isAnalyticsOpen && (selectedTab == 0 || selectedTab == 1 || selectedTab == 2)) {
+                  if (!isSettingsOpen && selectedTab in listOf(0, 1, 2, 3, 4)) {
                     FloatingActionButton(
                       onClick = {
                         editingTransaction = null
@@ -926,42 +761,22 @@ fun MainAppScreen(
                       contentColor = Color.White,
                       shape = CircleShape,
                       elevation = FloatingActionButtonDefaults.elevation(4.dp),
-                      modifier = Modifier
-                        .padding(if (adaptiveInfo.isLandscapePhone) 8.dp else 16.dp)
-                        .testTag("global_add_transaction_fab")
+                      modifier = Modifier.padding(12.dp).testTag("global_add_transaction_fab")
                     ) {
                       Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(24.dp))
                     }
                   }
                 }
               ) { innerPadding ->
-                Box(
-                  modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = if (adaptiveInfo.isLandscapePhone) 10.dp else 16.dp),
-                  contentAlignment = Alignment.TopCenter
-                ) {
-                  Box(
-                    modifier = Modifier
-                      .fillMaxSize()
-                      .widthIn(max = 1100.dp)
-                  ) {
+                Box(modifier = Modifier.fillMaxSize().padding(innerPadding).padding(horizontal = 12.dp), contentAlignment = Alignment.TopCenter) {
+                  Box(modifier = Modifier.fillMaxSize().widthIn(max = 1100.dp)) {
                     MainScreenContent(
                       selectedTab = selectedTab,
                       isSettingsOpen = isSettingsOpen,
-                      isAnalyticsOpen = isAnalyticsOpen,
-                      isMoreOpen = isMoreOpen,
-                      onBackFromAnalytics = { isAnalyticsOpen = false },
-                      onBackFromMore = { isMoreOpen = false },
-                      onOpenMoreDestination = { destination ->
-                        isMoreOpen = false
-                        isAnalyticsOpen = false
+                      onNavigateTab = { tab ->
                         isSettingsOpen = false
-                        selectedTab = destination
+                        selectedTab = tab
                       },
-                      onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
-                      onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                       onBackFromSettings = { isSettingsOpen = false },
                       viewModel = viewModel,
                       dashboardCalendar = dashboardCalendar,
@@ -995,7 +810,7 @@ fun MainAppScreen(
                         editingRecurringRule = rule
                         showAddEditRecurringSheet = true
                       },
-                      onOpenExportModal = { isMoreOpen = false; showExportModal = true }
+                      onOpenExportModal = { showExportModal = true }
                     )
                   }
                 }
@@ -1004,7 +819,6 @@ fun MainAppScreen(
           }
 
           AppNavigationType.BOTTOM_BAR -> {
-            // Standard portrait phone scaffold
             Scaffold(
               topBar = {
                 TopAppBar(
@@ -1013,22 +827,30 @@ fun MainAppScreen(
                       verticalAlignment = Alignment.CenterVertically,
                       horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                      AppBrandLogo(size = 26.dp)
+                      AppBrandLogo(size = 28.dp)
                       Text(
-                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; else -> "Paisa" },
+                        text = when {
+                          isSettingsOpen -> "Settings"
+                          selectedTab == 0 -> "Paisa"
+                          selectedTab == 1 -> "Transactions"
+                          selectedTab == 2 -> "Calendar"
+                          selectedTab == 3 -> "Budgets"
+                          selectedTab == 4 -> "Recurring Dues"
+                          else -> "Categories"
+                        },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
                     }
                   },
                   navigationIcon = {
-                    if (isSettingsOpen || isAnalyticsOpen || isMoreOpen) {
+                    if (isSettingsOpen || selectedTab == 5) {
                       IconButton(
                         onClick = {
-                          when {
-                            isSettingsOpen -> isSettingsOpen = false
-                            isAnalyticsOpen -> isAnalyticsOpen = false
-                            else -> isMoreOpen = false
+                          if (isSettingsOpen) {
+                            isSettingsOpen = false
+                          } else {
+                            selectedTab = 0
                           }
                         }
                       ) {
@@ -1037,7 +859,7 @@ fun MainAppScreen(
                     }
                   },
                   actions = {
-                    if (!isSettingsOpen && !isAnalyticsOpen && !isMoreOpen) {
+                    if (!isSettingsOpen) {
                       IconButton(
                         onClick = { showProfileSheet = true },
                         modifier = Modifier.testTag("top_bar_profile")
@@ -1047,9 +869,7 @@ fun MainAppScreen(
                             model = userProfile.photoUrl,
                             contentDescription = "Profile",
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                              .size(34.dp)
-                              .clip(CircleShape)
+                            modifier = Modifier.size(34.dp).clip(CircleShape)
                           )
                         } else {
                           Surface(
@@ -1078,135 +898,70 @@ fun MainAppScreen(
                 )
               },
               bottomBar = {
-                if (!isSettingsOpen && !isAnalyticsOpen) {
+                if (!isSettingsOpen) {
                   NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    tonalElevation = 0.dp
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+                    tonalElevation = 8.dp
                   ) {
-                    NavigationBarItem(
-                      selected = !isMoreOpen && selectedTab == AppDestination.Dashboard.index,
-                      onClick = {
-                        isMoreOpen = false
-                        isSettingsOpen = false
-                        isAnalyticsOpen = false
-                        selectedTab = AppDestination.Dashboard.index
-                      },
-                      icon = {
-                        Icon(
-                          imageVector = AppDestination.Dashboard.icon,
-                          contentDescription = "Home",
-                          modifier = Modifier.size(22.dp)
-                        )
-                      },
-                      label = { Text("Home", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                      colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-                      ),
-                      modifier = Modifier.testTag("nav_home")
-                    )
-                    NavigationBarItem(
-                      selected = !isMoreOpen && selectedTab == AppDestination.Transactions.index,
-                      onClick = {
-                        isMoreOpen = false
-                        isSettingsOpen = false
-                        isAnalyticsOpen = false
-                        selectedTab = AppDestination.Transactions.index
-                      },
-                      icon = {
-                        Icon(
-                          imageVector = AppDestination.Transactions.icon,
-                          contentDescription = "Transactions",
-                          modifier = Modifier.size(22.dp)
-                        )
-                      },
-                      label = { Text("Transactions", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                      colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-                      ),
-                      modifier = Modifier.testTag("nav_transactions")
-                    )
-                    NavigationBarItem(
-                      selected = false,
-                      onClick = {
-                        isMoreOpen = false
-                        isSettingsOpen = false
-                        isAnalyticsOpen = false
-                        editingTransaction = null
-                        prefilledDateTimestamp = null
-                        prefilledTxType = null
-                        showAddEditTransactionSheet = true
-                      },
-                      icon = {
-                        Surface(
-                          shape = CircleShape,
-                          color = MaterialTheme.colorScheme.primary,
-                          modifier = Modifier.size(40.dp)
-                        ) {
-                          Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                              imageVector = Icons.Default.Add,
-                              contentDescription = "Add transaction",
-                              tint = Color.White,
-                              modifier = Modifier.size(23.dp)
-                            )
-                          }
-                        }
-                      },
-                      label = { Text("Add", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                      colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = Color.Transparent,
-                        selectedIconColor = Color.White,
-                        unselectedIconColor = Color.White,
-                        selectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                      ),
-                      modifier = Modifier.testTag("nav_add_transaction")
-                    )
-                    NavigationBarItem(
-                      selected = !isMoreOpen && selectedTab == AppDestination.Budgets.index,
-                      onClick = {
-                        isMoreOpen = false
-                        isSettingsOpen = false
-                        isAnalyticsOpen = false
-                        selectedTab = AppDestination.Budgets.index
-                      },
-                      icon = {
-                        Icon(
-                          imageVector = AppDestination.Budgets.icon,
-                          contentDescription = "Budgets",
-                          modifier = Modifier.size(22.dp)
-                        )
-                      },
-                      label = { Text("Budgets", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                      colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-                      ),
-                      modifier = Modifier.testTag("nav_budgets")
-                    )
-                    NavigationBarItem(
-                      selected = isMoreOpen || selectedTab == AppDestination.Calendar.index || selectedTab == AppDestination.Recurring.index || selectedTab == AppDestination.Categories.index || selectedTab == 6,
-                      onClick = {
-                        isMoreOpen = true
-                        isSettingsOpen = false
-                        isAnalyticsOpen = false
-                      },
-                      icon = {
-                        Icon(
-                          imageVector = Icons.Default.MoreHoriz,
-                          contentDescription = "More",
-                          modifier = Modifier.size(22.dp)
-                        )
-                      },
-                      label = { Text("More", style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 0.sp), maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) },
-                      colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)
-                      ),
-                      modifier = Modifier.testTag("nav_more")
-                    )
+                    primaryDestinations.forEach { destination ->
+                      val isSelected = selectedTab == destination.index
+                      NavigationBarItem(
+                        selected = isSelected,
+                        onClick = {
+                          isSettingsOpen = false
+                          selectedTab = destination.index
+                        },
+                        icon = {
+                          Icon(
+                            imageVector = destination.icon,
+                            contentDescription = destination.label,
+                            modifier = Modifier.size(22.dp)
+                          )
+                        },
+                        label = {
+                          Text(
+                            text = destination.label,
+                            style = MaterialTheme.typography.labelSmall.copy(
+                              fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            ),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                          )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                          selectedIconColor = MaterialTheme.colorScheme.primary,
+                          selectedTextColor = MaterialTheme.colorScheme.primary,
+                          indicatorColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
+                          unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                          unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.testTag("nav_${destination.label.lowercase()}")
+                      )
+                    }
                   }
                 }
               },
-              floatingActionButton = { }
+              floatingActionButton = {
+                if (!isSettingsOpen && selectedTab in listOf(0, 1, 2, 3, 4)) {
+                  FloatingActionButton(
+                    onClick = {
+                      editingTransaction = null
+                      prefilledDateTimestamp = null
+                      prefilledTxType = null
+                      showAddEditTransactionSheet = true
+                    },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White,
+                    shape = CircleShape,
+                    elevation = FloatingActionButtonDefaults.elevation(6.dp),
+                    modifier = Modifier
+                      .padding(bottom = 8.dp)
+                      .testTag("global_add_transaction_fab")
+                  ) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Transaction", modifier = Modifier.size(26.dp))
+                  }
+                }
+              }
             ) { innerPadding ->
               Box(
                 modifier = Modifier
@@ -1216,18 +971,10 @@ fun MainAppScreen(
                 MainScreenContent(
                   selectedTab = selectedTab,
                   isSettingsOpen = isSettingsOpen,
-                  isAnalyticsOpen = isAnalyticsOpen,
-                  isMoreOpen = isMoreOpen,
-                  onBackFromAnalytics = { isAnalyticsOpen = false },
-                  onBackFromMore = { isMoreOpen = false },
-                  onOpenMoreDestination = { destination ->
-                    isMoreOpen = false
-                    isAnalyticsOpen = false
+                  onNavigateTab = { tab ->
                     isSettingsOpen = false
-                    selectedTab = destination
+                    selectedTab = tab
                   },
-                  onOpenMoreAnalytics = { isMoreOpen = false; isSettingsOpen = false; isAnalyticsOpen = true },
-                  onOpenMoreSettings = { isMoreOpen = false; isAnalyticsOpen = false; isSettingsOpen = true },
                   onBackFromSettings = { isSettingsOpen = false },
                   viewModel = viewModel,
                   dashboardCalendar = dashboardCalendar,
@@ -1261,31 +1008,10 @@ fun MainAppScreen(
                     editingRecurringRule = rule
                     showAddEditRecurringSheet = true
                   },
-                  onOpenExportModal = { isMoreOpen = false; showExportModal = true }
+                  onOpenExportModal = { showExportModal = true }
                 )
               }
             }
-          }
-        }
-      }
-
-      if (isAppInBackground) {
-        Box(
-          modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-            .clickable(enabled = false) {}, // Block clicks
-          contentAlignment = Alignment.Center
-        ) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AppBrandLogo(size = 80.dp)
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-              text = "App Content Blocked",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurface
-            )
           }
         }
       }
@@ -1293,17 +1019,13 @@ fun MainAppScreen(
   }
 }
 
+
+
 @Composable
 private fun MainScreenContent(
   selectedTab: Int,
   isSettingsOpen: Boolean,
-  isAnalyticsOpen: Boolean,
-  isMoreOpen: Boolean,
-  onBackFromAnalytics: () -> Unit,
-  onBackFromMore: () -> Unit,
-  onOpenMoreDestination: (Int) -> Unit,
-  onOpenMoreAnalytics: () -> Unit,
-  onOpenMoreSettings: () -> Unit,
+  onNavigateTab: (Int) -> Unit,
   onBackFromSettings: () -> Unit,
   viewModel: FinanceViewModel,
   dashboardCalendar: java.util.Calendar,
@@ -1322,61 +1044,60 @@ private fun MainScreenContent(
       viewModel = viewModel,
       onOpenExportModal = onOpenExportModal
     )
-  } else if (isAnalyticsOpen) {
-    BackHandler { onBackFromAnalytics() }
-    AnalyticsScreen(viewModel = viewModel)
-  } else if (isMoreOpen) {
-    BackHandler { onBackFromMore() }
-    MoreScreen(
-      onOpenCalendar = { onOpenMoreDestination(2) },
-      onOpenRecurring = { onOpenMoreDestination(4) },
-      onOpenAnalytics = onOpenMoreAnalytics,
-      onOpenCategories = { onOpenMoreDestination(5) },
-      onOpenExport = onOpenExportModal,
-      onOpenSettings = onOpenMoreSettings
-    )
   } else {
     Crossfade(
       targetState = selectedTab,
       label = "paisa_primary_navigation"
     ) { destination ->
       when (destination) {
-      0 -> DashboardScreen(
-        viewModel = viewModel,
-        onOpenAddTransaction = onOpenAddTransaction,
-        onEditTransaction = onEditTransaction,
-        onOpenSetBudget = {
-          onOpenSetBudget(
-            DateUtils.getMonthKey(dashboardCalendar),
-            DateUtils.getMonthLabel(dashboardCalendar)
-          )
-        },
-        onOpenAllTransactions = { onOpenMoreDestination(1) }
-      )
-      1 -> TransactionsScreen(
-        viewModel = viewModel,
-        onEditTransaction = onEditTransaction
-      )
-      2 -> CalendarScreen(
-        viewModel = viewModel,
-        onAddTransactionForDate = onAddTransactionForDate,
-        onEditTransaction = onEditTransaction
-      )
-      3 -> BudgetScreen(
-        viewModel = viewModel,
-        onOpenSetBudget = {
-          onOpenSetBudget(
-            DateUtils.getMonthKey(budgetCalendar),
-            DateUtils.getMonthLabel(budgetCalendar)
-          )
-        }
-      )
-      4 -> RecurringScreen(
-        viewModel = viewModel,
-        onOpenAddRecurringRule = onOpenAddRecurringRule,
-        onEditRecurringRule = onEditRecurringRule
-      )
-      5 -> CategoriesScreen(viewModel = viewModel)
+        0 -> DashboardScreen(
+          viewModel = viewModel,
+          onOpenAddTransaction = onOpenAddTransaction,
+          onEditTransaction = onEditTransaction,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(dashboardCalendar),
+              DateUtils.getMonthLabel(dashboardCalendar)
+            )
+          },
+          onOpenAllTransactions = { onNavigateTab(1) }
+        )
+        1 -> TransactionsScreen(
+          viewModel = viewModel,
+          onEditTransaction = onEditTransaction
+        )
+        2 -> CalendarScreen(
+          viewModel = viewModel,
+          onAddTransactionForDate = onAddTransactionForDate,
+          onEditTransaction = onEditTransaction
+        )
+        3 -> BudgetScreen(
+          viewModel = viewModel,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(budgetCalendar),
+              DateUtils.getMonthLabel(budgetCalendar)
+            )
+          }
+        )
+        4 -> RecurringScreen(
+          viewModel = viewModel,
+          onOpenAddRecurringRule = onOpenAddRecurringRule,
+          onEditRecurringRule = onEditRecurringRule
+        )
+        5 -> CategoriesScreen(viewModel = viewModel)
+        else -> DashboardScreen(
+          viewModel = viewModel,
+          onOpenAddTransaction = onOpenAddTransaction,
+          onEditTransaction = onEditTransaction,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(dashboardCalendar),
+              DateUtils.getMonthLabel(dashboardCalendar)
+            )
+          },
+          onOpenAllTransactions = { onNavigateTab(1) }
+        )
       }
     }
   }

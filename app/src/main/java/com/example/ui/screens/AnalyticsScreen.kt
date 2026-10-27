@@ -164,9 +164,20 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
       if (!isAnnualView) {
         item {
           Surface(
-            shape = RoundedCornerShape(26.dp),
-            color = Color(0xFF163D2B),
-            modifier = Modifier.fillMaxWidth()
+            shape = RoundedCornerShape(28.dp),
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                  colors = listOf(
+                    Color(0xFF6D28D9),
+                    Color(0xFF4C1D95)
+                  )
+                ),
+                shape = RoundedCornerShape(28.dp)
+              )
           ) {
             Column(modifier = Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
               Text("NET CASH FLOW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
@@ -185,16 +196,16 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
               Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFD4EF75), fontWeight = FontWeight.Bold)
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
-                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFFFB5A9), fontWeight = FontWeight.Bold)
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
                 }
               }
               com.example.ui.components.PremiumTrendChart(
                 points = dailyTrend,
-                lineColor = Color(0xFFD4EF75),
+                lineColor = Color(0xFFC084FC),
                 trackColor = Color.White.copy(alpha = 0.15f),
                 height = 92.dp
               )
@@ -271,7 +282,22 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
         }
       } else {
         item {
-          Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF163D2B), modifier = Modifier.fillMaxWidth()) {
+          Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                  colors = listOf(
+                    Color(0xFF6D28D9),
+                    Color(0xFF4C1D95)
+                  )
+                ),
+                shape = RoundedCornerShape(28.dp)
+              )
+          ) {
             Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
               Text("YEARLY OVERVIEW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
               Text(
@@ -284,11 +310,11 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
               Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFD4EF75), fontWeight = FontWeight.Bold)
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFFFB5A9), fontWeight = FontWeight.Bold)
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
                 }
               }
               Text(

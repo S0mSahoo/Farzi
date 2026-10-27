@@ -47,14 +47,7 @@ fun AppLockScreen(
 ) {
   val context = LocalContext.current
   
-  // Apply FLAG_SECURE for this screen to protect recents
-  DisposableEffect(Unit) {
-    val window = (context as? FragmentActivity)?.window ?: (context as? Activity)?.window
-    window?.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-    onDispose {
-      window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-    }
-  }
+  // (FLAG_SECURE removed for browser emulator visibility)
 
   val activity = context as? FragmentActivity
   var authError by remember { mutableStateOf<String?>(null) }

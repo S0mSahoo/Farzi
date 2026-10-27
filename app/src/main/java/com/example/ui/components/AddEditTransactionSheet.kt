@@ -15,17 +15,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,8 +43,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
@@ -65,8 +61,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.PaymentMethod
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
@@ -135,7 +131,6 @@ fun AddEditTransactionSheet(
     TransactionCategory.values().filter { it.defaultType == transactionType }
   }
 
-  // Update selectedCategory if type changes and category belongs to other type
   if (selectedCategory.defaultType != transactionType) {
     selectedCategory = availableCategories.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
   }
@@ -154,41 +149,40 @@ fun AddEditTransactionSheet(
     )
   }
 
-  Dialog(
+  ModalBottomSheet(
     onDismissRequest = onDismiss,
-    properties = DialogProperties(usePlatformDefaultWidth = false)
-  ) {
-    Surface(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(5.dp),
-      shape = RoundedCornerShape(32.dp),
-      color = MaterialTheme.colorScheme.surface,
-      tonalElevation = 6.dp
-    ) {
+    sheetState = sheetState,
+    containerColor = MaterialTheme.colorScheme.surface,
+    shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+    dragHandle = {
       Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-      ) {
-      Column(
         modifier = Modifier
-          .widthIn(max = 760.dp)
-          .fillMaxSize()
-          .statusBarsPadding()
-          .padding(top = 8.dp, bottom = 4.dp)
-      ) {
-      // Header with stable height and close icon
+          .padding(top = 12.dp, bottom = 8.dp)
+          .size(width = 36.dp, height = 4.dp)
+          .clip(CircleShape)
+          .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+      )
+    }
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = horizontalContentPadding)
+        .navigationBarsPadding()
+        .padding(bottom = 24.dp)
+    ) {
+      // Header
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = horizontalContentPadding)
-          .heightIn(min = if (compactHeight) 40.dp else 48.dp),
+          .heightIn(min = 44.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
         Text(
           text = if (initialTransaction == null) "New Record" else "Edit Record",
-          style = if (compactHeight) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+          style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
@@ -202,30 +196,22 @@ fun AddEditTransactionSheet(
 
       Spacer(modifier = Modifier.height(fieldSpacing))
 
-      Column(
-        modifier = Modifier
-          .weight(1f)
-          .fillMaxWidth()
-          .verticalScroll(rememberScrollState())
-          .padding(horizontal = horizontalContentPadding)
-      ) {
-      // Smooth Sliding Income / Expense Toggle Segment with Stable Height
+      // Smooth Sliding Income / Expense Toggle Segment
       BoxWithConstraints(
         modifier = Modifier
           .fillMaxWidth()
-          .height(if (compactHeight) 40.dp else 48.dp)
+          .height(46.dp)
           .clip(RoundedCornerShape(26.dp))
           .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
           .padding(4.dp)
       ) {
-        val segmentWidth = (maxWidth) / 2
+        val segmentWidth = maxWidth / 2
         val slideOffset by animateFloatAsState(
           targetValue = if (transactionType == TransactionType.EXPENSE) 0f else 1f,
           animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
           label = "pill_slide"
         )
 
-        // Sliding Background Pill
         Box(
           modifier = Modifier
             .offset(x = segmentWidth * slideOffset)
@@ -235,9 +221,7 @@ fun AddEditTransactionSheet(
             .background(activeColor)
         )
 
-        // Clickable Labels Row
         Row(modifier = Modifier.fillMaxWidth()) {
-          // Expense
           Box(
             modifier = Modifier
               .weight(1f)
@@ -258,7 +242,6 @@ fun AddEditTransactionSheet(
             )
           }
 
-          // Income
           Box(
             modifier = Modifier
               .weight(1f)
@@ -281,13 +264,14 @@ fun AddEditTransactionSheet(
         }
       }
 
-      Spacer(modifier = Modifier.height(if (compactHeight) 8.dp else 16.dp))
+      Spacer(modifier = Modifier.height(16.dp))
 
       // Amount Input Field
       Text(
         text = "Amount",
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold
       )
       Spacer(modifier = Modifier.height(6.dp))
       OutlinedTextField(
@@ -314,7 +298,7 @@ fun AddEditTransactionSheet(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = OutlinedTextFieldDefaults.colors(
           focusedBorderColor = activeColor,
           unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
@@ -330,7 +314,8 @@ fun AddEditTransactionSheet(
       Text(
         text = "Title / Description",
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold
       )
       Spacer(modifier = Modifier.height(6.dp))
       OutlinedTextField(
@@ -344,7 +329,7 @@ fun AddEditTransactionSheet(
           Icon(Icons.Default.Title, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         singleLine = true,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("transaction_title_input")
@@ -352,18 +337,18 @@ fun AddEditTransactionSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Category Selector (Stable Height)
+      // Category Selector
       Text(
         text = "Category",
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold
       )
       Spacer(modifier = Modifier.height(6.dp))
 
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .height(if (compactHeight) 36.dp else 44.dp)
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -371,11 +356,11 @@ fun AddEditTransactionSheet(
         availableCategories.forEach { category ->
           val isCatSelected = selectedCategory == category
           Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = RoundedCornerShape(24.dp),
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
               .height(38.dp)
-              .clip(RoundedCornerShape(28.dp))
+              .clip(RoundedCornerShape(24.dp))
               .clickable { selectedCategory = category }
               .testTag("category_chip_${category.name}")
           ) {
@@ -393,7 +378,7 @@ fun AddEditTransactionSheet(
               Text(
                 text = category.displayName,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Normal,
+                fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
                 color = if (isCatSelected) premiumContrastForeground(category.color) else MaterialTheme.colorScheme.onSurface
               )
             }
@@ -403,27 +388,27 @@ fun AddEditTransactionSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Date and Payment Method Row (Stable Height)
+      // Date and Payment Method Row
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        // Date Selector
         Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "Date",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
           )
           Spacer(modifier = Modifier.height(6.dp))
           Surface(
-            shape = RoundedCornerShape(26.dp),
+            shape = RoundedCornerShape(22.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
             modifier = Modifier
               .fillMaxWidth()
-              .height(48.dp)
-              .clip(RoundedCornerShape(26.dp))
+              .height(46.dp)
+              .clip(RoundedCornerShape(22.dp))
               .clickable { showDatePicker = true }
               .testTag("select_date_button")
           ) {
@@ -439,31 +424,30 @@ fun AddEditTransactionSheet(
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
-                softWrap = false,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
               )
             }
           }
         }
 
-        // Payment Method Dropdown
         Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "Payment Method",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.SemiBold
           )
           Spacer(modifier = Modifier.height(6.dp))
           Box {
             Surface(
-              shape = RoundedCornerShape(26.dp),
+              shape = RoundedCornerShape(22.dp),
               color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
               border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
               modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp)
-                .clip(RoundedCornerShape(26.dp))
+                .height(46.dp)
+                .clip(RoundedCornerShape(22.dp))
                 .clickable { showPaymentMethodDropdown = true }
                 .testTag("select_payment_method_button")
             ) {
@@ -479,8 +463,7 @@ fun AddEditTransactionSheet(
                   fontWeight = FontWeight.Medium,
                   color = MaterialTheme.colorScheme.onSurface,
                   maxLines = 1,
-                  softWrap = false,
-                  overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                  overflow = TextOverflow.Ellipsis,
                   modifier = Modifier.weight(1f)
                 )
               }
@@ -506,11 +489,12 @@ fun AddEditTransactionSheet(
 
       Spacer(modifier = Modifier.height(14.dp))
 
-      // Note Field
+      // Notes
       Text(
         text = "Notes (Optional)",
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        fontWeight = FontWeight.SemiBold
       )
       Spacer(modifier = Modifier.height(6.dp))
       OutlinedTextField(
@@ -521,7 +505,7 @@ fun AddEditTransactionSheet(
           Icon(Icons.Default.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         maxLines = 2,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth()
       )
 
@@ -531,7 +515,7 @@ fun AddEditTransactionSheet(
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .clip(RoundedCornerShape(28.dp))
+          .clip(RoundedCornerShape(24.dp))
           .clickable { isRecurring = !isRecurring }
           .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -544,11 +528,11 @@ fun AddEditTransactionSheet(
         Text(
           text = "Mark as recurring transaction",
           style = MaterialTheme.typography.bodyMedium,
+          fontWeight = FontWeight.Medium,
           color = MaterialTheme.colorScheme.onSurface
         )
       }
 
-      // Error message if any
       if (errorMessage != null) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -559,8 +543,7 @@ fun AddEditTransactionSheet(
         )
       }
 
-      }
-      Spacer(modifier = Modifier.height(10.dp))
+      Spacer(modifier = Modifier.height(16.dp))
 
       // Save Button
       Button(
@@ -591,25 +574,17 @@ fun AddEditTransactionSheet(
           containerColor = activeColor,
           contentColor = Color.White
         ),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(26.dp),
         modifier = Modifier
           .fillMaxWidth()
-          .padding(horizontal = horizontalContentPadding)
-          .navigationBarsPadding()
-          .padding(bottom = 10.dp)
-          .heightIn(min = 56.dp)
+          .height(52.dp)
           .testTag("save_transaction_button")
       ) {
         Text(
           text = if (initialTransaction == null) "Save Transaction" else "Update Transaction",
           style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold,
-          maxLines = 1,
-          softWrap = false,
-          overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+          fontWeight = FontWeight.Bold
         )
-      }
-      }
       }
     }
   }

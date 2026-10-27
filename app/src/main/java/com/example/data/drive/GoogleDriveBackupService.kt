@@ -164,9 +164,10 @@ class GoogleDriveBackupService(private val context: Context) {
 
   suspend fun signOut(): Boolean = withContext(Dispatchers.IO) {
     try {
-      // Google sign-out returns a Task. Await it so stale credentials cannot be reused
-      // by the next guest session or after a user switches accounts.
-      Tasks.await(signInClient.signOut())
+      val account = GoogleSignIn.getLastSignedInAccount(context)
+      if (account != null) {
+        Tasks.await(signInClient.signOut())
+      }
       prefs.edit()
         .remove(KEY_CONNECTED_EMAIL)
         .remove(KEY_LAST_BACKUP)

@@ -1,10 +1,9 @@
 package com.example.ui.components
 
-import androidx.compose.runtime.getValue
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,8 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -33,36 +30,30 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.DailySpendingPoint
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 
-private val ForestInk = Color(0xFF163D2B)
-private val ForestDeep = Color(0xFF102C20)
-private val LimeGlow = Color(0xFFD4EF75)
-private val SoftSage = Color(0xFFE6EEE4)
+private val DeepVioletInk = Color(0xFF2E1065)
+private val LimeGlow = Color(0xFFC084FC)
 
-/**
- * Chooses a foreground for filled category chips with the stronger contrast against that
- * category's accent. This keeps light amber/sky accents readable without muting their identity.
- */
 fun premiumContrastForeground(backgroundColor: Color): Color {
   val luminance = backgroundColor.luminance()
   val whiteContrast = 1.05f / (luminance + 0.05f)
@@ -108,10 +99,6 @@ fun PremiumSectionHeading(
   }
 }
 
-/**
- * Shared responsive page header. On compact widths the trailing control moves below the
- * title rather than competing with it for horizontal space.
- */
 @Composable
 fun PremiumPageHeader(
   title: String,
@@ -172,14 +159,19 @@ fun PremiumPageHeader(
 @Composable
 fun PremiumCard(
   modifier: Modifier = Modifier,
-  containerColor: Color = MaterialTheme.colorScheme.surface,
+  containerColor: Color = if (!androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFFFFFFF) else Color(0xFF130E22),
   content: @Composable () -> Unit
 ) {
+  val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
   Card(
     modifier = modifier.animateContentSize(),
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = containerColor),
-    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    elevation = CardDefaults.cardElevation(defaultElevation = if (isLight) 3.dp else 1.dp),
+    border = androidx.compose.foundation.BorderStroke(
+      1.dp,
+      if (isLight) Color(0xFFE2E8F0) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
+    )
   ) { content() }
 }
 
@@ -195,9 +187,10 @@ fun PremiumMonthNavigator(
     modifier = modifier,
     shape = RoundedCornerShape(18.dp),
     color = MaterialTheme.colorScheme.surface,
+    tonalElevation = 1.dp,
     border = androidx.compose.foundation.BorderStroke(
       1.dp,
-      MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+      MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
     )
   ) {
     Row(
@@ -213,9 +206,9 @@ fun PremiumMonthNavigator(
         modifier = Modifier
           .clip(RoundedCornerShape(12.dp))
           .clickable(onClick = onPick)
-          .padding(horizontal = 8.dp, vertical = 8.dp),
+          .padding(horizontal = 10.dp, vertical = 8.dp),
         style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         maxLines = 1,
         softWrap = false,
         overflow = TextOverflow.Ellipsis,
@@ -315,26 +308,29 @@ fun PremiumTransactionRow(
 ) {
   val isIncome = transaction.type == TransactionType.INCOME
   val moneyColor = if (isIncome) IncomeGreen else ExpenseRed
+  val categoryColor = transaction.category.color
+
   Row(
     modifier = modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(18.dp))
       .clickable(onClick = onClick)
-      .padding(horizontal = 4.dp, vertical = 9.dp),
+      .padding(horizontal = 6.dp, vertical = 9.dp),
     verticalAlignment = Alignment.CenterVertically,
     horizontalArrangement = Arrangement.spacedBy(12.dp)
   ) {
     Surface(
-      shape = RoundedCornerShape(15.dp),
-      color = transaction.category.color.copy(alpha = 0.12f),
-      modifier = Modifier.size(46.dp)
+      shape = RoundedCornerShape(16.dp),
+      color = categoryColor.copy(alpha = 0.18f),
+      border = androidx.compose.foundation.BorderStroke(1.dp, categoryColor.copy(alpha = 0.35f)),
+      modifier = Modifier.size(48.dp)
     ) {
       Box(contentAlignment = Alignment.Center) {
         Icon(
           imageVector = transaction.category.icon,
           contentDescription = transaction.category.displayName,
-          tint = transaction.category.color,
-          modifier = Modifier.size(22.dp)
+          tint = categoryColor,
+          modifier = Modifier.size(23.dp)
         )
       }
     }
@@ -345,18 +341,37 @@ fun PremiumTransactionRow(
       Text(
         text = transaction.title,
         style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
+        fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onSurface,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
       )
-      Text(
-        text = transaction.category.displayName,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-      )
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+      ) {
+        Surface(
+          shape = CircleShape,
+          color = categoryColor.copy(alpha = 0.15f)
+        ) {
+          Text(
+            text = transaction.category.displayName,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = categoryColor,
+            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+          )
+        }
+        if (transaction.paymentMethod.displayName.isNotBlank()) {
+          Text(
+            text = "•  ${transaction.paymentMethod.displayName}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
+      }
     }
     Column(
       horizontalAlignment = Alignment.End,
@@ -376,9 +391,10 @@ fun PremiumTransactionRow(
         overflow = TextOverflow.Ellipsis
       )
       Text(
-        text = if (isIncome) "Money in" else "Money out",
+        text = if (isIncome) "Income" else "Expense",
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        fontWeight = FontWeight.Medium,
+        color = moneyColor.copy(alpha = 0.85f)
       )
     }
     if (trailing != null) trailing()
@@ -478,7 +494,7 @@ fun PremiumTrendChart(
     )
     coords.lastOrNull()?.let {
       drawCircle(color = lineColor, radius = 4.dp.toPx(), center = it)
-      drawCircle(color = ForestInk, radius = 2.dp.toPx(), center = it)
+      drawCircle(color = DeepVioletInk, radius = 2.dp.toPx(), center = it)
     }
   }
 }

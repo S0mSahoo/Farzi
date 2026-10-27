@@ -42,18 +42,7 @@ class MainActivity : FragmentActivity() {
       val lifecycleOwner = LocalLifecycleOwner.current
       val context = LocalContext.current
 
-      // Financial screens display balances and transaction details. Keep screenshots and the
-      // Android Recents thumbnail disabled whenever the authenticated finance UI is visible.
-      DisposableEffect(userProfile.hasCompletedOnboarding) {
-        if (userProfile.hasCompletedOnboarding) {
-          window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        } else {
-          window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
-        onDispose {
-          window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
-      }
+      // (FLAG_SECURE removed for browser emulator visibility)
 
       DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -84,7 +73,7 @@ class MainActivity : FragmentActivity() {
           )
         } else {
           Crossfade(
-            targetState = userProfile.hasCompletedOnboarding && userProfile.email.isNotBlank(),
+            targetState = userProfile.hasCompletedOnboarding,
             label = "onboarding_crossfade"
           ) { completed ->
             if (completed) {

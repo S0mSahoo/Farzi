@@ -154,7 +154,7 @@ fun CalendarScreen(
                 week.forEach { day ->
                   val selected = day.dateKey == selectedDayKey
                   val fill = when {
-                    selected -> Color(0xFF163D2B)
+                    selected -> MaterialTheme.colorScheme.primary
                     day.isToday -> MaterialTheme.colorScheme.primaryContainer
                     else -> MaterialTheme.colorScheme.surface
                   }
@@ -187,8 +187,8 @@ fun CalendarScreen(
                         color = content
                       )
                       Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (day.hasIncome) Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) Color(0xFFD4EF75) else IncomeGreen))
-                        if (day.hasExpense) Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) Color(0xFFFFB5A9) else ExpenseRed))
+                        if (day.hasIncome) Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) Color.White else IncomeGreen))
+                        if (day.hasExpense) Box(Modifier.size(4.dp).clip(CircleShape).background(if (selected) Color(0xFFF87171) else ExpenseRed))
                       }
                     }
                   }
@@ -212,11 +212,22 @@ fun CalendarScreen(
 
       item {
         Surface(
-          shape = RoundedCornerShape(24.dp),
-          color = Color(0xFF163D2B),
-          modifier = Modifier.fillMaxWidth()
+          shape = RoundedCornerShape(28.dp),
+          color = Color.Transparent,
+          border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(
+              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = listOf(
+                  Color(0xFF6D28D9), // Deep Violet
+                  Color(0xFF4C1D95)  // Dark Purple
+                )
+              ),
+              shape = RoundedCornerShape(28.dp)
+            )
         ) {
-          Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+          Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.SpaceBetween,
@@ -231,17 +242,17 @@ fun CalendarScreen(
                 )
               }
               IconButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
-                Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = Color(0xFFD4EF75))
+                Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = Color.White)
               }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
               Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Money in", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                Text(IndianCurrencyFormatter.formatCompact(dayIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFD4EF75), maxLines = 1, softWrap = false)
+                Text(IndianCurrencyFormatter.formatCompact(dayIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFF34D399), maxLines = 1, softWrap = false)
               }
               Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Money out", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                Text(IndianCurrencyFormatter.formatCompact(dayExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFFFB5A9), maxLines = 1, softWrap = false)
+                Text(IndianCurrencyFormatter.formatCompact(dayExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color(0xFFF87171), maxLines = 1, softWrap = false)
               }
               Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Net", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))

@@ -143,7 +143,22 @@ fun RecurringScreen(
       }
 
       item {
-        Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF163D2B), modifier = Modifier.fillMaxWidth()) {
+        Surface(
+          shape = RoundedCornerShape(28.dp),
+          color = Color.Transparent,
+          border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(
+              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = listOf(
+                  Color(0xFF6D28D9),
+                  Color(0xFF4C1D95)
+                )
+              ),
+              shape = RoundedCornerShape(28.dp)
+            )
+        ) {
           Row(
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,8 +169,8 @@ fun RecurringScreen(
               Text(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
               Text("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
             }
-            Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = 0.10f)) {
-              Icon(Icons.Default.Repeat, contentDescription = null, tint = Color(0xFFD4EF75), modifier = Modifier.padding(13.dp).size(24.dp))
+            Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = 0.15f)) {
+              Icon(Icons.Default.Repeat, contentDescription = null, tint = Color.White, modifier = Modifier.padding(13.dp).size(24.dp))
             }
           }
         }
