@@ -361,6 +361,29 @@ fun OnboardingScreen(
         }
       }
 
+      Spacer(modifier = Modifier.height(12.dp))
+
+      androidx.compose.material3.OutlinedButton(
+        onClick = { viewModel.loginAsGuest() },
+        enabled = !isSigningIn,
+        shape = RoundedCornerShape(28.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
+        colors = ButtonDefaults.outlinedButtonColors(
+          contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(min = 54.dp)
+          .testTag("guest_login_button")
+      ) {
+        Text(
+          text = "Continue as Guest",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.SemiBold
+        )
+      }
+
       Text(
         text = "You can review backup, privacy, and security options in Settings after signing in.",
         style = MaterialTheme.typography.labelSmall,

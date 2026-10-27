@@ -1324,6 +1324,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  fun loginAsGuest() {
+    val profile = UserProfile(
+      name = "Guest User",
+      email = "guest@paisa.local",
+      hasCompletedOnboarding = true
+    )
+    _userProfile.value = profile
+    repository.saveUserProfile(profile)
+  }
+
   fun onDriveSignInFailure(errorMessage: String) {
     val savedEmail = driveService.getSavedEmail()
     _googleDriveState.value = GoogleDriveState.BackupFailed(

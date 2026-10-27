@@ -46,7 +46,6 @@ fun MoreScreen(
     onOpenCalendar: () -> Unit,
     onOpenRecurring: () -> Unit,
     onOpenAnalytics: () -> Unit,
-    onOpenInsights: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenExport: () -> Unit,
     onOpenSettings: () -> Unit
@@ -155,12 +154,6 @@ fun MoreScreen(
                     description = "Explore monthly and annual breakdowns",
                     icon = Icons.Default.TrendingUp,
                     onClick = onOpenAnalytics
-                )
-                MoreActionRow(
-                    title = "Insights",
-                    description = "See clear takeaways from recorded activity",
-                    icon = Icons.Default.Lightbulb,
-                    onClick = onOpenInsights
                 )
             }
         }

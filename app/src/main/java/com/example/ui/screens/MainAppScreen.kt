@@ -596,7 +596,7 @@ fun MainAppScreen(
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
                           isMoreOpen -> "More"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories", "Insights")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -625,12 +625,7 @@ fun MainAppScreen(
                         ) {
                           Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = false; selectedTab = 6 },
-                          modifier = Modifier.testTag("insights_open_button")
-                        ) {
-                          Icon(Icons.Default.Lightbulb, contentDescription = "Insights", tint = MaterialTheme.colorScheme.primary)
-                        }
+
                         IconButton(
                           onClick = { showExportModal = true },
                           modifier = Modifier.testTag("landscape_top_bar_export")
@@ -848,7 +843,7 @@ fun MainAppScreen(
                           isSettingsOpen -> "Settings"
                           isAnalyticsOpen -> "Analytics"
                           isMoreOpen -> "More"
-                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories", "Insights")[selectedTab]
+                          else -> listOf("Home", "Transactions", "Calendar", "Budgets", "Recurring", "Categories")[selectedTab]
                         },
                         style = if (adaptiveInfo.isLandscapePhone) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -877,12 +872,7 @@ fun MainAppScreen(
                         ) {
                           Icon(Icons.Default.TrendingUp, contentDescription = "Analytics", tint = MaterialTheme.colorScheme.primary)
                         }
-                        IconButton(
-                          onClick = { isSettingsOpen = false; isMoreOpen = false; isAnalyticsOpen = false; selectedTab = 6 },
-                          modifier = Modifier.testTag("insights_open_button")
-                        ) {
-                          Icon(Icons.Default.Lightbulb, contentDescription = "Insights", tint = MaterialTheme.colorScheme.primary)
-                        }
+
                         IconButton(
                           onClick = { showExportModal = true },
                           modifier = Modifier.testTag("landscape_top_bar_export")
@@ -1007,7 +997,7 @@ fun MainAppScreen(
                     ) {
                       AppBrandLogo(size = 26.dp)
                       Text(
-                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; selectedTab == 6 -> "Insights"; else -> "Paisa" },
+                        text = when { isSettingsOpen -> "Settings"; isAnalyticsOpen -> "Analytics"; isMoreOpen -> "More"; selectedTab == 1 -> "Transactions"; selectedTab == 2 -> "Calendar"; selectedTab == 3 -> "Budgets"; selectedTab == 4 -> "Recurring"; selectedTab == 5 -> "Categories"; else -> "Paisa" },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                       )
@@ -1323,7 +1313,6 @@ private fun MainScreenContent(
       onOpenCalendar = { onOpenMoreDestination(2) },
       onOpenRecurring = { onOpenMoreDestination(4) },
       onOpenAnalytics = onOpenMoreAnalytics,
-      onOpenInsights = { onOpenMoreDestination(6) },
       onOpenCategories = { onOpenMoreDestination(5) },
       onOpenExport = onOpenExportModal,
       onOpenSettings = onOpenMoreSettings
@@ -1368,7 +1357,6 @@ private fun MainScreenContent(
         onEditRecurringRule = onEditRecurringRule
       )
       5 -> CategoriesScreen(viewModel = viewModel)
-      6 -> InsightsScreen(viewModel = viewModel)
       }
     }
   }
