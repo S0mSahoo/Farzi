@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -119,16 +120,44 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
         )
       }
       item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          FilterChip(selected = !isAnnualView, onClick = { isAnnualView = false }, label = { Text("Monthly") })
-          FilterChip(selected = isAnnualView, onClick = { isAnnualView = true }, label = { Text("Yearly") })
-          Spacer(Modifier.weight(1f))
-          com.example.ui.components.PremiumMonthNavigator(
-            label = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel,
-            onPrevious = { if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth() },
-            onNext = { if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth() },
-            onPick = { if (isAnnualView) showYearPicker = true else showMonthPicker = true }
-          )
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+          val periodSwitcher: @Composable () -> Unit = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              FilterChip(
+                selected = !isAnnualView,
+                onClick = { isAnnualView = false },
+                label = { Text("Monthly") }
+              )
+              FilterChip(
+                selected = isAnnualView,
+                onClick = { isAnnualView = true },
+                label = { Text("Yearly") }
+              )
+            }
+          }
+          val periodNavigator: @Composable () -> Unit = {
+            com.example.ui.components.PremiumMonthNavigator(
+              label = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel,
+              onPrevious = { if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth() },
+              onNext = { if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth() },
+              onPick = { if (isAnnualView) showYearPicker = true else showMonthPicker = true }
+            )
+          }
+          if (maxWidth < 520.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+              periodSwitcher()
+              periodNavigator()
+            }
+          } else {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              periodSwitcher()
+              periodNavigator()
+            }
+          }
         }
       }
 
