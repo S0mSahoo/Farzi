@@ -1,6 +1,13 @@
 package com.example.ui.screens
 
-import android.app.Activity
+import android.app.Activityimport android.content.Contextimport android.content.Intentimport android.content.pm.PackageManagerimport android.net.Uriimport android.os.Buildimport android.provider.Settings
+
+
+
+
+
+import android.Manifest
+
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -40,7 +47,8 @@ import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Lockimport androidx.compose.material.icons.filled.Notifications
+
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Star
@@ -62,8 +70,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.Composableimport androidx.compose.runtime.DisposableEffect
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycleimport androidx.lifecycle.Lifecycleimport androidx.lifecycle.LifecycleEventObserver
+
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -75,13 +86,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalContextimport androidx.compose.ui.platform.LocalLifecycleOwner
+
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.spimport androidx.core.app.NotificationManagerCompatimport androidx.core.content.ContextCompat
+
+
 import androidx.fragment.app.FragmentActivity
 import coil.compose.AsyncImage
 import com.example.data.drive.GoogleDriveState
@@ -119,6 +133,30 @@ fun SettingsScreen(
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
   val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
   val universalCal by viewModel.selectedCalendar.collectAsStateWithLifecycle()
+
+  var notificationsAllowed by remember { mutableStateOf(hasNotificationAccess(context)) }
+  val notificationPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { granted ->
+    notificationsAllowed = hasNotificationAccess(context)
+    Toast.makeText(
+      context,
+      if (notificationsAllowed) "Payment reminders are enabled"
+      else if (granted) "Notifications are disabled in Android Settings"
+      else "Permission not granted. You can enable notifications in Android Settings.",
+      Toast.LENGTH_LONG
+    ).show()
+  }
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        notificationsAllowed = hasNotificationAccess(context)
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -915,6 +953,68 @@ fun SettingsScreen(
                 )
               }
             )
+
+            SettingsRow(
+              icon = Icons.Default.Notifications,
+              iconTint = MaterialTheme.colorScheme.primary,
+              iconBg = MaterialTheme.colorScheme.primaryContainer,
+              title = "Payment Reminders",
+              subtitle = if (notificationsAllowed) {
+                "Notifications are enabled for scheduled bills"
+              } else {
+                "Enable notifications to receive payment due reminders"
+              },
+              action = {
+                OutlinedButton(
+                  onClick = {
+                    val runtimePermissionMissing =
+                      Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                          context,
+                          Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    val permissionPrefs = context.getSharedPreferences(
+                      "paisa_permissions",
+                      Context.MODE_PRIVATE
+                    )
+                    val alreadyAsked = permissionPrefs.getBoolean(
+                      "notification_permission_requested",
+                      false
+                    )
+                    if (runtimePermissionMissing && !alreadyAsked) {
+                      permissionPrefs.edit()
+                        .putBoolean("notification_permission_requested", true)
+                        .apply()
+                      notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                      try {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(
+                            Settings.EXTRA_APP_PACKAGE,
+                            context.packageName
+                          )
+                        } else {
+                          Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                          )
+                        }
+                        context.startActivity(intent)
+                      } catch (_: Exception) {
+                        Toast.makeText(
+                          context,
+                          "Open Paisa's notification settings in Android Settings.",
+                          Toast.LENGTH_LONG
+                        ).show()
+                      }
+                    }
+                  },
+                  contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                  Text(if (notificationsAllowed) "Manage" else "Enable")
+                }
+              }
+            )
           }
         }
       }
@@ -1172,6 +1272,16 @@ private fun SettingsSection(
 }
 
 @Composable
+
+private fun hasNotificationAccess(context: Context): Boolean {
+  val runtimePermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+    ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.POST_NOTIFICATIONS
+    ) == PackageManager.PERMISSION_GRANTED
+  return runtimePermissionGranted && NotificationManagerCompat.from(context).areNotificationsEnabled()
+}
+
 private fun SettingsRow(
   icon: ImageVector,
   iconTint: Color,
