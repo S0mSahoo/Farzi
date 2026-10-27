@@ -87,6 +87,7 @@ import coil.compose.AsyncImage
 import com.example.data.drive.GoogleDriveState
 import com.example.data.model.ThemeMode
 import com.example.ui.components.ConfirmationDialog
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.DateUtils
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
@@ -449,12 +450,9 @@ fun SettingsScreen(
   ) {
     // Header
     item {
-      Text(
-        text = "Settings",
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+      PremiumPageHeader(
+        title = "Settings",
+        subtitle = "Your account, data and privacy preferences."
       )
     }
 
