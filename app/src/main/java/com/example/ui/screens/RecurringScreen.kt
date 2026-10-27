@@ -114,7 +114,10 @@ fun RecurringScreen(
         it.status == OccurrenceStatus.OVERDUE
     }.sortedBy { it.occurrenceTimestamp }
   }
-  val outstandingTotal = outstanding.sumOf { it.rule.amount }
+  val unpaidBills = remember(outstanding) {
+    outstanding.filter { it.rule.type == TransactionType.EXPENSE }
+  }
+  val outstandingTotal = unpaidBills.sumOf { it.rule.amount }
 
   Box(
     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -151,9 +154,9 @@ fun RecurringScreen(
             verticalAlignment = Alignment.CenterVertically
           ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-              Text("UPCOMING COMMITMENTS", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text("BILLS STILL TO PAY", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
               Text(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
-              Text("${outstanding.size} upcoming or overdue ${if (outstanding.size == 1) "payment" else "payments"}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
+              Text("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
             }
             Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = 0.10f)) {
               Icon(Icons.Default.Repeat, contentDescription = null, tint = Color(0xFFD4EF75), modifier = Modifier.padding(13.dp).size(24.dp))
@@ -291,7 +294,7 @@ private fun OccurrencePremiumCard(
         ) {
           Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
           Spacer(Modifier.width(6.dp))
-          Text("Mark paid")
+          Text(if (occurrence.rule.type == TransactionType.INCOME) "Mark received" else "Mark paid")
         }
         OutlinedButton(
           onClick = onSkip,
