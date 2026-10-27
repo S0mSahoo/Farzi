@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.room.withTransaction
 import com.example.data.local.AppDatabase
 import com.example.data.local.BudgetEntity
 import com.example.data.local.PaidRecurringOccurrenceEntity
@@ -269,34 +270,40 @@ class FinanceRepository(private val context: Context) {
     recurringRules: List<RecurringRule>,
     paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
   ) = withContext(Dispatchers.IO) {
-    // Atomically replace local tables with cloud authoritative data
-    transactionDao.clearAll()
-    if (transactions.isNotEmpty()) {
-      transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
-    }
+    database.withTransaction {
+      transactionDao.clearAll()
+      if (transactions.isNotEmpty()) {
+        transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
+      }
 
-    budgetDao.clearAll()
-    if (budgets.isNotEmpty()) {
-      budgetDao.insertAll(budgets.map { BudgetEntity.fromModel(it) })
-    }
+      budgetDao.clearAll()
+      if (budgets.isNotEmpty()) {
+        budgetDao.insertAll(budgets.map { BudgetEntity.fromModel(it) })
+      }
 
-    recurringRuleDao.clearAll()
-    if (recurringRules.isNotEmpty()) {
-      recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
-    }
+      recurringRuleDao.clearAll()
+      if (recurringRules.isNotEmpty()) {
+        recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
+      }
 
-    paidRecurringOccurrenceDao.clearAll()
-    if (paidOccurrences.isNotEmpty()) {
-      paidRecurringOccurrenceDao.insertAll(paidOccurrences)
+      paidRecurringOccurrenceDao.clearAll()
+      if (paidOccurrences.isNotEmpty()) {
+        paidRecurringOccurrenceDao.insertAll(paidOccurrences)
+      }
     }
   }
 
   suspend fun clearLocalCache() = withContext(Dispatchers.IO) {
-    transactionDao.clearAll()
-    budgetDao.clearAll()
-    recurringRuleDao.clearAll()
-    paidRecurringOccurrenceDao.clearAll()
+    database.withTransaction {
+      transactionDao.clearAll()
+      budgetDao.clearAll()
+      recurringRuleDao.clearAll()
+      paidRecurringOccurrenceDao.clearAll()
+    }
   }
+
+  /** Removes every financial record atomically while preserving profile and app preferences. */
+  suspend fun clearAllData() = clearLocalCache()
 
   suspend fun getAllLocalData(): LocalDataDump = withContext(Dispatchers.IO) {
     val txs = transactionDao.getAllTransactions().map { it.toModel() }
