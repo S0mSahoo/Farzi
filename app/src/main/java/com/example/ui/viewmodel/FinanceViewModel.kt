@@ -547,64 +547,60 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ----------------- 2. Calendar Screen Flows (Scoped to _universalCalendar & _calendarSelectedDayMillis) -----------------
 
-  fun computeCalendarDays(year: Int, month: Int, transactions: List<TransactionItem>): List<CalendarDayData> {
+  fun computeCalendarDays(year: Int, month: Int, transactions: List<TransactionItem>): List<CalendarDayData?> {
     val cal = Calendar.getInstance().apply {
-      set(year, month, 1, 0, 0, 0)
+      set(Calendar.YEAR, year)
+      set(Calendar.MONTH, month)
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 12)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
       set(Calendar.MILLISECOND, 0)
     }
     val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 7=Sat
-    val leadDays = firstDayOfWeek - 1
-
+    val firstDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon, ..., 7=Sat
+    // Header is Monday-to-Sunday: M, T, W, T, F, S, S
+    // Mon -> 0 leading blanks, Tue -> 1, ..., Sat -> 5, Sun -> 6
+    val leadDays = (firstDayOfWeek - Calendar.MONDAY + 7) % 7
     val todayKey = DateUtils.getDayKey(Calendar.getInstance())
-    val gridDays = mutableListOf<CalendarDayData>()
 
-    // Leading days from previous month
-    val prevMonthCal = (cal.clone() as Calendar).apply { add(Calendar.MONTH, -1) }
-    val prevDaysCount = prevMonthCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    for (i in (prevDaysCount - leadDays + 1)..prevDaysCount) {
-      val c = (prevMonthCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, i) }
-      val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
-      gridDays.add(
-        CalendarDayData(
-          dayOfMonth = i,
-          dateKey = DateUtils.getDayKey(c),
-          epochMillis = start,
-          isCurrentMonth = false,
-          isToday = DateUtils.getDayKey(c) == todayKey,
-          hasIncome = inc > 0,
-          hasExpense = exp > 0,
-          totalIncome = inc,
-          totalExpense = exp,
-          transactions = dayTx
-        )
-      )
+    // Group transactions by day key for fast O(1) matching
+    val txByDate = HashMap<String, MutableList<TransactionItem>>()
+    for (tx in transactions) {
+      val key = DateUtils.getDayKey(tx.timestamp)
+      txByDate.getOrPut(key) { mutableListOf() }.add(tx)
     }
 
-    // Current month days
+    val gridDays = ArrayList<CalendarDayData?>(42)
+
+    // Leading blank slots for previous month (no adjacent-month dates)
+    repeat(leadDays) {
+      gridDays.add(null)
+    }
+
+    // Current month days strictly
     for (day in 1..daysInMonth) {
       val c = Calendar.getInstance().apply {
-        set(year, month, day, 12, 0, 0)
+        set(Calendar.YEAR, year)
+        set(Calendar.MONTH, month)
+        set(Calendar.DAY_OF_MONTH, day)
+        set(Calendar.HOUR_OF_DAY, 12)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
         set(Calendar.MILLISECOND, 0)
       }
+      val dateKey = DateUtils.getDayKey(c)
       val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
+      val dayTx = txByDate[dateKey] ?: emptyList()
       val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
       val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
       gridDays.add(
         CalendarDayData(
           dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(c),
+          dateKey = dateKey,
           epochMillis = start,
           isCurrentMonth = true,
-          isToday = DateUtils.getDayKey(c) == todayKey,
+          isToday = dateKey == todayKey,
           hasIncome = inc > 0,
           hasExpense = exp > 0,
           totalIncome = inc,
@@ -614,37 +610,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       )
     }
 
-    // Trailing days to fill 35 or 42 grid cells
-    val remaining = (7 - (gridDays.size % 7)) % 7
-    val nextMonthCal = (cal.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
-    for (day in 1..remaining) {
-      val c = (nextMonthCal.clone() as Calendar).apply { set(Calendar.DAY_OF_MONTH, day) }
-      val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val end = DateUtils.getEndOfDay(start)
-      val dayTx = transactions.filter { it.timestamp in start..end }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-
-      gridDays.add(
-        CalendarDayData(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(c),
-          epochMillis = start,
-          isCurrentMonth = false,
-          isToday = DateUtils.getDayKey(c) == todayKey,
-          hasIncome = inc > 0,
-          hasExpense = exp > 0,
-          totalIncome = inc,
-          totalExpense = exp,
-          transactions = dayTx
-        )
-      )
+    // Trailing blank slots to complete a fixed 6-row x 7-column grid (42 slots)
+    while (gridDays.size < 42) {
+      gridDays.add(null)
     }
 
     return gridDays
   }
 
-  val calendarDaysData: StateFlow<List<CalendarDayData>> = combine(
+  val calendarDaysData: StateFlow<List<CalendarDayData?>> = combine(
     allTransactions,
     _universalCalendar
   ) { transactions, cal ->
@@ -886,11 +860,32 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Navigation & Period =================
 
+  fun clampCalendarSelectedDayToMonth(targetYear: Int, targetMonth: Int) {
+    val currentCal = Calendar.getInstance().apply {
+      timeInMillis = _calendarSelectedDayMillis.value
+    }
+    val currentDay = currentCal.get(Calendar.DAY_OF_MONTH)
+    val targetCal = Calendar.getInstance().apply {
+      set(Calendar.YEAR, targetYear)
+      set(Calendar.MONTH, targetMonth)
+      set(Calendar.DAY_OF_MONTH, 1)
+      set(Calendar.HOUR_OF_DAY, 12)
+      set(Calendar.MINUTE, 0)
+      set(Calendar.SECOND, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    val maxDays = targetCal.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val clampedDay = currentDay.coerceIn(1, maxDays)
+    targetCal.set(Calendar.DAY_OF_MONTH, clampedDay)
+    _calendarSelectedDayMillis.value = targetCal.timeInMillis
+  }
+
   fun previousMonth() {
     val cal = (_universalCalendar.value.clone() as Calendar).apply {
       add(Calendar.MONTH, -1)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun nextMonth() {
@@ -898,6 +893,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       add(Calendar.MONTH, 1)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun previousYear() {
@@ -905,6 +901,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       add(Calendar.YEAR, -1)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun nextYear() {
@@ -912,6 +909,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       add(Calendar.YEAR, 1)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun setYear(year: Int) {
@@ -919,6 +917,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       set(Calendar.YEAR, year)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun setMonthAndYear(year: Int, month: Int) {
@@ -927,6 +926,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       set(Calendar.MONTH, month)
     }
     _universalCalendar.value = cal
+    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   // --- Screen-Specific Aliases Routing to Universal Period ---
