@@ -25,6 +25,10 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,19 +57,21 @@ fun AppLockScreen(
   }
 
   val activity = context as? FragmentActivity
+  var authError by remember { mutableStateOf<String?>(null) }
 
   fun triggerBiometric() {
     if (activity != null && BiometricAuthManager.canAuthenticate(activity)) {
+      authError = null
       BiometricAuthManager.authenticate(
         activity = activity,
         title = "Unlock Paisa",
         subtitle = "Confirm your fingerprint or screen lock to access your financial data",
         onSuccess = onUnlockSuccess,
-        onError = { /* User can tap Unlock button to retry */ }
+        onError = { message -> authError = message }
       )
     } else {
-      // If biometrics not enrolled, unlock directly
-      onUnlockSuccess()
+      // Fail closed: never bypass the app lock just because device authentication is unavailable.
+      authError = "Secure unlock is unavailable. Set up a screen lock, PIN, pattern, or biometric in Android Settings, then retry."
     }
   }
 
@@ -114,11 +120,21 @@ fun AppLockScreen(
       Spacer(modifier = Modifier.height(8.dp))
 
       Text(
-        text = "Your financial records are protected by hardware encryption and biometric lock.",
+        text = "Your financial records stay locked until your identity is verified.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center
       )
+
+      if (authError != null) {
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+          text = authError.orEmpty(),
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.error,
+          textAlign = TextAlign.Center
+        )
+      }
 
       Spacer(modifier = Modifier.height(36.dp))
 
@@ -140,7 +156,7 @@ fun AppLockScreen(
         )
         Spacer(modifier = Modifier.size(8.dp))
         Text(
-          text = "Unlock with Biometrics",
+          text = "Unlock Securely",
           style = MaterialTheme.typography.titleSmall,
           fontWeight = FontWeight.SemiBold
         )
