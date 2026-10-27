@@ -1264,47 +1264,45 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     onError: (String) -> Unit
   ) {
     viewModelScope.launch {
-      try {
-        val dump = repository.getAllLocalData()
-        val (mergedTxs, mergedBgs, mergedRcs) = JsonPortabilityManager.mergeData(
-          currentTransactions = dump.transactions,
-          currentBudgets = dump.budgets,
-          currentRecurringRules = dump.recurringRules,
-          importBackup = backup
-        )
+      syncMutex.withLock {
+        _isSyncing.value = true
+        try {
+          // First reconcile the active account with Drive. Never let a local JSON import
+          // silently overwrite a different non-empty cloud backup.
+          val account = if (isGuestSession()) null else driveService.getLastSignedInAccount()
+          if (account != null && !pullFromDriveAndMerge(account)) {
+            onError(_syncErrorMessage.value ?: "Import stopped to protect existing financial records.")
+            return@withLock
+          }
 
-        // 1. Atomically update local Room tables
-        repository.replaceCacheWithCloudData(
-          transactions = mergedTxs,
-          budgets = mergedBgs,
-          recurringRules = mergedRcs,
-          paidOccurrences = dump.paidOccurrences
-        )
-        repository.processDueRecurringRules()
+          val dump = repository.getAllLocalData()
+          val (mergedTxs, mergedBgs, mergedRcs) = JsonPortabilityManager.mergeData(
+            currentTransactions = dump.transactions,
+            currentBudgets = dump.budgets,
+            currentRecurringRules = dump.recurringRules,
+            importBackup = backup
+          )
 
-        // 2. Persist merged data to Google Drive
-        val account = driveService.getLastSignedInAccount()
-        if (account != null && account.email != null) {
-          val payload = com.example.data.drive.BackupPayload(
-            version = "4.0.0",
-            exportTimestamp = System.currentTimeMillis(),
-            userProfile = _userProfile.value,
+          // Atomic table replacement prevents partial restore if one table insert fails.
+          repository.replaceCacheWithCloudData(
             transactions = mergedTxs,
             budgets = mergedBgs,
             recurringRules = mergedRcs,
             paidOccurrences = dump.paidOccurrences
           )
-          val ts = driveService.saveCloudData(account, payload)
-          _lastSyncTimestamp.value = ts
-          _googleDriveState.value = GoogleDriveState.BackupSuccess(
-            email = account.email ?: "Google Drive",
-            timestampMillis = ts
-          )
+          repository.processDueRecurringRules()
+
+          if (account != null) {
+            syncCurrentStateToDriveLocked(account)
+            onSuccess("Imported ${backup.transactions.size} transactions and synchronized the merged backup with Google Drive.")
+          } else {
+            onSuccess("Imported ${backup.transactions.size} transactions locally. Connect Google Drive to create an online backup.")
+          }
+        } catch (e: Exception) {
+          onError(e.localizedMessage ?: "Failed to apply JSON import.")
+        } finally {
+          _isSyncing.value = false
         }
-        onSuccess("Successfully imported ${backup.transactions.size} transactions and synced with Cloud.")
-      } catch (e: Exception) {
-        e.printStackTrace()
-        onError(e.localizedMessage ?: "Failed to apply JSON import.")
       }
     }
   }
