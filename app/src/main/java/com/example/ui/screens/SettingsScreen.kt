@@ -1092,7 +1092,17 @@ fun SettingsScreen(
                         }
                       )
                     } else {
-                      viewModel.setAppLockEnabled(targetState)
+                      // Fail closed: enabling or disabling App Lock requires device authentication.
+                      Toast.makeText(
+                        context,
+                        "Set up a device screen lock or biometric authentication in Android Settings before changing App Lock.",
+                        Toast.LENGTH_LONG
+                      ).show()
+                      try {
+                        context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                      } catch (_: Exception) {
+                        // Keep the setting unchanged if security settings cannot be opened.
+                      }
                     }
                   },
                   colors = SwitchDefaults.colors(
