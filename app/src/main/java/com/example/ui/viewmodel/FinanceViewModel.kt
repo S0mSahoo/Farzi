@@ -1418,12 +1418,34 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           onResult?.invoke(false, message)
           return@withLock
         }
-        val existingGoogleId = _userProfile.value.googleId
+        val existingProfile = _userProfile.value
+        val existingGoogleId = existingProfile.googleId
         if (!existingGoogleId.isNullOrBlank() && existingGoogleId != account.id) {
           val message = accountMismatchMessage()
           _syncErrorMessage.value = message
           onResult?.invoke(false, message)
           return@withLock
+        }
+        if (existingGoogleId.isNullOrBlank() &&
+          existingProfile.email.isNotBlank() &&
+          !existingProfile.email.equals(account.email, ignoreCase = true) &&
+          !existingProfile.email.equals("guest@paisa.local", ignoreCase = true)) {
+          val message = "This device contains records associated with another profile. Export a JSON backup and clear or explicitly migrate those records before signing into a different Google account."
+          _syncErrorMessage.value = message
+          onResult?.invoke(false, message)
+          return@withLock
+        }
+        if (existingGoogleId.isNullOrBlank() && existingProfile.email.isBlank()) {
+          val dump = repository.getAllLocalData()
+          val hasUnboundRecords = dump.transactions.isNotEmpty() || dump.budgets.isNotEmpty() ||
+            dump.recurringRules.isNotEmpty() || dump.paidOccurrences.isNotEmpty()
+          if (hasUnboundRecords) {
+            repository.setGuestDataMode(true)
+            val message = "Existing local financial records have no verified Google account. They were kept local and not uploaded. Re-enter guest mode, export a JSON backup, clear local data, then sign in and import the backup if you want to move it."
+            _syncErrorMessage.value = message
+            onResult?.invoke(false, message)
+            return@withLock
+          }
         }
         _userProfile.value = profile
         repository.saveUserProfile(profile)
