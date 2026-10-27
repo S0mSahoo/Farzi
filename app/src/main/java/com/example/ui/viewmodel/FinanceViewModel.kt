@@ -1307,31 +1307,53 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  fun clearAllData(onComplete: () -> Unit) {
+  fun clearAllData(onComplete: (Boolean) -> Unit) {
     viewModelScope.launch {
       syncMutex.withLock {
         _isSyncing.value = true
+        val original = repository.getAllLocalData()
         try {
           repository.clearAllData()
-          // An authenticated user's cloud backup is also cleared. Guest records remain local-only.
+          // Explicitly clear the linked cloud snapshot as well, if this is an account session.
+          // If that upload fails, restore the local tables so stale Drive data cannot silently
+          // reappear after the user has been told that everything was erased.
           val account = if (isGuestSession()) null else driveService.getLastSignedInAccount()
           if (account != null) {
             try {
               syncCurrentStateToDriveLocked(account)
             } catch (e: Exception) {
-              _syncErrorMessage.value = "Local data was cleared, but Google Drive could not be updated: " + (e.localizedMessage ?: "sync failed")
+              repository.replaceCacheWithCloudData(
+                transactions = original.transactions,
+                budgets = original.budgets,
+                recurringRules = original.recurringRules,
+                paidOccurrences = original.paidOccurrences
+              )
+              _syncErrorMessage.value = "Could not clear the Google Drive backup; local records were restored. ${e.localizedMessage ?: "Sync failed"}"
+              onComplete(false)
+              return@withLock
             }
-          } else {
-            _lastSyncTimestamp.value = null
           }
+          _syncErrorMessage.value = null
+          onComplete(true)
+        } catch (e: Exception) {
+          try {
+            repository.replaceCacheWithCloudData(
+              transactions = original.transactions,
+              budgets = original.budgets,
+              recurringRules = original.recurringRules,
+              paidOccurrences = original.paidOccurrences
+            )
+          } catch (_: Exception) {
+            // Preserve the original failure message; the next local export is still available.
+          }
+          _syncErrorMessage.value = "Could not clear financial data safely. ${e.localizedMessage ?: "Unknown error"}"
+          onComplete(false)
         } finally {
           _isSyncing.value = false
-          onComplete()
         }
       }
     }
   }
-
   // ================= Google Sign-In & Drive Sync Actions =================
 
   fun getDriveSignInIntent(): Intent = driveService.getSignInIntent()
