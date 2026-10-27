@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.room.withTransaction
 import com.example.data.local.AppDatabase
 import com.example.data.local.BudgetEntity
 import com.example.data.local.PaidRecurringOccurrenceEntity
@@ -183,35 +184,39 @@ class FinanceRepository(private val context: Context) {
    * ONLY here is an actual transaction created in the database and counted towards expenses/budgets.
    */
   suspend fun markRecurringPaymentPaid(rule: RecurringRule, occurrenceTimestamp: Long): Long = withContext(Dispatchers.IO) {
-    val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(occurrenceTimestamp))
-    val existingPaid = paidRecurringOccurrenceDao.getPaidOccurrence(rule.id, dateKey)
-    if (existingPaid != null && !existingPaid.isCancelled && existingPaid.paidTransactionId > 0) {
-      return@withContext existingPaid.paidTransactionId
-    }
+    database.withTransaction {
+      val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(occurrenceTimestamp))
+      val existingPaid = paidRecurringOccurrenceDao.getPaidOccurrence(rule.id, dateKey)
+      if (existingPaid != null && !existingPaid.isCancelled && existingPaid.paidTransactionId > 0) {
+        return@withTransaction existingPaid.paidTransactionId
+      }
 
-    val newTx = TransactionEntity(
-      title = rule.title,
-      amount = rule.amount,
-      type = rule.type.name,
-      category = rule.category.name,
-      timestamp = occurrenceTimestamp,
-      note = if (rule.note.isNotBlank()) rule.note else "Recurring (${rule.interval.displayName})",
-      paymentMethod = rule.paymentMethod.name,
-      isRecurring = true,
-      recurringRuleId = rule.id
-    )
-
-    val txId = transactionDao.insertTransaction(newTx)
-    paidRecurringOccurrenceDao.markPaid(
-      PaidRecurringOccurrenceEntity(
-        ruleId = rule.id,
-        occurrenceDateKey = dateKey,
-        paidTransactionId = txId,
-        paidTimestamp = System.currentTimeMillis(),
-        isCancelled = false
+      // The transaction and its recurring-payment marker must commit together. Otherwise a
+      // database failure between the two inserts can cause duplicate transactions on retry.
+      val newTx = TransactionEntity(
+        title = rule.title,
+        amount = rule.amount,
+        type = rule.type.name,
+        category = rule.category.name,
+        timestamp = occurrenceTimestamp,
+        note = if (rule.note.isNotBlank()) rule.note else "Recurring (${rule.interval.displayName})",
+        paymentMethod = rule.paymentMethod.name,
+        isRecurring = true,
+        recurringRuleId = rule.id
       )
-    )
-    txId
+
+      val txId = transactionDao.insertTransaction(newTx)
+      paidRecurringOccurrenceDao.markPaid(
+        PaidRecurringOccurrenceEntity(
+          ruleId = rule.id,
+          occurrenceDateKey = dateKey,
+          paidTransactionId = txId,
+          paidTimestamp = System.currentTimeMillis(),
+          isCancelled = false
+        )
+      )
+      txId
+    }
   }
 
   suspend fun cancelRecurringOccurrence(ruleId: Long, dateKey: String) = withContext(Dispatchers.IO) {
@@ -230,21 +235,64 @@ class FinanceRepository(private val context: Context) {
     paidRecurringOccurrenceDao.unmarkPaid(ruleId, dateKey)
   }
 
+  private fun occurrenceAtIndex(startDateMillis: Long, interval: RecurrenceInterval, index: Int): Long {
+    val calendar = Calendar.getInstance().apply { timeInMillis = startDateMillis }
+    val originalDay = calendar.get(Calendar.DAY_OF_MONTH)
+    val originalMonth = calendar.get(Calendar.MONTH)
+    when (interval) {
+      RecurrenceInterval.DAILY -> calendar.add(Calendar.DAY_OF_MONTH, index)
+      RecurrenceInterval.WEEKLY -> calendar.add(Calendar.DAY_OF_MONTH, index * 7)
+      RecurrenceInterval.MONTHLY -> {
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.add(Calendar.MONTH, index)
+        calendar.set(Calendar.DAY_OF_MONTH, minOf(originalDay, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
+      }
+      RecurrenceInterval.YEARLY -> {
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.YEAR, calendar.get(Calendar.YEAR) + index)
+        calendar.set(Calendar.MONTH, originalMonth)
+        calendar.set(Calendar.DAY_OF_MONTH, minOf(originalDay, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
+      }
+    }
+    return calendar.timeInMillis
+  }
+
   fun computeRuleOccurrencesInWindow(
     rule: RecurringRule,
     windowStart: Long,
     windowEnd: Long
   ): List<Long> {
-    val results = mutableListOf<Long>()
-    var current = rule.startDate
-    val maxLookahead = windowEnd
+    if (windowEnd < windowStart || rule.startDate <= 0) return emptyList()
 
-    while (current <= maxLookahead && (rule.endDate == null || current <= rule.endDate)) {
-      if (current >= windowStart) {
-        results.add(current)
-      }
-      current = getNextOccurrence(current, rule.interval)
-      if (results.size > 200) break
+    // Fast-forward near the requested window instead of iterating from the rule's first day.
+    // Monthly/yearly estimates intentionally round down so we never skip an occurrence.
+    val elapsed = (windowStart - rule.startDate).coerceAtLeast(0L)
+    val divisor = when (rule.interval) {
+      RecurrenceInterval.DAILY -> 86_400_000L
+      RecurrenceInterval.WEEKLY -> 7L * 86_400_000L
+      RecurrenceInterval.MONTHLY -> 31L * 86_400_000L
+      RecurrenceInterval.YEARLY -> 366L * 86_400_000L
+    }
+    var index = (elapsed / divisor).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    var current = occurrenceAtIndex(rule.startDate, rule.interval, index)
+    while (index > 0 && current > windowStart) {
+      index--
+      current = occurrenceAtIndex(rule.startDate, rule.interval, index)
+    }
+    while (current < windowStart && (rule.endDate == null || current <= rule.endDate)) {
+      if (index == Int.MAX_VALUE) return emptyList()
+      index++
+      current = occurrenceAtIndex(rule.startDate, rule.interval, index)
+    }
+
+    val results = mutableListOf<Long>()
+    while (current <= windowEnd && (rule.endDate == null || current <= rule.endDate)) {
+      results.add(current)
+      if (results.size >= 200 || index == Int.MAX_VALUE) break
+      index++
+      val next = occurrenceAtIndex(rule.startDate, rule.interval, index)
+      if (next <= current) break
+      current = next
     }
     return results
   }
@@ -269,34 +317,40 @@ class FinanceRepository(private val context: Context) {
     recurringRules: List<RecurringRule>,
     paidOccurrences: List<PaidRecurringOccurrenceEntity> = emptyList()
   ) = withContext(Dispatchers.IO) {
-    // Atomically replace local tables with cloud authoritative data
-    transactionDao.clearAll()
-    if (transactions.isNotEmpty()) {
-      transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
-    }
+    database.withTransaction {
+      transactionDao.clearAll()
+      if (transactions.isNotEmpty()) {
+        transactionDao.insertAll(transactions.map { TransactionEntity.fromModel(it) })
+      }
 
-    budgetDao.clearAll()
-    if (budgets.isNotEmpty()) {
-      budgetDao.insertAll(budgets.map { BudgetEntity.fromModel(it) })
-    }
+      budgetDao.clearAll()
+      if (budgets.isNotEmpty()) {
+        budgetDao.insertAll(budgets.map { BudgetEntity.fromModel(it) })
+      }
 
-    recurringRuleDao.clearAll()
-    if (recurringRules.isNotEmpty()) {
-      recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
-    }
+      recurringRuleDao.clearAll()
+      if (recurringRules.isNotEmpty()) {
+        recurringRuleDao.insertAll(recurringRules.map { RecurringRuleEntity.fromModel(it) })
+      }
 
-    paidRecurringOccurrenceDao.clearAll()
-    if (paidOccurrences.isNotEmpty()) {
-      paidRecurringOccurrenceDao.insertAll(paidOccurrences)
+      paidRecurringOccurrenceDao.clearAll()
+      if (paidOccurrences.isNotEmpty()) {
+        paidRecurringOccurrenceDao.insertAll(paidOccurrences)
+      }
     }
   }
 
   suspend fun clearLocalCache() = withContext(Dispatchers.IO) {
-    transactionDao.clearAll()
-    budgetDao.clearAll()
-    recurringRuleDao.clearAll()
-    paidRecurringOccurrenceDao.clearAll()
+    database.withTransaction {
+      transactionDao.clearAll()
+      budgetDao.clearAll()
+      recurringRuleDao.clearAll()
+      paidRecurringOccurrenceDao.clearAll()
+    }
   }
+
+  /** Removes every financial record atomically while preserving profile and app preferences. */
+  suspend fun clearAllData() = clearLocalCache()
 
   suspend fun getAllLocalData(): LocalDataDump = withContext(Dispatchers.IO) {
     val txs = transactionDao.getAllTransactions().map { it.toModel() }
@@ -327,6 +381,13 @@ class FinanceRepository(private val context: Context) {
 
   // ================= User Profile & Preferences =================
 
+  /** Persistent guard so clearing the UI profile cannot accidentally expose guest data to Drive. */
+  fun isGuestDataMode(): Boolean = prefs.getBoolean("paisa_guest_data_mode", false)
+
+  fun setGuestDataMode(enabled: Boolean) {
+    prefs.edit().putBoolean("paisa_guest_data_mode", enabled).apply()
+  }
+
   fun getUserProfile(): UserProfile {
     val name = prefs.getString("user_name", "") ?: ""
     val email = prefs.getString("user_email", "") ?: ""
@@ -354,7 +415,15 @@ class FinanceRepository(private val context: Context) {
   }
 
   fun clearUserProfile() {
-    prefs.edit().clear().apply()
+    // Remove only profile fields. Theme, app-lock, and the guest-data isolation flag live in
+    // the same preferences file and must survive sign-out.
+    prefs.edit()
+      .remove("user_name")
+      .remove("user_email")
+      .remove("user_photo_url")
+      .remove("user_google_id")
+      .remove("has_completed_onboarding")
+      .apply()
   }
 
   // ================= PDF Report Export =================
