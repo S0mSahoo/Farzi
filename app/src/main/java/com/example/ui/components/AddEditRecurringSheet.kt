@@ -398,12 +398,12 @@ fun AddEditRecurringSheet(
               verticalAlignment = Alignment.CenterVertically,
               horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-              Icon(category.icon, contentDescription = null, tint = if (isCatSelected) Color.White else category.color, modifier = Modifier.size(18.dp))
+              Icon(category.icon, contentDescription = null, tint = if (isCatSelected) premiumContrastForeground(category.color) else category.color, modifier = Modifier.size(18.dp))
               Text(
                 text = category.displayName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Normal,
-                color = if (isCatSelected) Color.White else MaterialTheme.colorScheme.onSurface
+                color = if (isCatSelected) premiumContrastForeground(category.color) else MaterialTheme.colorScheme.onSurface
               )
             }
           }
