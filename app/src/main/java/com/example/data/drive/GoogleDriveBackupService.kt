@@ -17,17 +17,22 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.tasks.Tasks
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Headers
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import org.json.JSONObject
 import java.io.IOException
+import java.io.ByteArrayOutputStream
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 class ConsentRequiredException(
@@ -59,7 +64,9 @@ data class EncryptedCloudEnvelope(
   val saltBase64: String,
   val ivBase64: String,
   val ciphertextBase64: String,
-  val userEmail: String? = null
+  val userEmail: String? = null,
+  // Missing on legacy envelopes, which used the Google account identifier as a key.
+  val encryptionScheme: String = "google-id-v1"
 )
 
 data class BackupPayload(
@@ -77,6 +84,7 @@ class GoogleDriveBackupService(private val context: Context) {
   companion object {
     const val SCOPE_DRIVE_APPDATA = "https://www.googleapis.com/auth/drive.appdata"
     const val BACKUP_FILE_NAME = "paisa_financial_backup.json"
+    private const val MAX_CLOUD_BACKUP_BYTES = 25L * 1024L * 1024L
     private const val PREFS_NAME = "paisa_drive_prefs"
     private const val KEY_LAST_BACKUP = "key_last_backup_timestamp"
     private const val KEY_CONNECTED_EMAIL = "key_connected_email"
@@ -93,6 +101,28 @@ class GoogleDriveBackupService(private val context: Context) {
   private val moshi = Moshi.Builder()
     .addLast(KotlinJsonAdapterFactory())
     .build()
+
+  private fun readUtf8Bounded(body: ResponseBody, maxBytes: Long): String {
+    val declaredLength = body.contentLength()
+    if (declaredLength > maxBytes) {
+      throw IOException("Google Drive backup exceeds the supported 25 MB size limit.")
+    }
+    val output = ByteArrayOutputStream()
+    body.byteStream().use { input ->
+      val buffer = ByteArray(8192)
+      var total = 0L
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) {
+          throw IOException("Google Drive backup exceeds the supported 25 MB size limit.")
+        }
+        output.write(buffer, 0, count)
+      }
+    }
+    return output.toString(Charsets.UTF_8.name())
+  }
 
   val signInClient: GoogleSignInClient
     get() {
@@ -134,8 +164,13 @@ class GoogleDriveBackupService(private val context: Context) {
 
   suspend fun signOut(): Boolean = withContext(Dispatchers.IO) {
     try {
-      signInClient.signOut()
-      prefs.edit().remove(KEY_CONNECTED_EMAIL).apply()
+      // Google sign-out returns a Task. Await it so stale credentials cannot be reused
+      // by the next guest session or after a user switches accounts.
+      Tasks.await(signInClient.signOut())
+      prefs.edit()
+        .remove(KEY_CONNECTED_EMAIL)
+        .remove(KEY_LAST_BACKUP)
+        .apply()
       true
     } catch (e: Exception) {
       false
@@ -215,12 +250,16 @@ class GoogleDriveBackupService(private val context: Context) {
         .build()
 
       val response = okHttpClient.newCall(request).execute()
-      if (!response.isSuccessful) {
+      val jsonContent = try {
+        if (!response.isSuccessful) {
+          throw IOException("Failed to download cloud records from Google Drive (${response.code})")
+        }
+        val body = response.body
+          ?: throw IOException("Google Drive returned an empty backup response.")
+        readUtf8Bounded(body, MAX_CLOUD_BACKUP_BYTES)
+      } finally {
         response.close()
-        throw IOException("Failed to download cloud records from Google Drive (${response.code})")
       }
-
-      val jsonContent = response.body?.string() ?: ""
       if (jsonContent.isBlank()) return@withContext null
 
       val userKeyId = account.id ?: account.email ?: "paisa_authenticated_user"
@@ -228,13 +267,22 @@ class GoogleDriveBackupService(private val context: Context) {
       val envelope = try { envelopeAdapter.fromJson(jsonContent) } catch (e: Exception) { null }
 
       val payloadJson = if (envelope != null && envelope.encrypted) {
-        // Decrypt using cross-device PBKDF2 derived key
         val bundle = EncryptedBundle(
           saltBase64 = envelope.saltBase64,
           ivBase64 = envelope.ivBase64,
           ciphertextBase64 = envelope.ciphertextBase64
         )
-        CryptoManager.decryptCloudPayload(bundle, userKeyId)
+        when (envelope.encryptionScheme) {
+          "recovery-passphrase-v1" -> {
+            val passphrase = CryptoManager.getStoredCloudRecoveryPassphrase(context)
+              ?: throw IOException(
+                "This cloud backup uses a recovery passphrase. Open Settings > Cloud Synchronization and enter the same passphrase used when the backup was created."
+              )
+            CryptoManager.decryptCloudPayloadWithPassphrase(bundle, passphrase)
+          }
+          "google-id-v1", "" -> CryptoManager.decryptCloudPayload(bundle, userKeyId)
+          else -> throw IOException("This backup uses an unsupported encryption scheme. Update Paisa before syncing.")
+        }
       } else {
         // Fallback for older unencrypted backup files
         jsonContent
@@ -266,18 +314,22 @@ class GoogleDriveBackupService(private val context: Context) {
     val payloadAdapter = moshi.adapter(BackupPayload::class.java)
     val plainJson = payloadAdapter.toJson(payload)
 
-    // Encrypt payload before saving to Google Drive
-    val userKeyId = account.id ?: account.email ?: "paisa_authenticated_user"
-    val encryptedBundle = CryptoManager.encryptCloudPayload(plainJson, userKeyId)
+    // New cloud backups use a user-controlled secret, not the public Google account identifier.
+    val recoveryPassphrase = CryptoManager.getStoredCloudRecoveryPassphrase(context)
+      ?: throw IOException(
+        "Cloud backup encryption is not configured. Open Settings > Cloud Synchronization and set a recovery passphrase of at least 12 characters before syncing."
+      )
+    val encryptedBundle = CryptoManager.encryptCloudPayloadWithPassphrase(plainJson, recoveryPassphrase)
 
     val envelope = EncryptedCloudEnvelope(
-      version = payload.version,
+      version = "5.0.0",
       encrypted = true,
       exportTimestamp = payload.exportTimestamp,
       saltBase64 = encryptedBundle.saltBase64,
       ivBase64 = encryptedBundle.ivBase64,
       ciphertextBase64 = encryptedBundle.ciphertextBase64,
-      userEmail = account.email
+      userEmail = account.email,
+      encryptionScheme = "recovery-passphrase-v1"
     )
     val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
     val encryptedJsonContent = envelopeAdapter.toJson(envelope)
@@ -298,6 +350,72 @@ class GoogleDriveBackupService(private val context: Context) {
     saveLastBackupTimestamp(timestamp)
     account.email?.let { saveConnectedEmail(it) }
     timestamp
+  }
+
+  /**
+   * Explicitly deletes every Paisa backup file in this account's Drive AppData folder.
+   * Used by Clear All Data so a user can erase an existing legacy backup without needing to
+   * configure new-format backup encryption first. Any failed lookup/delete throws and callers
+   * must retain/restore local data.
+   */
+  suspend fun deleteCloudBackups(account: GoogleSignInAccount): Boolean = withContext(Dispatchers.IO) {
+    val accessToken = getAccessToken(account)
+    val fileIds = mutableListOf<String>()
+    var nextPageToken: String? = null
+
+    do {
+      val url = buildString {
+        append("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder")
+        append("&q=name%3D%27").append(BACKUP_FILE_NAME).append("%27%20and%20trashed%3Dfalse")
+        append("&pageSize=1000&fields=files%28id%2Cname%29%2CnextPageToken")
+        val pageToken = nextPageToken
+        if (!pageToken.isNullOrBlank()) {
+          append("&pageToken=").append(URLEncoder.encode(pageToken, "UTF-8"))
+        }
+      }
+      val request = Request.Builder()
+        .url(url)
+        .header("Authorization", "Bearer $accessToken")
+        .get()
+        .build()
+
+      val pageJson = okHttpClient.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          throw IOException("Google Drive backup lookup failed (${response.code}); local data was not erased.")
+        }
+        response.body?.string()
+          ?: throw IOException("Google Drive returned an empty backup lookup response; local data was not erased.")
+      }
+      val page = JSONObject(pageJson)
+      val files = page.optJSONArray("files")
+      if (files != null) {
+        for (index in 0 until files.length()) {
+          val id = files.getJSONObject(index).optString("id")
+          if (id.isBlank()) {
+            throw IOException("Google Drive returned a backup without a file ID; local data was not erased.")
+          }
+          fileIds += id
+        }
+      }
+      nextPageToken = page.optString("nextPageToken", "").takeIf { it.isNotBlank() }
+    } while (nextPageToken != null)
+
+    for (fileId in fileIds.distinct()) {
+      val request = Request.Builder()
+        .url("https://www.googleapis.com/drive/v3/files/$fileId")
+        .header("Authorization", "Bearer $accessToken")
+        .delete()
+        .build()
+      okHttpClient.newCall(request).execute().use { response ->
+        if (!response.isSuccessful && response.code != 404) {
+          throw IOException("Could not erase a Google Drive backup (${response.code}); local data was not erased.")
+        }
+      }
+    }
+
+    val timestampCleared = prefs.edit().remove(KEY_LAST_BACKUP).commit()
+    check(timestampCleared) { "Drive backups were deleted, but the local backup timestamp could not be cleared." }
+    true
   }
 
   /**
@@ -325,30 +443,27 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   private fun findExistingBackupFileId(accessToken: String): String? {
-    try {
-      val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&fields=files(id,name)"
-      val request = Request.Builder()
-        .url(url)
-        .header("Authorization", "Bearer $accessToken")
-        .get()
-        .build()
+    val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&orderBy=modifiedTime%20desc&pageSize=10&fields=files(id,name,modifiedTime)"
+    val request = Request.Builder()
+      .url(url)
+      .header("Authorization", "Bearer $accessToken")
+      .get()
+      .build()
 
-      val response = okHttpClient.newCall(request).execute()
+    okHttpClient.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        response.close()
-        return null
+        // Do not mistake a transient API failure for "no backup"; otherwise every retry
+        // could create another file and split the user's backup history.
+        throw IOException("Google Drive backup lookup failed (${response.code}); refusing to create a duplicate backup.")
       }
-
-      val responseBody = response.body?.string() ?: ""
-      val json = JSONObject(responseBody)
-      val files = json.optJSONArray("files")
-      if (files != null && files.length() > 0) {
-        return files.getJSONObject(0).optString("id")
-      }
-    } catch (e: Exception) {
-      // Fallback to creating a new file
+      val responseBody = response.body?.string()
+        ?: throw IOException("Google Drive returned an empty backup lookup response.")
+      val files = JSONObject(responseBody).optJSONArray("files")
+      if (files == null || files.length() == 0) return null
+      val id = files.getJSONObject(0).optString("id")
+      if (id.isBlank()) throw IOException("Google Drive returned a backup without a file ID.")
+      return id
     }
-    return null
   }
 
   private fun createNewFile(accessToken: String, jsonContent: String): Boolean {
@@ -362,9 +477,15 @@ class GoogleDriveBackupService(private val context: Context) {
     val mediaBody = jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
 
     val requestBody = MultipartBody.Builder()
-      .setType(MultipartBody.FORM)
-      .addPart(metadataBody)
-      .addPart(mediaBody)
+      .setType("multipart/related".toMediaType())
+      .addPart(
+        Headers.Builder().add("Content-Type", "application/json; charset=UTF-8").build(),
+        metadataBody
+      )
+      .addPart(
+        Headers.Builder().add("Content-Type", "application/json; charset=UTF-8").build(),
+        mediaBody
+      )
       .build()
 
     val request = Request.Builder()

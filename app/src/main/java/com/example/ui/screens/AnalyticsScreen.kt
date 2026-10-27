@@ -1,9 +1,16 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -60,281 +67,278 @@ import java.util.Calendar
  */
 @Composable
 fun AnalyticsScreen(viewModel: FinanceViewModel) {
-    val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
-    val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
-    val monthlySummary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
-    val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
-    val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
-    val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
+  val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+  val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
+  val monthlySummary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
+  val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
+  val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
+  val dailyTrend by viewModel.dashboardDailyTrend.collectAsStateWithLifecycle()
+  val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
+  var isAnnualView by remember { mutableStateOf(false) }
+  var showMonthPicker by remember { mutableStateOf(false) }
+  var showYearPicker by remember { mutableStateOf(false) }
+  val currencySymbol = userProfile.currencySymbol
+  val currentYear = selectedCalendar.get(Calendar.YEAR)
 
-    var isAnnualView by remember { mutableStateOf(false) }
-    var showMonthPicker by remember { mutableStateOf(false) }
-    var showYearPicker by remember { mutableStateOf(false) }
+  selectedCategoryDetail?.let { detail ->
+    CategoryDetailSheet(detail = detail, currencySymbol = currencySymbol, onDismiss = { viewModel.clearSelectedCategoryDetail() })
+  }
+  if (showMonthPicker) {
+    MonthYearPickerDialog(
+      currentCalendar = selectedCalendar,
+      onDismiss = { showMonthPicker = false },
+      onMonthYearSelected = { year, month ->
+        viewModel.setDashboardMonthAndYear(year, month)
+        showMonthPicker = false
+      }
+    )
+  }
+  if (showYearPicker) {
+    YearPickerDialog(
+      currentYear = currentYear,
+      onDismiss = { showYearPicker = false },
+      onYearSelected = { year ->
+        viewModel.setDashboardYear(year)
+        showYearPicker = false
+      }
+    )
+  }
 
-    val currencySymbol = userProfile.currencySymbol
-    val currentYear = selectedCalendar.get(Calendar.YEAR)
-
-    selectedCategoryDetail?.let { detail ->
-        CategoryDetailSheet(
-            detail = detail,
-            currencySymbol = currencySymbol,
-            onDismiss = { viewModel.clearSelectedCategoryDetail() }
-        )
-    }
-
-    if (showMonthPicker) {
-        MonthYearPickerDialog(
-            currentCalendar = selectedCalendar,
-            onDismiss = { showMonthPicker = false },
-            onMonthYearSelected = { year, month ->
-                viewModel.setDashboardMonthAndYear(year, month)
-            }
-        )
-    }
-
-    if (showYearPicker) {
-        YearPickerDialog(
-            currentYear = currentYear,
-            onDismiss = { showYearPicker = false },
-            onYearSelected = { viewModel.setDashboardYear(it) }
-        )
-    }
-
+  Box(
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter
+  ) {
     LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+      modifier = Modifier.widthIn(max = 1060.dp).fillMaxSize(),
+      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+      verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        item {
+      item {
+        com.example.ui.components.PremiumSectionHeading(
+          title = "Insights",
+          subtitle = "Patterns that make your money make sense."
+        )
+      }
+      item {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+          val periodSwitcher: @Composable () -> Unit = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              FilterChip(
+                selected = !isAnnualView,
+                onClick = { isAnnualView = false },
+                label = { Text("Monthly") }
+              )
+              FilterChip(
+                selected = isAnnualView,
+                onClick = { isAnnualView = true },
+                label = { Text("Yearly") }
+              )
+            }
+          }
+          val periodNavigator: @Composable () -> Unit = {
+            com.example.ui.components.PremiumMonthNavigator(
+              label = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel,
+              onPrevious = { if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth() },
+              onNext = { if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth() },
+              onPick = { if (isAnnualView) showYearPicker = true else showMonthPicker = true }
+            )
+          }
+          if (maxWidth < 520.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+              periodSwitcher()
+              periodNavigator()
+            }
+          } else {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Insights & analytics",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "Understand where your money goes",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.TrendingUp,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(12.dp).size(26.dp)
-                    )
-                }
+              periodSwitcher()
+              periodNavigator()
             }
+          }
         }
+      }
 
+      if (!isAnnualView) {
         item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = !isAnnualView,
-                    onClick = { isAnnualView = false },
-                    label = { Text("Monthly") }
-                )
-                FilterChip(
-                    selected = isAnnualView,
-                    onClick = { isAnnualView = true },
-                    label = { Text("Annual") }
-                )
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(
-                    onClick = { if (isAnnualView) viewModel.previousDashboardYear() else viewModel.previousDashboardMonth() }
-                ) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = if (isAnnualView) "Previous year" else "Previous month")
+          Surface(
+            shape = RoundedCornerShape(26.dp),
+            color = Color(0xFF163D2B),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Column(modifier = Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
+              Text("NET CASH FLOW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text(
+                IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+              )
+              Text(
+                if (monthlySummary.totalIncome > 0) "${String.format(java.util.Locale.getDefault(), "%.1f", monthlySummary.savingsRate)}% of recorded income retained"
+                else "Add income to see your savings rate.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.72f)
+              )
+              Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFD4EF75), fontWeight = FontWeight.Bold)
                 }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .clickable { if (isAnnualView) showYearPicker = true else showMonthPicker = true }
-                        .padding(vertical = 4.dp)
-                ) {
-                    Text(
-                        text = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = "Choose period",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(15.dp)
-                    )
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.7f))
+                  Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFFFB5A9), fontWeight = FontWeight.Bold)
                 }
-                IconButton(
-                    onClick = { if (isAnnualView) viewModel.nextDashboardYear() else viewModel.nextDashboardMonth() }
-                ) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = if (isAnnualView) "Next year" else "Next month")
-                }
+              }
+              com.example.ui.components.PremiumTrendChart(
+                points = dailyTrend,
+                lineColor = Color(0xFFD4EF75),
+                trackColor = Color.White.copy(alpha = 0.15f),
+                height = 92.dp
+              )
+              Text("Daily spending trend", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
             }
+          }
         }
-
-        if (isAnnualView) {
-            item {
-                AnnualAnalyticsSummary(
-                    summary = yearlySummary,
-                    currencySymbol = currencySymbol
-                )
+        item {
+          Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            com.example.ui.components.PremiumMetricTile(
+              title = "Budget used",
+              value = if (monthlySummary.budgetLimit > 0) "${monthlySummary.budgetUsagePercent.toInt()}%" else "Not set",
+              caption = if (monthlySummary.budgetLimit > 0) "Of monthly limit" else "Create a budget to compare",
+              positive = if (monthlySummary.budgetLimit > 0) monthlySummary.budgetUsagePercent < 90 else null,
+              modifier = Modifier.weight(1f)
+            )
+            com.example.ui.components.PremiumMetricTile(
+              title = "Transactions",
+              value = monthlySummary.transactionCount.toString(),
+              caption = monthlySummary.monthLabel,
+              modifier = Modifier.weight(1f)
+            )
+          }
+        }
+        item {
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Where it goes",
+            subtitle = "Categories ranked by recorded spending."
+          )
+        }
+        if (categorySpending.filter { it.amount > 0.0 }.isEmpty()) {
+          item {
+            com.example.ui.components.PremiumCard {
+              com.example.ui.components.PremiumEmptyState(
+                title = "No spending pattern yet",
+                body = "Once you record expenses, you will see your largest categories here."
+              )
             }
-            item {
-                AnnualMonthlyBreakdown(
-                    summary = yearlySummary,
-                    currencySymbol = currencySymbol
-                )
-            }
+          }
         } else {
-            item {
+          val list = categorySpending.filter { it.amount > 0.0 }.take(6)
+          items(list.size, key = { "insight_cat_${list[it].category.name}" }) { index ->
+            val item = list[index]
+            com.example.ui.components.PremiumCard {
+              Column(modifier = Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                  modifier = Modifier.fillMaxWidth().clickable { viewModel.selectCategoryForDetail(item.category) },
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    AnalyticsMetricCard(
-                        title = "Income",
-                        value = IndianCurrencyFormatter.formatWithSymbol(monthlySummary.totalIncome, currencySymbol),
-                        tint = IncomeGreen,
-                        modifier = Modifier.weight(1f)
-                    )
-                    AnalyticsMetricCard(
-                        title = "Expenses",
-                        value = IndianCurrencyFormatter.formatWithSymbol(monthlySummary.totalExpense, currencySymbol),
-                        tint = ExpenseRed,
-                        modifier = Modifier.weight(1f)
-                    )
+                  Surface(shape = RoundedCornerShape(12.dp), color = item.category.color.copy(alpha = 0.13f)) {
+                    Icon(item.category.icon, contentDescription = null, tint = item.category.color, modifier = Modifier.padding(9.dp).size(19.dp))
+                  }
+                  Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(item.category.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("${item.count} ${if (item.count == 1) "transaction" else "transactions"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  }
+                  Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Text(IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    Text("${(item.percentage * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                  }
                 }
+                com.example.ui.components.PremiumProgressTrack(
+                  progress = item.percentage,
+                  color = item.category.color,
+                  height = 7.dp
+                )
+              }
             }
-
-            item {
-                Card(
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Net savings",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = IndianCurrencyFormatter.formatWithSymbol(
-                                monthlySummary.savings,
-                                currencySymbol,
-                                includeSign = true
-                            ),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (monthlySummary.savings >= 0) IncomeGreen else ExpenseRed
-                        )
-                        Text(
-                            text = "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", monthlySummary.savingsRate)}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            if (monthlySummary.transactionCount > 0) {
-                item {
-                    MonthlyInsightCard(
-                        summary = monthlySummary,
-                        categorySpending = categorySpending,
-                        currencySymbol = currencySymbol
-                    )
-                }
-            }
-
-            item {
-                Card(
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Text(
-                            text = "Income vs expenses",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (monthlySummary.transactionCount == 0) {
-                            AnalyticsEmptyState("Add a transaction to see your monthly comparison.")
-                        } else {
-                            IncomeExpenseComparisonBar(
-                                income = monthlySummary.totalIncome,
-                                expense = monthlySummary.totalExpense,
-                                currencySymbol = currencySymbol
-                            )
-                        }
-                    }
-                }
-            }
-
-            item {
-                Card(
-                    shape = RoundedCornerShape(28.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        Text(
-                            text = "Spending by category",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (categorySpending.isEmpty()) {
-                            AnalyticsEmptyState("Category insights appear when you record expenses for this period.")
-                        } else {
-                            CategorySpendingBreakdown(
-                                categories = categorySpending,
-                                currencySymbol = currencySymbol,
-                                onCategoryClick = { viewModel.selectCategoryForDetail(it) }
-                            )
-                        }
-                    }
-                }
-            }
+          }
         }
+        item {
+          MonthlyInsightCard(summary = monthlySummary, categorySpending = categorySpending, currencySymbol = currencySymbol)
+        }
+      } else {
+        item {
+          Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF163D2B), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+              Text("YEARLY OVERVIEW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text(
+                IndianCurrencyFormatter.formatWithSymbol(yearlySummary.savings, currencySymbol, includeSign = true),
+                style = MaterialTheme.typography.headlineMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+              )
+              Text("Net cash flow in $currentYear", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
+              Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFD4EF75), fontWeight = FontWeight.Bold)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFFFB5A9), fontWeight = FontWeight.Bold)
+                }
+              }
+              Text(
+                if (yearlySummary.totalIncome > 0.0) "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", yearlySummary.savingsRate)}%"
+                else "Record income and expenses to build your yearly overview.",
+                style = MaterialTheme.typography.bodySmall,
+                color = Color.White.copy(alpha = 0.75f)
+              )
+            }
+          }
+        }
+        item {
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Month by month",
+            subtitle = "A consistent view of the full year."
+          )
+        }
+        items(yearlySummary.monthlyBreakdown, key = { "year_month_${it.monthKey}" }) { month ->
+          val largest = maxOf(month.totalIncome, month.totalExpense).coerceAtLeast(1.0)
+          com.example.ui.components.PremiumCard {
+            Column(modifier = Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+              Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(month.monthLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(IndianCurrencyFormatter.formatWithSymbol(month.savings, currencySymbol, includeSign = true), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (month.savings >= 0) IncomeGreen else ExpenseRed)
+              }
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("In", style = MaterialTheme.typography.labelSmall, color = IncomeGreen)
+                Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                  Box(Modifier.fillMaxWidth((month.totalIncome / largest).toFloat().coerceIn(0f, 1f)).height(7.dp).clip(CircleShape).background(IncomeGreen))
+                }
+                Text(IndianCurrencyFormatter.formatCompact(month.totalIncome, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+              }
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Out", style = MaterialTheme.typography.labelSmall, color = ExpenseRed)
+                Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
+                  Box(Modifier.fillMaxWidth((month.totalExpense / largest).toFloat().coerceIn(0f, 1f)).height(7.dp).clip(CircleShape).background(ExpenseRed))
+                }
+                Text(IndianCurrencyFormatter.formatCompact(month.totalExpense, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+              }
+            }
+          }
+        }
+        item {
+          AnnualAnalyticsSummary(summary = yearlySummary, currencySymbol = currencySymbol)
+        }
+      }
+      item { Spacer(Modifier.height(10.dp)) }
     }
+  }
 }
-
 @Composable
 private fun MonthlyInsightCard(
     summary: MonthlyFinancialSummary,

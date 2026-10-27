@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
@@ -50,6 +52,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AppBrandLogo
+import com.example.ui.components.PremiumCard
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
@@ -115,286 +118,205 @@ fun OnboardingScreen(
   }
 
   Box(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background),
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.TopCenter
   ) {
     Column(
       modifier = Modifier
+        .widthIn(max = 620.dp)
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
-        .padding(horizontal = 20.dp, vertical = 14.dp),
-      verticalArrangement = Arrangement.spacedBy(20.dp)
+        .padding(horizontal = 20.dp, vertical = 18.dp),
+      verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-      // Brand row
       Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(top = 8.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(11.dp)
       ) {
-        AppBrandLogo(size = 46.dp)
+        AppBrandLogo(size = 42.dp)
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-          Text(
-            text = "Paisa",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-          )
-          Text(
-            text = "Your personal finance companion",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            softWrap = false,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-          )
+          Text("Paisa", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+          Text("A clearer relationship with money", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
 
-      // Rounded hero panel with subtle native illustration rather than a static screenshot.
       Surface(
-        shape = RoundedCornerShape(32.dp),
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.48f),
+        shape = RoundedCornerShape(30.dp),
+        color = Color(0xFF163D2B),
         modifier = Modifier.fillMaxWidth()
       ) {
         Column(
-          modifier = Modifier.padding(horizontal = 20.dp, vertical = 22.dp),
-          horizontalAlignment = Alignment.CenterHorizontally,
-          verticalArrangement = Arrangement.spacedBy(14.dp)
+          modifier = Modifier.padding(22.dp),
+          verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-          val glowPrimary = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
-          val glowPrimaryInner = MaterialTheme.colorScheme.primary.copy(alpha = 0.09f)
-          val glowTertiary = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.12f)
-          val glowIncome = IncomeGreen.copy(alpha = 0.14f)
-          Canvas(
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(132.dp)
-          ) {
-            drawCircle(
-              color = glowPrimary,
-              radius = size.minDimension * 0.47f,
-              center = Offset(size.width * 0.5f, size.height * 0.48f)
-            )
-            drawCircle(
-              color = glowPrimaryInner,
-              radius = size.minDimension * 0.31f,
-              center = Offset(size.width * 0.5f, size.height * 0.48f)
-            )
-            drawCircle(
-              color = glowTertiary,
-              radius = size.minDimension * 0.14f,
-              center = Offset(size.width * 0.72f, size.height * 0.28f)
-            )
-            drawCircle(
-              color = glowIncome,
-              radius = size.minDimension * 0.11f,
-              center = Offset(size.width * 0.28f, size.height * 0.74f)
-            )
-          }
           Surface(
-            shape = RoundedCornerShape(30.dp),
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(70.dp)
+            shape = CircleShape,
+            color = Color.White.copy(alpha = 0.10f)
           ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = Icons.Default.AccountBalanceWallet,
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(34.dp)
+            Row(
+              modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+              horizontalArrangement = Arrangement.spacedBy(7.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFFD4EF75)))
+              Text("PERSONAL FINANCE, MADE CLEAR", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.82f), fontWeight = FontWeight.SemiBold, letterSpacing = 0.8.sp)
+            }
+          }
+
+          Text(
+            "Know where\nyour money goes.",
+            style = MaterialTheme.typography.headlineLarge,
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            lineHeight = 42.sp
+          )
+          Text(
+            "Track your spending, plan each month, and see the bigger picture — without the clutter.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color.White.copy(alpha = 0.76f)
+          )
+
+          Canvas(modifier = Modifier.fillMaxWidth().height(116.dp)) {
+            val baseline = size.height * 0.88f
+            val heights = listOf(0.28f, 0.48f, 0.36f, 0.65f, 0.55f, 0.82f, 0.72f, 0.96f)
+            val gap = size.width * 0.022f
+            val barWidth = (size.width - gap * (heights.size - 1)) / heights.size
+            drawLine(
+              color = Color.White.copy(alpha = 0.16f),
+              start = Offset(0f, baseline),
+              end = Offset(size.width, baseline),
+              strokeWidth = 1.dp.toPx()
+            )
+            heights.forEachIndexed { index, fraction ->
+              val left = index * (barWidth + gap)
+              val top = baseline - (baseline - 9.dp.toPx()) * fraction
+              drawRoundRect(
+                color = if (index == heights.lastIndex) Color(0xFFD4EF75) else Color.White.copy(alpha = 0.16f + index * 0.055f),
+                topLeft = Offset(left, top),
+                size = androidx.compose.ui.geometry.Size(barWidth, baseline - top),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(5.dp.toPx(), 5.dp.toPx())
               )
             }
           }
-          Text(
-            text = "Your finances, all in one place",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 2,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-          )
-          Text(
-            text = "Track. Plan. Grow.",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            textAlign = TextAlign.Center
-          )
-          Text(
-            text = "Understand your money with a clear view of income, spending, budgets, and savings.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-          )
+
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OnboardingPill("Track")
+            OnboardingPill("Plan")
+            OnboardingPill("Grow")
+          }
         }
       }
 
-      // Features use the real app capabilities; no additional permissions or services are implied.
-      Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth()
-      ) {
+      PremiumCard {
         Column(
-          modifier = Modifier.padding(18.dp),
-          verticalArrangement = Arrangement.spacedBy(18.dp)
+          modifier = Modifier.fillMaxWidth().padding(18.dp),
+          verticalArrangement = Arrangement.spacedBy(17.dp)
         ) {
+          Text("Built for real life", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
           FeatureRow(
             icon = Icons.Default.TrendingUp,
             title = "See your money clearly",
-            description = "Track recorded income, expenses, budgets, and monthly summaries."
+            description = "Follow recorded income, expenses, budgets and monthly patterns."
           )
           FeatureRow(
             icon = Icons.Default.CloudDone,
-            title = "Google Drive backup",
-            description = "Keep your records in the private app storage area of your Google Drive."
+            title = "Your Google Drive backup",
+            description = "Keep your financial records available through your connected Google account."
           )
           FeatureRow(
             icon = Icons.Default.Lock,
             title = "Privacy and control",
-            description = "Use your Google account to connect and manage your financial records."
+            description = "Choose how you connect and manage your financial records."
           )
         }
       }
 
       if (errorMessage != null) {
         Surface(
-          shape = RoundedCornerShape(28.dp),
-          color = ExpenseRed.copy(alpha = 0.11f),
-          modifier = Modifier
-            .fillMaxWidth()
-            .testTag("google_sign_in_error")
+          shape = RoundedCornerShape(16.dp),
+          color = ExpenseRed.copy(alpha = 0.10f),
+          modifier = Modifier.fillMaxWidth().testTag("google_sign_in_error")
         ) {
           Row(
             modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.Top,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
           ) {
-            Icon(
-              imageVector = Icons.Default.Lock,
-              contentDescription = null,
-              tint = ExpenseRed,
-              modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Default.Lock, contentDescription = null, tint = ExpenseRed, modifier = Modifier.size(20.dp))
             Text(
-              text = errorMessage ?: "",
+              errorMessage.orEmpty(),
+              modifier = Modifier.weight(1f),
               style = MaterialTheme.typography.bodySmall,
               color = ExpenseRed,
-              fontWeight = FontWeight.Medium,
-              modifier = Modifier.weight(1f)
+              fontWeight = FontWeight.Medium
             )
           }
         }
       }
 
-      Button(
-        onClick = {
-          if (!isSigningIn) {
-            isSigningIn = true
-            errorMessage = null
-            statusMessage = "Opening Google Sign-In..."
-            googleSignInLauncher.launch(viewModel.getDriveSignInIntent())
-          }
-        },
-        enabled = !isSigningIn,
-        shape = RoundedCornerShape(28.dp),
-        colors = ButtonDefaults.buttonColors(
-          containerColor = MaterialTheme.colorScheme.primary,
-          contentColor = Color.White
-        ),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        modifier = Modifier
-          .fillMaxWidth()
-          .heightIn(min = 58.dp)
-          .testTag("google_sign_in_button")
-      ) {
-        if (isSigningIn) {
-          CircularProgressIndicator(
-            modifier = Modifier.size(22.dp),
-            color = Color.White,
-            strokeWidth = 2.5.dp
-          )
-          Spacer(modifier = Modifier.width(12.dp))
-          Text(
-            text = statusMessage ?: "Signing in...",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            softWrap = false,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-          )
-        } else {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-          ) {
-            Surface(
-              shape = CircleShape,
-              color = Color.White,
-              modifier = Modifier.size(28.dp)
-            ) {
+      Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Button(
+          onClick = {
+            if (!isSigningIn) {
+              isSigningIn = true
+              errorMessage = null
+              statusMessage = "Opening Google Sign-In..."
+              googleSignInLauncher.launch(viewModel.getDriveSignInIntent())
+            }
+          },
+          enabled = !isSigningIn,
+          shape = RoundedCornerShape(18.dp),
+          colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+          ),
+          contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+          modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp).testTag("google_sign_in_button")
+        ) {
+          if (isSigningIn) {
+            CircularProgressIndicator(modifier = Modifier.size(21.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+            Spacer(Modifier.width(11.dp))
+            Text(statusMessage ?: "Connecting...", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+          } else {
+            Surface(shape = CircleShape, color = Color.White, modifier = Modifier.size(27.dp)) {
               Box(contentAlignment = Alignment.Center) {
-                Text(
-                  text = "G",
-                  fontWeight = FontWeight.Black,
-                  fontSize = 16.sp,
-                  color = MaterialTheme.colorScheme.primary
-                )
+                Text("G", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
               }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-              text = "Continue with Google",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold,
-              maxLines = 1,
-              softWrap = false,
-              overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-            )
+            Spacer(Modifier.width(10.dp))
+            Text("Continue with Google", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
           }
         }
-      }
 
-      Spacer(modifier = Modifier.height(12.dp))
-
-      androidx.compose.material3.OutlinedButton(
-        onClick = { viewModel.loginAsGuest() },
-        enabled = !isSigningIn,
-        shape = RoundedCornerShape(28.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-        colors = ButtonDefaults.outlinedButtonColors(
-          contentColor = MaterialTheme.colorScheme.onSurface
-        ),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-        modifier = Modifier
-          .fillMaxWidth()
-          .heightIn(min = 54.dp)
-          .testTag("guest_login_button")
-      ) {
-        Text(
-          text = "Continue as Guest",
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.SemiBold
-        )
+        androidx.compose.material3.OutlinedButton(
+          onClick = { viewModel.loginAsGuest() },
+          enabled = !isSigningIn,
+          shape = RoundedCornerShape(18.dp),
+          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+          contentPadding = PaddingValues(horizontal = 20.dp, vertical = 11.dp),
+          modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp).testTag("guest_login_button")
+        ) {
+          Text("Continue as Guest", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        }
       }
 
       Text(
-        text = "You can review backup, privacy, and security options in Settings after signing in.",
+        "Guest records stay on this device. Connect Google Drive from an account session to use online backup.",
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center,
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 8.dp)
-          .padding(bottom = 12.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp)
       )
+      Spacer(Modifier.height(12.dp))
     }
+  }
+}
+
+@Composable
+private fun OnboardingPill(label: String) {
+  Surface(shape = CircleShape, color = Color.White.copy(alpha = 0.11f)) {
+    Text(label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium, color = Color.White, fontWeight = FontWeight.SemiBold)
   }
 }
 

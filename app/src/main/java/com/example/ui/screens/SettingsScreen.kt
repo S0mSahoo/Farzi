@@ -1,6 +1,13 @@
 package com.example.ui.screens
 
 import android.app.Activity
+import android.Manifest
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -19,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +49,7 @@ import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Star
@@ -57,13 +66,17 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -76,10 +89,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
@@ -87,6 +104,7 @@ import coil.compose.AsyncImage
 import com.example.data.drive.GoogleDriveState
 import com.example.data.model.ThemeMode
 import com.example.ui.components.ConfirmationDialog
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.DateUtils
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
@@ -94,6 +112,7 @@ import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
 import com.example.ui.viewmodel.FinanceViewModel
 import com.example.util.BiometricAuthManager
+import com.example.util.CryptoManager
 import com.example.util.JsonValidationResult
 import com.example.util.PaisaJsonBackup
 import com.example.util.ValidationSummary
@@ -119,6 +138,39 @@ fun SettingsScreen(
   val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
   val isAppLockEnabled by viewModel.isAppLockEnabled.collectAsStateWithLifecycle()
   val universalCal by viewModel.selectedCalendar.collectAsStateWithLifecycle()
+  val isGuestSession = userProfile.email.equals("guest@paisa.local", ignoreCase = true) &&
+    userProfile.googleId.isNullOrBlank()
+  var isRecoveryPassphraseConfigured by remember {
+    mutableStateOf(runCatching { CryptoManager.getStoredCloudRecoveryPassphrase(context) != null }.getOrDefault(false))
+  }
+  var showRecoveryPassphraseDialog by remember { mutableStateOf(false) }
+  var recoveryPassphraseInput by remember { mutableStateOf("") }
+  var recoveryPassphraseConfirm by remember { mutableStateOf("") }
+  var recoveryPassphraseError by remember { mutableStateOf<String?>(null) }
+
+  var notificationsAllowed by remember { mutableStateOf(hasNotificationAccess(context)) }
+  val notificationPermissionLauncher = rememberLauncherForActivityResult(
+    contract = ActivityResultContracts.RequestPermission()
+  ) { granted ->
+    notificationsAllowed = hasNotificationAccess(context)
+    Toast.makeText(
+      context,
+      if (notificationsAllowed) "Payment reminders are enabled"
+      else if (granted) "Notifications are disabled in Android Settings"
+      else "Permission not granted. You can enable notifications in Android Settings.",
+      Toast.LENGTH_LONG
+    ).show()
+  }
+  val lifecycleOwner = LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        notificationsAllowed = hasNotificationAccess(context)
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -274,18 +326,135 @@ fun SettingsScreen(
     )
   }
 
+  if (showRecoveryPassphraseDialog) {
+    AlertDialog(
+      onDismissRequest = {
+        showRecoveryPassphraseDialog = false
+        recoveryPassphraseInput = ""
+        recoveryPassphraseConfirm = ""
+        recoveryPassphraseError = null
+      },
+      title = {
+        Text(
+          if (isRecoveryPassphraseConfigured) "Enter Recovery Passphrase" else "Protect Cloud Backups",
+          fontWeight = FontWeight.Bold
+        )
+      },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(
+            "Create a recovery passphrase of at least 12 characters, or enter the exact same passphrase used on another device. It is stored locally using Android Keystore and is never uploaded.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Text(
+            "This changes only the passphrase saved on this device; it does not change the cloud backup. Enter the exact passphrase used to encrypt that backup. If it is lost, new-format backups cannot be decrypted.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          OutlinedTextField(
+            value = recoveryPassphraseInput,
+            onValueChange = {
+              recoveryPassphraseInput = it
+              recoveryPassphraseError = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Recovery passphrase") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+          )
+          OutlinedTextField(
+            value = recoveryPassphraseConfirm,
+            onValueChange = {
+              recoveryPassphraseConfirm = it
+              recoveryPassphraseError = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Confirm passphrase") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+          )
+          if (recoveryPassphraseError != null) {
+            Text(
+              text = recoveryPassphraseError.orEmpty(),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.error
+            )
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            when {
+              recoveryPassphraseInput.length < 12 -> {
+                recoveryPassphraseError = "Use at least 12 characters."
+              }
+              recoveryPassphraseInput != recoveryPassphraseConfirm -> {
+                recoveryPassphraseError = "The passphrases do not match."
+              }
+              else -> {
+                try {
+                  CryptoManager.replaceStoredCloudRecoveryPassphrase(context, recoveryPassphraseInput)
+                  isRecoveryPassphraseConfigured = true
+                  showRecoveryPassphraseDialog = false
+                  recoveryPassphraseInput = ""
+                  recoveryPassphraseConfirm = ""
+                  recoveryPassphraseError = null
+                  Toast.makeText(
+                    context,
+                    "Recovery passphrase saved securely on this device. Tap Sync Now to sync or migrate your Drive backup.",
+                    Toast.LENGTH_LONG
+                  ).show()
+                } catch (e: Exception) {
+                  recoveryPassphraseError = e.localizedMessage ?: "Could not save the recovery passphrase securely."
+                }
+              }
+            }
+          }
+        ) { Text("Save Passphrase") }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            showRecoveryPassphraseDialog = false
+            recoveryPassphraseInput = ""
+            recoveryPassphraseConfirm = ""
+            recoveryPassphraseError = null
+          }
+        ) { Text("Cancel") }
+      }
+    )
+  }
+
   // Sign Out confirmation dialog
   if (showSignOutDialog) {
     ConfirmationDialog(
-      title = "Sign Out from Google Account?",
-      message = "Signing out will end your session and clear local device cache. Your financial data is securely preserved on Google Drive and will reload when you sign in again.",
-      confirmButtonText = "Sign Out",
+      title = if (isGuestSession) "Leave Guest Mode?" else "Sign Out from Google Account?",
+      message = if (isGuestSession) {
+        "Your guest financial records will remain on this device and will not be uploaded to Google Drive."
+      } else {
+        "Paisa will verify and save your latest backup before clearing the local cache. If verification or upload fails, your local records will be kept and sign-out will be stopped."
+      },
+      confirmButtonText = if (isGuestSession) "Leave Guest Mode" else "Sign Out",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
-        viewModel.signOut {
-          Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+        viewModel.signOut { success ->
+          if (success) {
+            Toast.makeText(
+              context,
+              if (isGuestSession) "Guest mode closed. Local records were kept." else "Signed out successfully",
+              Toast.LENGTH_SHORT
+            ).show()
+            showSignOutDialog = false
+          } else {
+            Toast.makeText(
+              context,
+              syncErrorMessage ?: "Sign-out failed. Local records were kept.",
+              Toast.LENGTH_LONG
+            ).show()
+          }
         }
-        showSignOutDialog = false
       },
       onDismiss = { showSignOutDialog = false }
     )
@@ -295,14 +464,30 @@ fun SettingsScreen(
   if (showClearDataDialog) {
     ConfirmationDialog(
       title = "Clear All Financial Data?",
-      message = "This will permanently erase all transactions, budgets, and recurring rules from your device and cloud storage.",
+      message = if (isGuestSession) {
+        "This will permanently erase this device's guest records."
+      } else {
+        "This will erase transactions, budgets, and recurring rules from your device and Google Drive. If the cloud erase fails, local records will be restored."
+      },
       confirmButtonText = "Erase Everything",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
-        viewModel.clearAllData {
-          Toast.makeText(context, "All records permanently erased", Toast.LENGTH_SHORT).show()
+        viewModel.clearAllData { success ->
+          if (success) {
+            Toast.makeText(
+              context,
+              if (isGuestSession) "Guest records erased from this device" else "Local and cloud records erased",
+              Toast.LENGTH_SHORT
+            ).show()
+            showClearDataDialog = false
+          } else {
+            Toast.makeText(
+              context,
+              syncErrorMessage ?: "Could not erase all records. Existing data was kept.",
+              Toast.LENGTH_LONG
+            ).show()
+          }
         }
-        showClearDataDialog = false
       },
       onDismiss = { showClearDataDialog = false }
     )
@@ -441,6 +626,7 @@ fun SettingsScreen(
 
   LazyColumn(
     modifier = Modifier
+      .widthIn(max = 920.dp)
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("settings_screen"),
@@ -449,12 +635,9 @@ fun SettingsScreen(
   ) {
     // Header
     item {
-      Text(
-        text = "Settings",
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+      PremiumPageHeader(
+        title = "Settings",
+        subtitle = "Your account, data and privacy preferences."
       )
     }
 
@@ -642,6 +825,52 @@ fun SettingsScreen(
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = if (isRecoveryPassphraseConfigured) IncomeGreen.copy(alpha = 0.13f) else AccentAmber.copy(alpha = 0.15f),
+                modifier = Modifier.size(38.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    if (isRecoveryPassphraseConfigured) Icons.Default.CheckCircle else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = if (isRecoveryPassphraseConfigured) IncomeGreen else AccentAmber,
+                    modifier = Modifier.size(20.dp)
+                  )
+                }
+              }
+              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                  text = "Backup recovery passphrase",
+                  style = MaterialTheme.typography.titleSmall,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  text = if (isRecoveryPassphraseConfigured) {
+                    "Configured on this device. Use the same passphrase on other devices."
+                  } else {
+                    "Required for new encrypted cloud backups and cross-device restore."
+                  },
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+              OutlinedButton(
+                onClick = { showRecoveryPassphraseDialog = true },
+                shape = RoundedCornerShape(14.dp)
+              ) {
+                Text(if (isRecoveryPassphraseConfigured) "Enter / change" else "Set up")
+              }
+            }
 
             // Google Drive Storage Quota Display
             if (driveQuota != null) {
@@ -864,7 +1093,17 @@ fun SettingsScreen(
                         }
                       )
                     } else {
-                      viewModel.setAppLockEnabled(targetState)
+                      // Fail closed: enabling or disabling App Lock requires device authentication.
+                      Toast.makeText(
+                        context,
+                        "Set up a device screen lock or biometric authentication in Android Settings before changing App Lock.",
+                        Toast.LENGTH_LONG
+                      ).show()
+                      try {
+                        context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+                      } catch (_: Exception) {
+                        // Keep the setting unchanged if security settings cannot be opened.
+                      }
                     }
                   },
                   colors = SwitchDefaults.colors(
@@ -872,6 +1111,66 @@ fun SettingsScreen(
                     checkedTrackColor = MaterialTheme.colorScheme.primary
                   )
                 )
+              }
+            )
+            HorizontalDivider(
+              modifier = Modifier.padding(horizontal = 16.dp),
+              color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+            )
+            SettingsRow(
+              icon = Icons.Default.Notifications,
+              iconTint = MaterialTheme.colorScheme.primary,
+              iconBg = MaterialTheme.colorScheme.primaryContainer,
+              title = "Payment Reminders",
+              subtitle = if (notificationsAllowed) {
+                "Notifications are enabled for scheduled bills"
+              } else {
+                "Enable notifications to receive payment due reminders"
+              },
+              action = {
+                OutlinedButton(
+                  onClick = {
+                    val runtimePermissionMissing =
+                      Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                        ContextCompat.checkSelfPermission(
+                          context,
+                          Manifest.permission.POST_NOTIFICATIONS
+                        ) != PackageManager.PERMISSION_GRANTED
+                    val permissionPrefs = context.getSharedPreferences(
+                      "paisa_permissions",
+                      Context.MODE_PRIVATE
+                    )
+                    val alreadyAsked = permissionPrefs.getBoolean("notification_permission_requested", false)
+                    if (runtimePermissionMissing && !alreadyAsked) {
+                      permissionPrefs.edit().putBoolean("notification_permission_requested", true).apply()
+                      notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    } else {
+                      try {
+                        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                          Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(
+                            Settings.EXTRA_APP_PACKAGE,
+                            context.packageName
+                          )
+                        } else {
+                          Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse("package:${context.packageName}")
+                          )
+                        }
+                        context.startActivity(intent)
+                      } catch (_: Exception) {
+                        Toast.makeText(
+                          context,
+                          "Open Paisa's notification settings in Android Settings.",
+                          Toast.LENGTH_LONG
+                        ).show()
+                      }
+                    }
+                  },
+                  shape = RoundedCornerShape(14.dp)
+                ) {
+                  Text(if (notificationsAllowed) "Manage" else "Enable")
+                }
               }
             )
           }
@@ -1142,51 +1441,57 @@ private fun SettingsRow(
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 12.dp),
+      .padding(horizontal = 16.dp, vertical = 11.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.SpaceBetween
+    horizontalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(14.dp),
-      modifier = Modifier.weight(1f)
+    Surface(
+      shape = RoundedCornerShape(14.dp),
+      color = iconBg,
+      modifier = Modifier.size(44.dp)
     ) {
-      Surface(
-        shape = CircleShape,
-        color = iconBg,
-        modifier = Modifier.size(38.dp)
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-          )
-        }
-      }
-
-      Column {
-        Text(
-          text = title,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.SemiBold,
-          color = MaterialTheme.colorScheme.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-        Text(
-          text = subtitle,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
+      Box(contentAlignment = Alignment.Center) {
+        Icon(
+          imageVector = icon,
+          contentDescription = null,
+          tint = iconTint,
+          modifier = Modifier.size(21.dp)
         )
       }
     }
 
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+      Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+      )
+    }
+
     action()
   }
+}
+
+private fun hasNotificationAccess(context: Context): Boolean {
+  val runtimePermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+    ContextCompat.checkSelfPermission(
+      context,
+      Manifest.permission.POST_NOTIFICATIONS
+    ) == PackageManager.PERMISSION_GRANTED
+  return runtimePermissionGranted && NotificationManagerCompat.from(context).areNotificationsEnabled()
 }
 
 private fun formatLastSync(timestamp: Long?): String {
