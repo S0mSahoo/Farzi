@@ -48,6 +48,7 @@ import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
 import com.example.ui.components.PremiumMonthNavigator
 import com.example.ui.components.PremiumPageHeader
+import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.viewmodel.FinanceViewModel
 
 @Composable
