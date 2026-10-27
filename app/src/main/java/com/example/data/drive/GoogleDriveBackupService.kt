@@ -391,7 +391,10 @@ class GoogleDriveBackupService(private val context: Context) {
       if (files != null) {
         for (index in 0 until files.length()) {
           val id = files.getJSONObject(index).optString("id")
-          if (id.isNotBlank()) fileIds += id
+          if (id.isBlank()) {
+            throw IOException("Google Drive returned a backup without a file ID; local data was not erased.")
+          }
+          fileIds += id
         }
       }
       nextPageToken = page.optString("nextPageToken", "").takeIf { it.isNotBlank() }
