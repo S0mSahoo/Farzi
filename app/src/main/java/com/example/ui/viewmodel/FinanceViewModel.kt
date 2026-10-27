@@ -1564,68 +1564,66 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   fun signOut(onComplete: (Boolean) -> Unit) {
     viewModelScope.launch {
       syncMutex.withLock {
-        val wasGuest = isGuestSession()
-        val account = if (wasGuest) null else driveService.getLastSignedInAccount()
+        try {
+          val wasGuest = isGuestSession()
+          val account = if (wasGuest) null else driveService.getLastSignedInAccount()
 
-        if (!wasGuest && !_userProfile.value.googleId.isNullOrBlank() && account == null) {
-          _syncErrorMessage.value = "Google account is unavailable. Local records were kept; reconnect to verify the backup before signing out."
-          onComplete(false)
-          return@withLock
-        }
-        if (!wasGuest && account != null && !isActiveGoogleAccount(account)) {
-          _syncErrorMessage.value = accountMismatchMessage()
-          onComplete(false)
-          return@withLock
-        }
-
-        // Do not discard local data until an authenticated account's cloud state has been
-        // checked and the latest local snapshot has been persisted successfully.
-        if (account != null) {
-          val reconciled = pullFromDriveAndMerge(account)
-          if (!reconciled) {
-            _syncErrorMessage.value = _syncErrorMessage.value
-              ?: "Sign-out stopped because the latest backup could not be verified. Local data was kept."
+          if (!wasGuest && !_userProfile.value.googleId.isNullOrBlank() && account == null) {
+            _syncErrorMessage.value = "Google account is unavailable. Local records were kept; reconnect to verify the backup before signing out."
             onComplete(false)
             return@withLock
           }
-          try {
+          if (!wasGuest && account != null && !isActiveGoogleAccount(account)) {
+            _syncErrorMessage.value = accountMismatchMessage()
+            onComplete(false)
+            return@withLock
+          }
+
+          // Do not discard local data until an authenticated account's cloud state has been
+          // checked and the latest local snapshot has been persisted successfully.
+          if (account != null) {
+            val reconciled = pullFromDriveAndMerge(account)
+            if (!reconciled) {
+              _syncErrorMessage.value = _syncErrorMessage.value
+                ?: "Sign-out stopped because the latest backup could not be verified. Local data was kept."
+              onComplete(false)
+              return@withLock
+            }
             syncCurrentStateToDriveLocked(account)
-          } catch (e: Exception) {
-            _syncErrorMessage.value = "Sign-out stopped because the latest backup failed: ${e.localizedMessage ?: "unknown error"}. Local data was kept."
+          }
+
+          val signedOut = driveService.signOut()
+          if (!signedOut) {
+            _syncErrorMessage.value = "Could not complete Google sign-out. Local data was left untouched."
             onComplete(false)
             return@withLock
           }
-        }
 
-        val signedOut = driveService.signOut()
-        if (!signedOut) {
-          _syncErrorMessage.value = "Could not complete Google sign-out. Local data was left untouched."
+          // Authenticated records are removed only after successful verification and upload.
+          if (!wasGuest && account != null) {
+            repository.clearLocalCache()
+            repository.setGuestDataMode(false)
+          } else if (!wasGuest) {
+            // If records remain without a verifiable Google account, retain them as isolated
+            // local-only data. A future sign-in must not upload them implicitly.
+            val dump = repository.getAllLocalData()
+            val hasLocalData = dump.transactions.isNotEmpty() || dump.budgets.isNotEmpty() ||
+              dump.recurringRules.isNotEmpty() || dump.paidOccurrences.isNotEmpty()
+            if (hasLocalData) repository.setGuestDataMode(true)
+          }
+          repository.clearUserProfile()
+          _userProfile.value = UserProfile()
+          _googleDriveState.value = GoogleDriveState.NotConnected
+          _lastSyncTimestamp.value = null
+          _syncErrorMessage.value = null
+          onComplete(true)
+        } catch (e: Exception) {
+          _syncErrorMessage.value = "Sign-out could not safely finish. Local financial records were kept. ${e.localizedMessage ?: "Unknown error"}"
           onComplete(false)
-          return@withLock
         }
-
-        // Authenticated records are removed only after successful verification and upload.
-        if (!wasGuest && account != null) {
-          repository.clearLocalCache()
-          repository.setGuestDataMode(false)
-        } else if (!wasGuest) {
-          // If there are records without a verifiable Google account, retain them as isolated
-          // local-only data. A future sign-in must not upload them implicitly.
-          val dump = repository.getAllLocalData()
-          val hasLocalData = dump.transactions.isNotEmpty() || dump.budgets.isNotEmpty() ||
-            dump.recurringRules.isNotEmpty() || dump.paidOccurrences.isNotEmpty()
-          if (hasLocalData) repository.setGuestDataMode(true)
-        }
-        repository.clearUserProfile()
-        _userProfile.value = UserProfile()
-        _googleDriveState.value = GoogleDriveState.NotConnected
-        _lastSyncTimestamp.value = null
-        _syncErrorMessage.value = null
-        onComplete(true)
       }
     }
   }
-
   fun resetDriveStateToConnected() {
     val account = driveService.getLastSignedInAccount()
     val savedEmail = driveService.getSavedEmail()
