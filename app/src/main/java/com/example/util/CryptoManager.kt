@@ -119,6 +119,24 @@ object CryptoManager {
       }
   }
 
+  /**
+   * Explicitly replaces the passphrase saved on this device. This does not change the cloud
+   * encryption key or rewrite the cloud backup; it only lets a user correct a passphrase entry
+   * or re-enter the same cross-device recovery passphrase on this device.
+   */
+  fun replaceStoredCloudRecoveryPassphrase(context: Context, passphrase: String) {
+    require(passphrase.length >= 12) { "Recovery passphrase must contain at least 12 characters." }
+    val key = getOrCreateRecoveryWrapKey()
+    val cipher = Cipher.getInstance(ALGORITHM)
+    cipher.init(Cipher.ENCRYPT_MODE, key)
+    val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
+    val saved = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE).edit()
+      .putString(RECOVERY_IV_KEY, Base64.encodeToString(cipher.iv, Base64.NO_WRAP))
+      .putString(RECOVERY_VALUE_KEY, Base64.encodeToString(encrypted, Base64.NO_WRAP))
+      .commit()
+    check(saved) { "Could not securely save the recovery passphrase on this device." }
+  }
+
   /** Returns the locally Keystore-wrapped passphrase, or null if none has been configured. */
   fun getStoredCloudRecoveryPassphrase(context: Context): String? {
     val prefs = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE)
