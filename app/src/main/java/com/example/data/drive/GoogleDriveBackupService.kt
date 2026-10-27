@@ -368,7 +368,7 @@ class GoogleDriveBackupService(private val context: Context) {
     val requestBody = MultipartBody.Builder()
       .setType("multipart/related".toMediaType())
       .addPart(
-        Headers.headersOf("Content-Type", "application/json; charset=UTF-8"),
+        Headers.Builder().add("Content-Type", "application/json; charset=UTF-8").build(),
         metadataBody
       )
       .addPart(
