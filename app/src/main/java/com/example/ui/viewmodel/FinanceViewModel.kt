@@ -1426,7 +1426,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     viewModelScope.launch {
       syncMutex.withLock {
-        if (repository.isGuestDataMode()) {
+        if (isGuestSession()) {
+          // Migrate the guard for guest sessions created by older app versions too.
+          repository.setGuestDataMode(true)
           val message = "Guest records are kept local and will not be uploaded automatically. Re-enter guest mode, export a JSON backup, clear guest data in Settings, then sign in and import the backup if you want to move it."
           _syncErrorMessage.value = message
           onResult?.invoke(false, message)
