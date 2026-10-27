@@ -1183,7 +1183,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     if (rule.title.isBlank() || !rule.amount.isFinite() || rule.amount <= 0.0 ||
       rule.startDate <= 0L || (rule.endDate != null && rule.endDate < rule.startDate)) return
     viewModelScope.launch {
-      repository.updateRecurringRule(rule.copy(createdAt = rule.createdAt))
+      repository.updateRecurringRule(rule)
       repository.processDueRecurringRules()
       syncCurrentStateToDrive()
     }
