@@ -91,7 +91,8 @@ fun DashboardScreen(
   viewModel: FinanceViewModel,
   onOpenAddTransaction: (prefilledType: TransactionType?) -> Unit,
   onOpenSetBudget: () -> Unit,
-  onEditTransaction: (item: TransactionItem) -> Unit
+  onEditTransaction: (item: TransactionItem) -> Unit,
+  onOpenAllTransactions: () -> Unit
 ) {
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
@@ -398,7 +399,12 @@ fun DashboardScreen(
       item {
         com.example.ui.components.PremiumSectionHeading(
           title = "Recent activity",
-          subtitle = "Your latest entries for ${summary.monthLabel}"
+          subtitle = "Your latest entries for ${summary.monthLabel}",
+          trailing = {
+            TextButton(onClick = onOpenAllTransactions) {
+              Text("See all", fontWeight = FontWeight.SemiBold)
+            }
+          }
         )
       }
       if (recentTransactions.isEmpty()) {
