@@ -58,6 +58,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -81,6 +82,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.fragment.app.FragmentActivity
@@ -96,6 +98,7 @@ import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
 import com.example.ui.viewmodel.FinanceViewModel
 import com.example.util.BiometricAuthManager
+import com.example.util.CryptoManager
 import com.example.util.JsonValidationResult
 import com.example.util.PaisaJsonBackup
 import com.example.util.ValidationSummary
@@ -123,6 +126,13 @@ fun SettingsScreen(
   val universalCal by viewModel.selectedCalendar.collectAsStateWithLifecycle()
   val isGuestSession = userProfile.email.equals("guest@paisa.local", ignoreCase = true) &&
     userProfile.googleId.isNullOrBlank()
+  var isRecoveryPassphraseConfigured by remember {
+    mutableStateOf(runCatching { CryptoManager.getStoredCloudRecoveryPassphrase(context) != null }.getOrDefault(false))
+  }
+  var showRecoveryPassphraseDialog by remember { mutableStateOf(false) }
+  var recoveryPassphraseInput by remember { mutableStateOf("") }
+  var recoveryPassphraseConfirm by remember { mutableStateOf("") }
+  var recoveryPassphraseError by remember { mutableStateOf<String?>(null) }
 
   var isExportingJson by remember { mutableStateOf(false) }
   var isValidatingImport by remember { mutableStateOf(false) }
@@ -274,6 +284,104 @@ fun SettingsScreen(
         ) {
           Text("Cancel")
         }
+      }
+    )
+  }
+
+  if (showRecoveryPassphraseDialog) {
+    AlertDialog(
+      onDismissRequest = {
+        showRecoveryPassphraseDialog = false
+        recoveryPassphraseInput = ""
+        recoveryPassphraseConfirm = ""
+        recoveryPassphraseError = null
+      },
+      title = {
+        Text("Protect Cloud Backups", fontWeight = FontWeight.Bold)
+      },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+          Text(
+            "Create a recovery passphrase of at least 12 characters, or enter the same passphrase you use on another device. It is stored locally using Android Keystore and is never uploaded.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Text(
+            "Keep this passphrase safe. If you lose it, new-format cloud backups cannot be decrypted. Older backups remain readable while Paisa migrates them.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          OutlinedTextField(
+            value = recoveryPassphraseInput,
+            onValueChange = {
+              recoveryPassphraseInput = it
+              recoveryPassphraseError = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Recovery passphrase") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+          )
+          OutlinedTextField(
+            value = recoveryPassphraseConfirm,
+            onValueChange = {
+              recoveryPassphraseConfirm = it
+              recoveryPassphraseError = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Confirm passphrase") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+          )
+          if (recoveryPassphraseError != null) {
+            Text(
+              text = recoveryPassphraseError.orEmpty(),
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.error
+            )
+          }
+        }
+      },
+      confirmButton = {
+        TextButton(
+          onClick = {
+            when {
+              recoveryPassphraseInput.length < 12 -> {
+                recoveryPassphraseError = "Use at least 12 characters."
+              }
+              recoveryPassphraseInput != recoveryPassphraseConfirm -> {
+                recoveryPassphraseError = "The passphrases do not match."
+              }
+              else -> {
+                try {
+                  CryptoManager.storeCloudRecoveryPassphrase(context, recoveryPassphraseInput)
+                  isRecoveryPassphraseConfigured = true
+                  showRecoveryPassphraseDialog = false
+                  recoveryPassphraseInput = ""
+                  recoveryPassphraseConfirm = ""
+                  recoveryPassphraseError = null
+                  Toast.makeText(
+                    context,
+                    "Recovery passphrase stored securely. Tap Sync Now to sync or migrate your Drive backup.",
+                    Toast.LENGTH_LONG
+                  ).show()
+                } catch (e: Exception) {
+                  recoveryPassphraseError = e.localizedMessage ?: "Could not save the recovery passphrase securely."
+                }
+              }
+            }
+          }
+        ) { Text("Save Passphrase") }
+      },
+      dismissButton = {
+        TextButton(
+          onClick = {
+            showRecoveryPassphraseDialog = false
+            recoveryPassphraseInput = ""
+            recoveryPassphraseConfirm = ""
+            recoveryPassphraseError = null
+          }
+        ) { Text("Cancel") }
       }
     )
   }
@@ -676,6 +784,54 @@ fun SettingsScreen(
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = if (isRecoveryPassphraseConfigured) IncomeGreen.copy(alpha = 0.13f) else AccentAmber.copy(alpha = 0.15f),
+                modifier = Modifier.size(38.dp)
+              ) {
+                Box(contentAlignment = Alignment.Center) {
+                  Icon(
+                    if (isRecoveryPassphraseConfigured) Icons.Default.CheckCircle else Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = if (isRecoveryPassphraseConfigured) IncomeGreen else AccentAmber,
+                    modifier = Modifier.size(20.dp)
+                  )
+                }
+              }
+              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                  text = "Backup recovery passphrase",
+                  style = MaterialTheme.typography.titleSmall,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                  text = if (isRecoveryPassphraseConfigured) {
+                    "Configured on this device. Use the same passphrase on other devices."
+                  } else {
+                    "Required for new encrypted cloud backups and cross-device restore."
+                  },
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
+              if (!isRecoveryPassphraseConfigured) {
+                OutlinedButton(
+                  onClick = { showRecoveryPassphraseDialog = true },
+                  shape = RoundedCornerShape(14.dp)
+                ) {
+                  Text("Set up")
+                }
+              }
+            }
 
             // Google Drive Storage Quota Display
             if (driveQuota != null) {
