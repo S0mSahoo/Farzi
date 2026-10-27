@@ -335,17 +335,20 @@ fun SettingsScreen(
         recoveryPassphraseError = null
       },
       title = {
-        Text("Protect Cloud Backups", fontWeight = FontWeight.Bold)
+        Text(
+          if (isRecoveryPassphraseConfigured) "Enter Recovery Passphrase" else "Protect Cloud Backups",
+          fontWeight = FontWeight.Bold
+        )
       },
       text = {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
           Text(
-            "Create a recovery passphrase of at least 12 characters, or enter the same passphrase you use on another device. It is stored locally using Android Keystore and is never uploaded.",
+            "Create a recovery passphrase of at least 12 characters, or enter the exact same passphrase used on another device. It is stored locally using Android Keystore and is never uploaded.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
           Text(
-            "Keep this passphrase safe. If you lose it, new-format cloud backups cannot be decrypted. Older backups remain readable while Paisa migrates them.",
+            "This changes only the passphrase saved on this device; it does not change the cloud backup. Enter the exact passphrase used to encrypt that backup. If it is lost, new-format backups cannot be decrypted.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
           )
@@ -392,7 +395,7 @@ fun SettingsScreen(
               }
               else -> {
                 try {
-                  CryptoManager.storeCloudRecoveryPassphrase(context, recoveryPassphraseInput)
+                  CryptoManager.replaceStoredCloudRecoveryPassphrase(context, recoveryPassphraseInput)
                   isRecoveryPassphraseConfigured = true
                   showRecoveryPassphraseDialog = false
                   recoveryPassphraseInput = ""
@@ -400,7 +403,7 @@ fun SettingsScreen(
                   recoveryPassphraseError = null
                   Toast.makeText(
                     context,
-                    "Recovery passphrase stored securely. Tap Sync Now to sync or migrate your Drive backup.",
+                    "Recovery passphrase saved securely on this device. Tap Sync Now to sync or migrate your Drive backup.",
                     Toast.LENGTH_LONG
                   ).show()
                 } catch (e: Exception) {
@@ -861,13 +864,11 @@ fun SettingsScreen(
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
               }
-              if (!isRecoveryPassphraseConfigured) {
-                OutlinedButton(
-                  onClick = { showRecoveryPassphraseDialog = true },
-                  shape = RoundedCornerShape(14.dp)
-                ) {
-                  Text("Set up")
-                }
+              OutlinedButton(
+                onClick = { showRecoveryPassphraseDialog = true },
+                shape = RoundedCornerShape(14.dp)
+              ) {
+                Text(if (isRecoveryPassphraseConfigured) "Enter / change" else "Set up")
               }
             }
 
