@@ -63,7 +63,9 @@ data class EncryptedCloudEnvelope(
   val saltBase64: String,
   val ivBase64: String,
   val ciphertextBase64: String,
-  val userEmail: String? = null
+  val userEmail: String? = null,
+  // Missing on legacy envelopes, which used the Google account identifier as a key.
+  val encryptionScheme: String = "google-id-v1"
 )
 
 data class BackupPayload(
@@ -264,13 +266,22 @@ class GoogleDriveBackupService(private val context: Context) {
       val envelope = try { envelopeAdapter.fromJson(jsonContent) } catch (e: Exception) { null }
 
       val payloadJson = if (envelope != null && envelope.encrypted) {
-        // Decrypt using cross-device PBKDF2 derived key
         val bundle = EncryptedBundle(
           saltBase64 = envelope.saltBase64,
           ivBase64 = envelope.ivBase64,
           ciphertextBase64 = envelope.ciphertextBase64
         )
-        CryptoManager.decryptCloudPayload(bundle, userKeyId)
+        when (envelope.encryptionScheme) {
+          "recovery-passphrase-v1" -> {
+            val passphrase = CryptoManager.getStoredCloudRecoveryPassphrase(context)
+              ?: throw IOException(
+                "This cloud backup uses a recovery passphrase. Open Settings > Cloud Synchronization and enter the same passphrase used when the backup was created."
+              )
+            CryptoManager.decryptCloudPayloadWithPassphrase(bundle, passphrase)
+          }
+          "google-id-v1", "" -> CryptoManager.decryptCloudPayload(bundle, userKeyId)
+          else -> throw IOException("This backup uses an unsupported encryption scheme. Update Paisa before syncing.")
+        }
       } else {
         // Fallback for older unencrypted backup files
         jsonContent
@@ -302,18 +313,22 @@ class GoogleDriveBackupService(private val context: Context) {
     val payloadAdapter = moshi.adapter(BackupPayload::class.java)
     val plainJson = payloadAdapter.toJson(payload)
 
-    // Encrypt payload before saving to Google Drive
-    val userKeyId = account.id ?: account.email ?: "paisa_authenticated_user"
-    val encryptedBundle = CryptoManager.encryptCloudPayload(plainJson, userKeyId)
+    // New cloud backups use a user-controlled secret, not the public Google account identifier.
+    val recoveryPassphrase = CryptoManager.getStoredCloudRecoveryPassphrase(context)
+      ?: throw IOException(
+        "Cloud backup encryption is not configured. Open Settings > Cloud Synchronization and set a recovery passphrase of at least 12 characters before syncing."
+      )
+    val encryptedBundle = CryptoManager.encryptCloudPayloadWithPassphrase(plainJson, recoveryPassphrase)
 
     val envelope = EncryptedCloudEnvelope(
-      version = payload.version,
+      version = "5.0.0",
       encrypted = true,
       exportTimestamp = payload.exportTimestamp,
       saltBase64 = encryptedBundle.saltBase64,
       ivBase64 = encryptedBundle.ivBase64,
       ciphertextBase64 = encryptedBundle.ciphertextBase64,
-      userEmail = account.email
+      userEmail = account.email,
+      encryptionScheme = "recovery-passphrase-v1"
     )
     val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
     val encryptedJsonContent = envelopeAdapter.toJson(envelope)
