@@ -193,7 +193,7 @@ fun AddEditRecurringSheet(
         modifier = Modifier
           .fillMaxWidth()
           .height(48.dp)
-          .clip(RoundedCornerShape(14.dp))
+          .clip(RoundedCornerShape(20.dp))
           .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
           .padding(4.dp)
       ) {
@@ -209,7 +209,7 @@ fun AddEditRecurringSheet(
             .offset(x = segmentWidth * slideOffset)
             .width(segmentWidth)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(activeColor)
         )
 
@@ -270,7 +270,7 @@ fun AddEditRecurringSheet(
         RecurrenceInterval.values().forEach { interval ->
           val isSelected = selectedInterval == interval
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
               .weight(1f)
@@ -325,7 +325,7 @@ fun AddEditRecurringSheet(
         ),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
         singleLine = true,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = OutlinedTextFieldDefaults.colors(
           focusedBorderColor = activeColor,
           unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
@@ -361,7 +361,7 @@ fun AddEditRecurringSheet(
           Icon(Icons.Default.Title, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         singleLine = true,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
           .testTag("recurring_title_input")
@@ -387,7 +387,7 @@ fun AddEditRecurringSheet(
         availableCategories.forEach { category ->
           val isCatSelected = selectedCategory == category
           Surface(
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(20.dp),
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
               .fillMaxHeight()
@@ -420,7 +420,7 @@ fun AddEditRecurringSheet(
       )
       Spacer(modifier = Modifier.height(6.dp))
       Surface(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
         modifier = Modifier
@@ -458,7 +458,7 @@ fun AddEditRecurringSheet(
           Icon(Icons.Default.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         maxLines = 2,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier.fillMaxWidth()
       )
 
@@ -503,7 +503,7 @@ fun AddEditRecurringSheet(
           containerColor = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
           contentColor = Color.White
         ),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
           .height(52.dp)

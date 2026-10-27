@@ -18,11 +18,11 @@ import androidx.compose.ui.unit.dp
 // Material 3 Shapes Scale
 // ==========================================
 val Shapes = Shapes(
-  extraSmall = RoundedCornerShape(6.dp),
-  small = RoundedCornerShape(10.dp),
-  medium = RoundedCornerShape(14.dp),
-  large = RoundedCornerShape(20.dp),
-  extraLarge = RoundedCornerShape(26.dp)
+  extraSmall = RoundedCornerShape(8.dp),
+  small = RoundedCornerShape(14.dp),
+  medium = RoundedCornerShape(20.dp),
+  large = RoundedCornerShape(26.dp),
+  extraLarge = RoundedCornerShape(32.dp)
 )
 
 // ==========================================

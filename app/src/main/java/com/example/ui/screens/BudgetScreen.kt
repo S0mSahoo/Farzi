@@ -182,7 +182,7 @@ fun BudgetScreen(
           }
         } else {
           Surface(
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(24.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
             modifier = Modifier.fillMaxWidth()
           ) {
@@ -269,7 +269,7 @@ private fun BudgetMonthHeader(
   onOpenPicker: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(24.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier.fillMaxWidth()
@@ -286,10 +286,10 @@ private fun BudgetMonthHeader(
       }
 
       Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
         modifier = Modifier
-          .clip(RoundedCornerShape(10.dp))
+          .clip(RoundedCornerShape(16.dp))
           .clickable { onOpenPicker() }
       ) {
         Row(
@@ -324,7 +324,7 @@ private fun BudgetOverviewCard(
 ) {
   if (currentBudget == null || currentBudget.totalBudget <= 0) {
     Card(
-      shape = RoundedCornerShape(22.dp),
+      shape = RoundedCornerShape(28.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
       modifier = Modifier.fillMaxWidth()
@@ -365,7 +365,7 @@ private fun BudgetOverviewCard(
 
         Button(
           onClick = onOpenSetBudget,
-          shape = RoundedCornerShape(12.dp),
+          shape = RoundedCornerShape(18.dp),
           modifier = Modifier.testTag("create_budget_button")
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -376,7 +376,7 @@ private fun BudgetOverviewCard(
     }
   } else {
     Card(
-      shape = RoundedCornerShape(22.dp),
+      shape = RoundedCornerShape(28.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
       modifier = Modifier.fillMaxWidth()
@@ -441,7 +441,7 @@ private fun CategoryBudgetCard(
   }
 
   Card(
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()

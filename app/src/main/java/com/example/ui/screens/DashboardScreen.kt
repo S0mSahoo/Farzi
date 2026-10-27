@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,19 +56,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.CategorySpending
+import com.example.data.model.DailySpendingPoint
 import com.example.data.model.MonthlyFinancialSummary as MonthlySummary
 import com.example.data.model.TransactionType
 import com.example.data.model.TransactionItem
 import com.example.data.model.YearlyFinancialSummary as YearlySummary
 import com.example.ui.components.BudgetProgressBar
 import com.example.ui.components.CategoryDetailSheet
-import com.example.ui.components.CategorySpendingBreakdown
 import com.example.ui.components.IncomeExpenseComparisonBar
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
@@ -90,6 +93,7 @@ fun DashboardScreen(
   val monthlySummary by viewModel.dashboardMonthSummary.collectAsStateWithLifecycle()
   val yearlySummary by viewModel.dashboardYearSummary.collectAsStateWithLifecycle()
   val categorySpending by viewModel.dashboardCategorySpending.collectAsStateWithLifecycle()
+  val dailyTrend by viewModel.dashboardDailyTrend.collectAsStateWithLifecycle()
   val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val recentTransactions = remember(allTransactions) {
@@ -200,13 +204,13 @@ fun DashboardScreen(
               AnnualOverviewCard(yearlySummary = yearlySummary, currencySymbol = currencySymbol)
               AnnualBreakdownTable(yearlySummary = yearlySummary, currencySymbol = currencySymbol)
             } else {
+              NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol, dailyTrend = dailyTrend)
               IncomeExpenseQuickCards(
                 monthlySummary = monthlySummary,
                 currencySymbol = currencySymbol,
                 onAddIncome = { onOpenAddTransaction(TransactionType.INCOME) },
                 onAddExpense = { onOpenAddTransaction(TransactionType.EXPENSE) }
               )
-              NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol)
               if (monthlySummary.transactionCount > 0) {
                 IncomeExpenseBarCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol)
               }
@@ -269,6 +273,7 @@ fun DashboardScreen(
         item { AnnualOverviewCard(yearlySummary = yearlySummary, currencySymbol = currencySymbol) }
         item { AnnualBreakdownTable(yearlySummary = yearlySummary, currencySymbol = currencySymbol) }
       } else {
+        item { NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol, dailyTrend = dailyTrend) }
         item {
           IncomeExpenseQuickCards(
             monthlySummary = monthlySummary,
@@ -277,7 +282,6 @@ fun DashboardScreen(
             onAddExpense = { onOpenAddTransaction(TransactionType.EXPENSE) }
           )
         }
-        item { NetSavingsHeroCard(monthlySummary = monthlySummary, currencySymbol = currencySymbol) }
         item {
           MonthlyBudgetCard(
             monthlySummary = monthlySummary,
@@ -411,16 +415,23 @@ private fun RecentTransactionsCard(
 
           val isIncome = transaction.type == TransactionType.INCOME
           val signedAmount = if (isIncome) kotlin.math.abs(transaction.amount) else -kotlin.math.abs(transaction.amount)
+          val exactAmount = IndianCurrencyFormatter.formatWithSymbol(
+            amount = signedAmount,
+            symbol = currencySymbol,
+            includeSign = true
+          )
+          val compactAmount = if (exactAmount.length > 12) {
+            val compact = IndianCurrencyFormatter.formatCompact(signedAmount, currencySymbol)
+            if (signedAmount > 0.0) "+$compact" else compact
+          } else exactAmount
           Text(
-            text = IndianCurrencyFormatter.formatWithSymbol(
-              amount = signedAmount,
-              symbol = currencySymbol,
-              includeSign = true
-            ),
+            text = compactAmount,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = if (isIncome) IncomeGreen else ExpenseRed,
-            maxLines = 1
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
           )
         }
         if (index < transactions.lastIndex) {
@@ -499,7 +510,7 @@ private fun PeriodSelectorBar(
   onOpenPicker: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(20.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier.fillMaxWidth()
@@ -569,11 +580,11 @@ private fun IncomeExpenseQuickCards(
   ) {
     // Total Income Card
     Surface(
-      shape = RoundedCornerShape(18.dp),
+      shape = RoundedCornerShape(22.dp),
       color = IncomeGreen.copy(alpha = 0.08f),
       modifier = Modifier
         .weight(1f)
-        .clip(RoundedCornerShape(18.dp))
+        .clip(RoundedCornerShape(22.dp))
         .clickable { onAddIncome() }
     ) {
       Column(modifier = Modifier.padding(16.dp)) {
@@ -607,11 +618,11 @@ private fun IncomeExpenseQuickCards(
 
     // Total Expenses Card
     Surface(
-      shape = RoundedCornerShape(18.dp),
+      shape = RoundedCornerShape(22.dp),
       color = ExpenseRed.copy(alpha = 0.08f),
       modifier = Modifier
         .weight(1f)
-        .clip(RoundedCornerShape(18.dp))
+        .clip(RoundedCornerShape(22.dp))
         .clickable { onAddExpense() }
     ) {
       Column(modifier = Modifier.padding(16.dp)) {
@@ -648,12 +659,13 @@ private fun IncomeExpenseQuickCards(
 @Composable
 private fun NetSavingsHeroCard(
   monthlySummary: MonthlySummary,
-  currencySymbol: String
+  currencySymbol: String,
+  dailyTrend: List<DailySpendingPoint>
 ) {
   Card(
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(30.dp),
     colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+      containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)
     ),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
@@ -678,13 +690,13 @@ private fun NetSavingsHeroCard(
             }
           }
           Column {
-            Text(text = "Net Monthly Savings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Text(text = "Income minus expenses", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(text = "Net monthly savings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Text(text = "Income less recorded expenses", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
           }
         }
 
         Surface(
-          shape = RoundedCornerShape(10.dp),
+          shape = RoundedCornerShape(16.dp),
           color = if (monthlySummary.savings >= 0) IncomeGreen.copy(alpha = 0.12f) else ExpenseRed.copy(alpha = 0.12f)
         ) {
           Text(
@@ -703,8 +715,91 @@ private fun NetSavingsHeroCard(
         text = IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
-        color = if (monthlySummary.savings >= 0) IncomeGreen else ExpenseRed
+        color = if (monthlySummary.savings >= 0) IncomeGreen else ExpenseRed,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis
       )
+
+      Spacer(modifier = Modifier.height(14.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Text(
+          text = "Daily net movement",
+          style = MaterialTheme.typography.labelMedium,
+          fontWeight = FontWeight.SemiBold,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+          text = "Recorded days",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+
+      DailyNetSparkline(
+        points = dailyTrend,
+        modifier = Modifier.fillMaxWidth().height(48.dp)
+      )
+    }
+  }
+}
+
+@Composable
+private fun DailyNetSparkline(
+  points: List<DailySpendingPoint>,
+  modifier: Modifier = Modifier
+) {
+  val activePoints = remember(points) {
+    points.filter { it.income != 0.0 || it.expense != 0.0 || it.net != 0.0 }
+  }
+  val netTotal = activePoints.sumOf { it.net }
+  val lineColor = if (netTotal >= 0.0) IncomeGreen else ExpenseRed
+  val baselineColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+
+  Canvas(modifier = modifier) {
+    if (activePoints.isEmpty()) {
+      drawLine(
+        color = baselineColor,
+        start = Offset(0f, size.height / 2f),
+        end = Offset(size.width, size.height / 2f),
+        strokeWidth = 2.dp.toPx(),
+        cap = StrokeCap.Round
+      )
+    } else {
+      val values = activePoints.map { it.net }
+      val minValue = minOf(0.0, values.minOrNull() ?: 0.0)
+      val maxValue = maxOf(0.0, values.maxOrNull() ?: 0.0)
+      val range = (maxValue - minValue).takeIf { it > 0.0 } ?: 1.0
+      val chartPoints = values.mapIndexed { index, value ->
+        val x = if (values.size <= 1) size.width / 2f else size.width * index / (values.size - 1).toFloat()
+        val y = size.height - (((value - minValue) / range).toFloat() * (size.height - 6.dp.toPx())) - 3.dp.toPx()
+        Offset(x, y.coerceIn(2.dp.toPx(), size.height - 2.dp.toPx()))
+      }
+
+      val zeroY = size.height - (((0.0 - minValue) / range).toFloat() * (size.height - 6.dp.toPx())) - 3.dp.toPx()
+      drawLine(
+        color = baselineColor,
+        start = Offset(0f, zeroY),
+        end = Offset(size.width, zeroY),
+        strokeWidth = 1.dp.toPx()
+      )
+      chartPoints.zipWithNext().forEach { (start, end) ->
+        drawLine(
+          color = lineColor,
+          start = start,
+          end = end,
+          strokeWidth = 2.5.dp.toPx(),
+          cap = StrokeCap.Round
+        )
+      }
+      chartPoints.lastOrNull()?.let { last ->
+        drawCircle(color = lineColor, radius = 3.5.dp.toPx(), center = last)
+      }
     }
   }
 }
@@ -716,7 +811,7 @@ private fun MonthlyBudgetCard(
   onOpenSetBudget: () -> Unit
 ) {
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(26.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier.fillMaxWidth()
@@ -777,7 +872,7 @@ private fun EmptyTransactionsState(
   onAddExpense: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(26.dp),
     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     modifier = Modifier.fillMaxWidth()
   ) {
@@ -845,7 +940,7 @@ private fun IncomeExpenseBarCard(
   currencySymbol: String
 ) {
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(26.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier.fillMaxWidth()
@@ -872,24 +967,157 @@ private fun CategorySpendingCard(
   currencySymbol: String,
   onCategoryClick: (com.example.data.model.TransactionCategory) -> Unit
 ) {
+  val sortedCategories = remember(categorySpending) {
+    categorySpending.sortedByDescending { it.amount }
+  }
+  val totalSpent = remember(sortedCategories) { sortedCategories.sumOf { it.amount } }
+
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(28.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
   ) {
-    Column(modifier = Modifier.padding(18.dp)) {
-      Text(
-        text = "Spending by Category",
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold
-      )
-      Spacer(modifier = Modifier.height(14.dp))
-      CategorySpendingBreakdown(
-        categories = categorySpending,
-        currencySymbol = currencySymbol,
-        onCategoryClick = onCategoryClick
-      )
+    Column(
+      modifier = Modifier.padding(20.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+          Text(
+            text = "Spending overview",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            text = "Breakdown by category",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+        Surface(
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f),
+          modifier = Modifier.size(42.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = Icons.Default.TrendingDown,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+        }
+      }
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Box(
+          modifier = Modifier.size(124.dp),
+          contentAlignment = Alignment.Center
+        ) {
+          Canvas(modifier = Modifier.fillMaxSize()) {
+            var startAngle = -90f
+            sortedCategories.forEach { item ->
+              val sweepAngle = (item.percentage.coerceIn(0f, 1f) * 360f - 3f).coerceAtLeast(0f)
+              if (sweepAngle > 0f) {
+                drawArc(
+                  color = item.color,
+                  startAngle = startAngle,
+                  sweepAngle = sweepAngle,
+                  useCenter = false,
+                  style = Stroke(width = 17.dp.toPx(), cap = StrokeCap.Round)
+                )
+              }
+              startAngle += item.percentage.coerceIn(0f, 1f) * 360f
+            }
+          }
+
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.fillMaxWidth(0.74f)
+          ) {
+            Text(
+              text = "Spent",
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1
+            )
+            Text(
+              text = IndianCurrencyFormatter.formatCompact(totalSpent, currencySymbol),
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onSurface,
+              maxLines = 1,
+              softWrap = false,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+        }
+
+        Column(
+          modifier = Modifier.weight(1f),
+          verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          sortedCategories.take(4).forEach { item ->
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { onCategoryClick(item.category) }
+                .padding(vertical = 3.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+              Surface(
+                shape = CircleShape,
+                color = item.color,
+                modifier = Modifier.size(9.dp)
+              ) {}
+              Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+              ) {
+                Text(
+                  text = item.category.displayName,
+                  style = MaterialTheme.typography.labelMedium,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSurface,
+                  maxLines = 1,
+                  softWrap = false,
+                  overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                  text = "${IndianCurrencyFormatter.formatCompact(item.amount, currencySymbol)} · ${(item.percentage * 100f).toInt()}%",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 1,
+                  softWrap = false,
+                  overflow = TextOverflow.Ellipsis
+                )
+              }
+            }
+          }
+        }
+      }
+
+      if (sortedCategories.size > 4) {
+        Text(
+          text = "${sortedCategories.size - 4} more categories recorded",
+          style = MaterialTheme.typography.labelSmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
     }
   }
 }
@@ -900,7 +1128,7 @@ private fun AnnualOverviewCard(
   currencySymbol: String
 ) {
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(26.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier.fillMaxWidth()
@@ -998,7 +1226,7 @@ private fun AnnualBreakdownTable(
   currencySymbol: String
 ) {
   Card(
-    shape = RoundedCornerShape(20.dp),
+    shape = RoundedCornerShape(26.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
     modifier = Modifier.fillMaxWidth()
@@ -1103,7 +1331,7 @@ private fun EmptyStateActionButton(
       containerColor = if (isIncome) IncomeGreen else ExpenseRed,
       contentColor = Color.White
     ),
-    shape = RoundedCornerShape(16.dp),
+    shape = RoundedCornerShape(20.dp),
     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
     modifier = modifier.heightIn(min = 48.dp)
   ) {

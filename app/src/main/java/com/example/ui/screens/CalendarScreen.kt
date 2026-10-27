@@ -257,7 +257,7 @@ private fun CalendarMonthHeader(
   onOpenDatePicker: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(24.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier.fillMaxWidth()
@@ -277,10 +277,10 @@ private fun CalendarMonthHeader(
       }
 
       Surface(
-        shape = RoundedCornerShape(10.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
         modifier = Modifier
-          .clip(RoundedCornerShape(10.dp))
+          .clip(RoundedCornerShape(16.dp))
           .clickable { onOpenDatePicker() }
           .testTag("cal_jump_date_chip")
       ) {
@@ -336,7 +336,7 @@ private fun CalendarGridCard(
   }
 
   Card(
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(28.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier
@@ -379,15 +379,15 @@ private fun CalendarGridCard(
                   modifier = Modifier
                     .weight(1f)
                     .height(if (compactHeight) 34.dp else 48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .then(
                       if (isSelected) {
                         Modifier
                           .background(MaterialTheme.colorScheme.primaryContainer)
-                          .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                          .border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
                       } else if (dayData.isToday) {
                         Modifier
-                          .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                          .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(18.dp))
                       } else {
                         Modifier
                       }
@@ -453,7 +453,7 @@ private fun CalendarGridCard(
                   modifier = Modifier
                     .weight(1f)
                     .height(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f))
                 )
               }
@@ -476,7 +476,7 @@ private fun SelectedDaySummaryCard(
   onAddTransaction: () -> Unit
 ) {
   Card(
-    shape = RoundedCornerShape(22.dp),
+    shape = RoundedCornerShape(28.dp),
     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     modifier = Modifier.fillMaxWidth()
@@ -504,7 +504,7 @@ private fun SelectedDaySummaryCard(
 
         OutlinedButton(
           onClick = onAddTransaction,
-          shape = RoundedCornerShape(12.dp),
+          shape = RoundedCornerShape(18.dp),
           modifier = Modifier.testTag("add_to_selected_date_button")
         ) {
           Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -523,7 +523,7 @@ private fun SelectedDaySummaryCard(
         Column(
           modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(IncomeGreen.copy(alpha = 0.08f))
             .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
@@ -543,7 +543,7 @@ private fun SelectedDaySummaryCard(
         Column(
           modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(ExpenseRed.copy(alpha = 0.08f))
             .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
@@ -563,7 +563,7 @@ private fun SelectedDaySummaryCard(
         Column(
           modifier = Modifier
             .weight(1f)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .padding(horizontal = 12.dp, vertical = 10.dp)
         ) {
@@ -586,7 +586,7 @@ private fun SelectedDaySummaryCard(
 @Composable
 private fun DayTransactionsEmptyState() {
   Surface(
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(24.dp),
     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
     modifier = Modifier.fillMaxWidth()
   ) {
@@ -618,12 +618,12 @@ private fun DayTransactionItem(
   onDelete: () -> Unit
 ) {
   Surface(
-    shape = RoundedCornerShape(18.dp),
+    shape = RoundedCornerShape(24.dp),
     color = MaterialTheme.colorScheme.surface,
     tonalElevation = 1.dp,
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(18.dp))
+      .clip(RoundedCornerShape(24.dp))
       .clickable { onEdit() }
   ) {
     Row(

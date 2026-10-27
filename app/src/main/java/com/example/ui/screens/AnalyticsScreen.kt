@@ -130,7 +130,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
                     )
                 }
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(22.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)
                 ) {
                     Icon(
@@ -230,7 +230,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
             item {
                 Card(
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -276,7 +276,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
             item {
                 Card(
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -305,7 +305,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
             item {
                 Card(
-                    shape = RoundedCornerShape(22.dp),
+                    shape = RoundedCornerShape(28.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -349,7 +349,7 @@ private fun MonthlyInsightCard(
     }
 
     Card(
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
         ),
@@ -365,7 +365,7 @@ private fun MonthlyInsightCard(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(18.dp),
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Icon(
@@ -415,7 +415,7 @@ private fun AnalyticsMetricCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(26.dp),
         color = tint.copy(alpha = 0.10f),
         modifier = modifier
     ) {
@@ -447,7 +447,7 @@ private fun AnnualAnalyticsSummary(
     currencySymbol: String
 ) {
     Card(
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth()
@@ -494,7 +494,7 @@ private fun AnnualMonthlyBreakdown(
     currencySymbol: String
 ) {
     Card(
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         modifier = Modifier.fillMaxWidth()
@@ -556,7 +556,7 @@ private fun AnnualMonthlyBreakdown(
 @Composable
 private fun AnalyticsEmptyState(message: String) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(22.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
         modifier = Modifier.fillMaxWidth()
     ) {

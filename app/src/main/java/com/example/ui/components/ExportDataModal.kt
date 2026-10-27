@@ -199,7 +199,7 @@ fun ExportDataModal(
           )
 
           Surface(
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(18.dp),
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.fillMaxWidth()
           ) {
@@ -252,7 +252,7 @@ fun ExportDataModal(
               }
             )
           },
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           Text("Merge & Restore")
         }
@@ -264,7 +264,7 @@ fun ExportDataModal(
             pendingBackupToImport = null
             importValidationSummary = null
           },
-          shape = RoundedCornerShape(12.dp)
+          shape = RoundedCornerShape(18.dp)
         ) {
           Text("Cancel")
         }
@@ -326,7 +326,7 @@ fun ExportDataModal(
       TabRow(
         selectedTabIndex = selectedTab,
         containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-        modifier = Modifier.clip(RoundedCornerShape(14.dp))
+        modifier = Modifier.clip(RoundedCornerShape(20.dp))
       ) {
         Tab(
           selected = selectedTab == 0,
@@ -381,12 +381,12 @@ fun ExportDataModal(
             val isSelected = selectedPeriod == period
 
             Surface(
-              shape = RoundedCornerShape(14.dp),
+              shape = RoundedCornerShape(20.dp),
               color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
               border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
               modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(20.dp))
                 .clickable { selectedPeriod = period }
                 .testTag("export_period_${period.name}")
             ) {
@@ -447,12 +447,12 @@ fun ExportDataModal(
             ) {
               // Start Date
               Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 modifier = Modifier
                   .weight(1f)
-                  .clip(RoundedCornerShape(12.dp))
+                  .clip(RoundedCornerShape(18.dp))
                   .clickable { showStartDatePicker = true }
               ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -464,12 +464,12 @@ fun ExportDataModal(
 
               // End Date
               Surface(
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(18.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
                 modifier = Modifier
                   .weight(1f)
-                  .clip(RoundedCornerShape(12.dp))
+                  .clip(RoundedCornerShape(18.dp))
                   .clickable { showEndDatePicker = true }
               ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -486,7 +486,7 @@ fun ExportDataModal(
 
         // PDF Info Banner
         Surface(
-          shape = RoundedCornerShape(14.dp),
+          shape = RoundedCornerShape(20.dp),
           color = IncomeGreen.copy(alpha = 0.08f),
           border = BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
@@ -528,7 +528,7 @@ fun ExportDataModal(
             )
           },
           enabled = !isExporting,
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
@@ -557,7 +557,7 @@ fun ExportDataModal(
       if (selectedTab == 1) {
         // Purpose Description Card
         Surface(
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           color = MinimalBlue.copy(alpha = 0.08f),
           border = BorderStroke(1.dp, MinimalBlue.copy(alpha = 0.2f)),
           modifier = Modifier.fillMaxWidth()
@@ -616,7 +616,7 @@ fun ExportDataModal(
             )
           },
           enabled = !isExporting && !isValidatingImport,
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
           modifier = Modifier
             .fillMaxWidth()
@@ -653,7 +653,7 @@ fun ExportDataModal(
             }
           },
           enabled = !isExporting && !isValidatingImport,
-          shape = RoundedCornerShape(18.dp),
+          shape = RoundedCornerShape(24.dp),
           border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
           modifier = Modifier
             .fillMaxWidth()
