@@ -368,8 +368,9 @@ class GoogleDriveBackupService(private val context: Context) {
         append("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder")
         append("&q=name%3D%27").append(BACKUP_FILE_NAME).append("%27%20and%20trashed%3Dfalse")
         append("&pageSize=1000&fields=files%28id%2Cname%29%2CnextPageToken")
-        if (!nextPageToken.isNullOrBlank()) {
-          append("&pageToken=").append(URLEncoder.encode(nextPageToken, "UTF-8"))
+        val pageToken = nextPageToken
+        if (!pageToken.isNullOrBlank()) {
+          append("&pageToken=").append(URLEncoder.encode(pageToken, "UTF-8"))
         }
       }
       val request = Request.Builder()
