@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Today
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -130,17 +129,12 @@ fun CalendarScreen(
             subtitle = "Your money, day by day.",
             modifier = Modifier.weight(1f)
           )
-          Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            IconButton(onClick = { showDatePicker = true }) {
-              Icon(Icons.Default.Today, contentDescription = "Choose date")
-            }
-            com.example.ui.components.PremiumMonthNavigator(
-              label = monthLabel,
-              onPrevious = { viewModel.previousCalendarMonth() },
-              onNext = { viewModel.nextCalendarMonth() },
-              onPick = { showDatePicker = true }
-            )
-          }
+          com.example.ui.components.PremiumMonthNavigator(
+            label = monthLabel,
+            onPrevious = { viewModel.previousCalendarMonth() },
+            onNext = { viewModel.nextCalendarMonth() },
+            onPick = { showDatePicker = true }
+          )
         }
       }
 
