@@ -47,7 +47,7 @@ import com.example.ui.components.MonthYearPickerDialog
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
 import com.example.ui.components.PremiumMonthNavigator
-import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.viewmodel.FinanceViewModel
 
 @Composable
@@ -116,23 +116,18 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
       verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
       item {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          com.example.ui.components.PremiumSectionHeading(
-            title = "Categories",
-            subtitle = "See where your money flows.",
-            modifier = Modifier.weight(1f)
-          )
-          PremiumMonthNavigator(
-            label = monthLabel,
-            onPrevious = { viewModel.previousDashboardMonth() },
-            onNext = { viewModel.nextDashboardMonth() },
-            onPick = { showMonthPicker = true }
-          )
-        }
+        PremiumPageHeader(
+          title = "Categories",
+          subtitle = "See where your money flows.",
+          trailing = {
+            PremiumMonthNavigator(
+              label = monthLabel,
+              onPrevious = { viewModel.previousDashboardMonth() },
+              onNext = { viewModel.nextDashboardMonth() },
+              onPick = { showMonthPicker = true }
+            )
+          }
+        )
       }
       item {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
