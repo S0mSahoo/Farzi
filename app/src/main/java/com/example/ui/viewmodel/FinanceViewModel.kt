@@ -1375,9 +1375,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
           }
 
           repository.clearAllData()
-          // An explicit full erase replaces the connected account's snapshot with an empty one.
-          // If the upload fails, restore local data so stale Drive data cannot silently return.
-          if (account != null) syncCurrentStateToDriveLocked(account)
+          // Delete remote backup files explicitly. This works for legacy backups even when a
+          // recovery passphrase has not yet been configured. If deletion fails, restore local data.
+          if (account != null) driveService.deleteCloudBackups(account)
           if (wasGuest) repository.setGuestDataMode(false)
           _lastSyncTimestamp.value = null
           _syncErrorMessage.value = null
