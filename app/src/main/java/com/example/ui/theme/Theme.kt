@@ -15,12 +15,22 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 
 val LocalDarkTheme = staticCompositionLocalOf { false }
 
 @Composable
 fun isAppInDarkTheme(): Boolean {
   return LocalDarkTheme.current || (MaterialTheme.colorScheme.background.luminance() < 0.5f)
+}
+
+@Composable
+fun resolveCardSurfaceColor(): Color {
+  return if (isAppInDarkTheme()) {
+    MaterialTheme.colorScheme.surface
+  } else {
+    LightSurfaceContainerLow
+  }
 }
 
 // ==========================================

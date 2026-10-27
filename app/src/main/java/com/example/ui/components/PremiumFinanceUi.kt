@@ -166,7 +166,7 @@ fun PremiumCard(
   val resolvedContainerColor = if (containerColor != Color.Unspecified) {
     containerColor
   } else {
-    MaterialTheme.colorScheme.surface
+    com.example.ui.theme.resolveCardSurfaceColor()
   }
   Card(
     modifier = modifier.animateContentSize(),
