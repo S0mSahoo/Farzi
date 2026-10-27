@@ -165,8 +165,7 @@ fun OnboardingScreen(
           }
 
           Text(
-            "Know where
-your money goes.",
+            "Know where\nyour money goes.",
             style = MaterialTheme.typography.headlineLarge,
             color = Color.White,
             fontWeight = FontWeight.Bold,
