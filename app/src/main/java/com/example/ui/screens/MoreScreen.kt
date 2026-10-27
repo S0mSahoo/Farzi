@@ -55,7 +55,7 @@ fun MoreScreen(
     contentAlignment = Alignment.TopCenter
   ) {
     LazyColumn(
-      modifier = Modifier.fillMaxSize().widthIn(max = 920.dp),
+      modifier = Modifier.widthIn(max = 920.dp).fillMaxSize(),
       contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
       verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
