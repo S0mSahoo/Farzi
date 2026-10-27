@@ -19,6 +19,7 @@ import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
@@ -26,6 +27,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 data class PaisaExportAccount(
   val name: String = "",
@@ -66,6 +68,8 @@ object JsonPortabilityManager {
     .build()
 
   private val adapter = moshi.adapter(PaisaJsonBackup::class.java).indent("  ")
+  private const val CURRENT_SCHEMA_VERSION = 2
+  private const val MAX_IMPORT_BYTES = 15 * 1024 * 1024
 
   /**
    * Generates a clean, schema-versioned JSON export of all Paisa application records,
@@ -117,12 +121,15 @@ object JsonPortabilityManager {
     val now = Date()
     val dateStamp = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(now)
     val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(now)
-    val isoDateStr = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).format(now)
+    val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+      timeZone = TimeZone.getTimeZone("UTC")
+    }
+    val isoDateStr = isoFormatter.format(now)
 
     val backupObject = PaisaJsonBackup(
-      schemaVersion = 1,
+      schemaVersion = CURRENT_SCHEMA_VERSION,
       appName = "Paisa",
-      version = "4.0.0",
+      version = "5.0.0",
       exportedAt = isoDateStr,
       exportTimestamp = now.time,
       periodLabel = periodLabel,
@@ -174,9 +181,22 @@ object JsonPortabilityManager {
       val inputStream = context.contentResolver.openInputStream(uri)
         ?: return@withContext JsonValidationResult.Error("Unable to open the selected file.")
 
-      val jsonString = inputStream.use { stream ->
-        BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).readText()
+      val bytes = inputStream.use { stream ->
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var total = 0
+        while (true) {
+          val count = stream.read(buffer)
+          if (count < 0) break
+          total += count
+          if (total > MAX_IMPORT_BYTES) {
+            return@withContext JsonValidationResult.Error("Backup file is too large. Maximum supported size is 15 MB.")
+          }
+          output.write(buffer, 0, count)
+        }
+        output.toByteArray()
       }
+      val jsonString = String(bytes, Charsets.UTF_8)
 
       if (jsonString.isBlank()) {
         return@withContext JsonValidationResult.Error("The selected file is empty.")
@@ -198,8 +218,10 @@ object JsonPortabilityManager {
       }
 
       // Validate schema version
-      if (backup.schemaVersion < 1) {
-        return@withContext JsonValidationResult.Error("Unsupported Paisa schema version (${backup.schemaVersion}).")
+      if (backup.appName != "Paisa" || backup.schemaVersion !in 1..CURRENT_SCHEMA_VERSION) {
+        return@withContext JsonValidationResult.Error(
+          "Unsupported Paisa backup format (app='${backup.appName}', schema=${backup.schemaVersion}). Update Paisa or select a valid Paisa backup."
+        )
       }
 
       // Sanitize and validate transactions
@@ -207,7 +229,7 @@ object JsonPortabilityManager {
         if (tx.title.isBlank()) {
           return@withContext JsonValidationResult.Error("Data contains transactions with empty titles.")
         }
-        if (tx.amount.isNaN() || tx.amount.isInfinite() || tx.amount < 0) {
+        if (!tx.amount.isFinite() || tx.amount <= 0) {
           return@withContext JsonValidationResult.Error("Data contains invalid transaction amounts.")
         }
         if (tx.timestamp <= 0) {
@@ -220,8 +242,16 @@ object JsonPortabilityManager {
         if (!b.monthKey.matches(Regex("^\\d{4}-\\d{2}$"))) {
           return@withContext JsonValidationResult.Error("Data contains invalid budget month format: ${b.monthKey}")
         }
-        if (b.totalBudget < 0 || b.totalBudget.isNaN()) {
+        if (!b.totalBudget.isFinite() || b.totalBudget < 0 ||
+          b.categoryBudgets.values.any { !it.isFinite() || it < 0 }) {
           return@withContext JsonValidationResult.Error("Data contains invalid budget amounts.")
+        }
+      }
+
+      for (rule in backup.recurringTransactions) {
+        if (rule.title.isBlank() || !rule.amount.isFinite() || rule.amount <= 0 ||
+          rule.startDate <= 0 || (rule.endDate != null && rule.endDate < rule.startDate)) {
+          return@withContext JsonValidationResult.Error("Data contains invalid recurring-payment rules.")
         }
       }
 
@@ -249,79 +279,80 @@ object JsonPortabilityManager {
     currentRecurringRules: List<RecurringRule>,
     importBackup: PaisaJsonBackup
   ): Triple<List<TransactionItem>, List<BudgetModel>, List<RecurringRule>> {
-    // 1. Transactions merge: deduplicate by ID and unique signature
-    val existingSignatures = currentTransactions.associateBy {
-      "${it.title.trim().lowercase()}_${it.amount}_${it.type}_${it.category}_${it.timestamp}"
-    }.toMutableMap()
+    // Local Room IDs are only local primary keys. Never match an imported row by ID alone:
+    // two different devices can assign the same ID to completely different financial records.
+    fun transactionSignature(tx: TransactionItem): String = listOf(
+      tx.title.trim().lowercase(Locale.ROOT),
+      java.lang.Double.doubleToLongBits(tx.amount).toString(),
+      tx.type.name,
+      tx.category.name,
+      tx.timestamp.toString(),
+      tx.note.trim().lowercase(Locale.ROOT),
+      tx.paymentMethod.name,
+      tx.isRecurring.toString(),
+      tx.createdAt.toString()
+    ).joinToString("|")
 
-    val existingById = currentTransactions.filter { it.id > 0 }.associateBy { it.id }.toMutableMap()
     val mergedTransactions = currentTransactions.toMutableList()
+    val indexBySignature = mutableMapOf<String, Int>()
+    mergedTransactions.forEachIndexed { index, tx ->
+      indexBySignature.putIfAbsent(transactionSignature(tx), index)
+    }
 
     for (incoming in importBackup.transactions) {
-      val signature = "${incoming.title.trim().lowercase()}_${incoming.amount}_${incoming.type}_${incoming.category}_${incoming.timestamp}"
-      val matchById = if (incoming.id > 0) existingById[incoming.id] else null
-      val matchBySig = existingSignatures[signature]
-
-      if (matchById == null && matchBySig == null) {
-        // Brand new transaction
-        val newTx = incoming.copy(id = 0) // Allow auto-increment to handle ID cleanly
-        mergedTransactions.add(newTx)
-        existingSignatures[signature] = newTx
+      val signature = transactionSignature(incoming)
+      val existingIndex = indexBySignature[signature]
+      if (existingIndex == null) {
+        val normalized = incoming.copy(id = 0)
+        indexBySignature[signature] = mergedTransactions.size
+        mergedTransactions.add(normalized)
       } else {
-        // Exists: update if incoming has newer updatedAt, otherwise keep
-        val target = matchById ?: matchBySig!!
-        val index = mergedTransactions.indexOfFirst {
-          (target.id > 0 && it.id == target.id) ||
-            ("${it.title.trim().lowercase()}_${it.amount}_${it.type}_${it.category}_${it.timestamp}" == signature)
-        }
-        if (index >= 0 && incoming.updatedAt > target.updatedAt) {
-          mergedTransactions[index] = incoming.copy(id = target.id)
+        val existing = mergedTransactions[existingIndex]
+        if (incoming.updatedAt > existing.updatedAt) {
+          mergedTransactions[existingIndex] = incoming.copy(id = existing.id)
         }
       }
     }
 
-    // 2. Budgets merge: keyed by monthKey ("YYYY-MM")
-    val mergedBudgetsMap = currentBudgets.associateBy { it.monthKey }.toMutableMap()
-    for (incomingBudget in importBackup.budgets) {
-      val existing = mergedBudgetsMap[incomingBudget.monthKey]
+    // A budget is one month-scoped record. Replace the complete record only when the imported
+    // version is newer, including zero-valued limits and intentionally removed category limits.
+    val mergedBudgets = currentBudgets.associateBy { it.monthKey }.toMutableMap()
+    for (incoming in importBackup.budgets) {
+      val existing = mergedBudgets[incoming.monthKey]
       if (existing == null) {
-        mergedBudgetsMap[incomingBudget.monthKey] = incomingBudget.copy(id = 0)
-      } else {
-        // Merge category limits & update total limit if newer
-        val combinedCatBudgets = existing.categoryBudgets.toMutableMap().apply {
-          putAll(incomingBudget.categoryBudgets)
-        }
-        val newerTotal = if (incomingBudget.updatedAt >= existing.updatedAt && incomingBudget.totalBudget > 0) {
-          incomingBudget.totalBudget
-        } else {
-          existing.totalBudget
-        }
-        mergedBudgetsMap[incomingBudget.monthKey] = existing.copy(
-          totalBudget = newerTotal,
-          categoryBudgets = combinedCatBudgets,
-          updatedAt = maxOf(existing.updatedAt, incomingBudget.updatedAt)
-        )
+        mergedBudgets[incoming.monthKey] = incoming.copy(id = 0)
+      } else if (incoming.updatedAt > existing.updatedAt) {
+        mergedBudgets[incoming.monthKey] = incoming.copy(id = existing.id)
       }
     }
 
-    // 3. Recurring rules merge
-    val existingRuleSigs = currentRecurringRules.associateBy {
-      "${it.title.trim().lowercase()}_${it.amount}_${it.type}_${it.interval}"
-    }.toMutableMap()
-    val mergedRules = currentRecurringRules.toMutableList()
+    // Recurring-rule IDs are also local database IDs. Only treat a rule as duplicate when the
+    // identifying fields match; do not collapse different rules merely because title/amount match.
+    fun recurringSignature(rule: RecurringRule): String = listOf(
+      rule.title.trim().lowercase(Locale.ROOT),
+      java.lang.Double.doubleToLongBits(rule.amount).toString(),
+      rule.type.name,
+      rule.category.name,
+      rule.interval.name,
+      rule.startDate.toString(),
+      rule.endDate?.toString().orEmpty(),
+      rule.paymentMethod.name,
+      rule.note.trim().lowercase(Locale.ROOT)
+    ).joinToString("|")
 
-    for (incomingRule in importBackup.recurringTransactions) {
-      val sig = "${incomingRule.title.trim().lowercase()}_${incomingRule.amount}_${incomingRule.type}_${incomingRule.interval}"
-      if (!existingRuleSigs.containsKey(sig)) {
-        mergedRules.add(incomingRule.copy(id = 0))
-        existingRuleSigs[sig] = incomingRule
+    val mergedRules = currentRecurringRules.toMutableList()
+    val seenRules = currentRecurringRules.map(::recurringSignature).toMutableSet()
+    for (incoming in importBackup.recurringTransactions) {
+      if (seenRules.add(recurringSignature(incoming))) {
+        mergedRules.add(incoming.copy(id = 0, lastGeneratedDate = 0))
       }
     }
 
     return Triple(
       mergedTransactions.sortedByDescending { it.timestamp },
-      mergedBudgetsMap.values.toList(),
+      mergedBudgets.values.toList(),
       mergedRules
     )
   }
+
 }
