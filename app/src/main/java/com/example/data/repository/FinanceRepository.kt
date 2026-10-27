@@ -415,7 +415,15 @@ class FinanceRepository(private val context: Context) {
   }
 
   fun clearUserProfile() {
-    prefs.edit().clear().apply()
+    // Remove only profile fields. Theme, app-lock, and the guest-data isolation flag live in
+    // the same preferences file and must survive sign-out.
+    prefs.edit()
+      .remove("user_name")
+      .remove("user_email")
+      .remove("user_photo_url")
+      .remove("user_google_id")
+      .remove("has_completed_onboarding")
+      .apply()
   }
 
   // ================= PDF Report Export =================
