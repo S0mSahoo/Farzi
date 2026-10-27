@@ -1068,6 +1068,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     isRecurring: Boolean = false,
     recurringRuleId: Long? = null
   ) {
+    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || timestamp <= 0L) return
     viewModelScope.launch {
       val item = TransactionItem(
         title = title.trim(),
@@ -1086,8 +1087,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   fun updateTransaction(item: TransactionItem) {
+    if (item.title.isBlank() || !item.amount.isFinite() || item.amount <= 0.0 || item.timestamp <= 0L) return
     viewModelScope.launch {
-      repository.updateTransaction(item)
+      repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
       syncCurrentStateToDrive()
     }
   }
@@ -1113,6 +1115,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     totalBudget: Double,
     categoryBudgets: Map<TransactionCategory, Double>
   ) {
+    val validMonth = try {
+      YearMonth.parse(monthKey)
+      true
+    } catch (_: Exception) {
+      false
+    }
+    if (!validMonth || !totalBudget.isFinite() || totalBudget < 0.0 ||
+      categoryBudgets.values.any { !it.isFinite() || it < 0.0 }) return
     viewModelScope.launch {
       val existing = allBudgets.value.find { it.monthKey == monthKey }
       val budget = BudgetModel(
@@ -1147,6 +1157,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     paymentMethod: PaymentMethod,
     note: String
   ) {
+    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || startDate <= 0L ||
+      (endDate != null && endDate < startDate)) return
     viewModelScope.launch {
       val rule = RecurringRule(
         title = title.trim(),
@@ -1168,8 +1180,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   fun updateRecurringRule(rule: RecurringRule) {
+    if (rule.title.isBlank() || !rule.amount.isFinite() || rule.amount <= 0.0 ||
+      rule.startDate <= 0L || (rule.endDate != null && rule.endDate < rule.startDate)) return
     viewModelScope.launch {
-      repository.updateRecurringRule(rule)
+      repository.updateRecurringRule(rule.copy(createdAt = rule.createdAt))
       repository.processDueRecurringRules()
       syncCurrentStateToDrive()
     }
