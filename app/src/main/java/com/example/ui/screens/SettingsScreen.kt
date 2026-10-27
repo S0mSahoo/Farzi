@@ -274,18 +274,37 @@ fun SettingsScreen(
     )
   }
 
+  val isGuestSession = userProfile.email.equals("guest@paisa.local", ignoreCase = true) &&
+    userProfile.googleId.isNullOrBlank()
+
   // Sign Out confirmation dialog
   if (showSignOutDialog) {
     ConfirmationDialog(
-      title = "Sign Out from Google Account?",
-      message = "Signing out will end your session and clear local device cache. Your financial data is securely preserved on Google Drive and will reload when you sign in again.",
-      confirmButtonText = "Sign Out",
+      title = if (isGuestSession) "Leave Guest Mode?" else "Sign Out from Google Account?",
+      message = if (isGuestSession) {
+        "Guest financial records remain on this device and are never uploaded to Google Drive."
+      } else {
+        "Paisa verifies and saves the latest backup before clearing the local cache. If verification or upload fails, local records will be kept and sign-out will stop."
+      },
+      confirmButtonText = if (isGuestSession) "Leave Guest Mode" else "Sign Out",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
-        viewModel.signOut {
-          Toast.makeText(context, "Signed out successfully", Toast.LENGTH_SHORT).show()
+        viewModel.signOut { success ->
+          if (success) {
+            Toast.makeText(
+              context,
+              if (isGuestSession) "Guest mode closed. Local records were kept." else "Signed out successfully",
+              Toast.LENGTH_SHORT
+            ).show()
+            showSignOutDialog = false
+          } else {
+            Toast.makeText(
+              context,
+              viewModel.syncErrorMessage.value ?: "Sign-out failed. Local records were kept.",
+              Toast.LENGTH_LONG
+            ).show()
+          }
         }
-        showSignOutDialog = false
       },
       onDismiss = { showSignOutDialog = false }
     )
@@ -295,14 +314,32 @@ fun SettingsScreen(
   if (showClearDataDialog) {
     ConfirmationDialog(
       title = "Clear All Financial Data?",
-      message = "This will permanently erase all transactions, budgets, and recurring rules from your device and cloud storage.",
+      message = if (isGuestSession || viewModel.driveService.getLastSignedInAccount() == null) {
+        "This permanently erases all transactions, budgets, recurring rules, and payment history stored on this device. No connected Google Drive backup was found for this session."
+      } else {
+        "This permanently erases all financial records from this device and replaces the connected Google Drive backup with an empty snapshot. If the cloud update fails, the local records will be restored."
+      },
       confirmButtonText = "Erase Everything",
       confirmButtonColor = ExpenseRed,
       onConfirm = {
-        viewModel.clearAllData {
-          Toast.makeText(context, "All records permanently erased", Toast.LENGTH_SHORT).show()
+        viewModel.clearAllData { success ->
+          if (success) {
+            Toast.makeText(
+              context,
+              if (isGuestSession || viewModel.driveService.getLastSignedInAccount() == null)
+                "Local financial records permanently erased"
+              else "Local and Google Drive financial records erased",
+              Toast.LENGTH_SHORT
+            ).show()
+            showClearDataDialog = false
+          } else {
+            Toast.makeText(
+              context,
+              viewModel.syncErrorMessage.value ?: "Could not clear data safely. Existing records were restored.",
+              Toast.LENGTH_LONG
+            ).show()
+          }
         }
-        showClearDataDialog = false
       },
       onDismiss = { showClearDataDialog = false }
     )
