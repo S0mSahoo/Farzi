@@ -120,8 +120,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   private fun isGuestSession(): Boolean {
     val profile = _userProfile.value
-    return profile.email.equals("guest@paisa.local", ignoreCase = true) && profile.googleId.isNullOrBlank()
+    return repository.isGuestDataMode() ||
+      (profile.email.equals("guest@paisa.local", ignoreCase = true) && profile.googleId.isNullOrBlank())
   }
+
+  private fun isActiveGoogleAccount(account: GoogleSignInAccount): Boolean {
+    if (isGuestSession()) return false
+    val profile = _userProfile.value
+    val profileGoogleId = profile.googleId
+    if (!profileGoogleId.isNullOrBlank()) return profileGoogleId == account.id
+    val profileEmail = profile.email
+    return profileEmail.isNotBlank() &&
+      !account.email.isNullOrBlank() &&
+      profileEmail.equals(account.email, ignoreCase = true)
+  }
+
+  private fun accountMismatchMessage(): String =
+    "The connected Google account does not match this Paisa profile. Sign out of the current account first; local financial records were not uploaded."
 
   private fun checkAndAutoSync() {
     triggerAutoSyncOnResume(force = true)
@@ -142,6 +157,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         if (isGuestSession()) return@withLock
         val account = driveService.getLastSignedInAccount()
         if (account != null && account.email != null) {
+          if (!isActiveGoogleAccount(account)) {
+            _syncErrorMessage.value = accountMismatchMessage()
+            _googleDriveState.value = GoogleDriveState.BackupFailed(
+              email = account.email,
+              errorMessage = "Connected Google account does not match this profile"
+            )
+            return@withLock
+          }
           _isSyncing.value = true
           _syncErrorMessage.value = null
           try {
@@ -166,6 +189,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       syncMutex.withLock {
         if (isGuestSession()) return@withLock
         val account = driveService.getLastSignedInAccount() ?: return@withLock
+        if (!isActiveGoogleAccount(account)) {
+          _syncErrorMessage.value = accountMismatchMessage()
+          return@withLock
+        }
         _isSyncing.value = true
         _syncErrorMessage.value = null
         try {
@@ -201,10 +228,17 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   private suspend fun pullFromDriveAndMerge(account: GoogleSignInAccount): Boolean {
     _syncErrorMessage.value = null
+    if (!isActiveGoogleAccount(account)) {
+      _syncErrorMessage.value = accountMismatchMessage()
+      return false
+    }
     return try {
       val cloudPayload = driveService.fetchCloudData(account)
-      // A user may have switched to guest mode while the network request was in flight.
-      if (isGuestSession()) return false
+      // A user may have switched sessions while the network request was in flight.
+      if (!isActiveGoogleAccount(account)) {
+        _syncErrorMessage.value = accountMismatchMessage()
+        return false
+      }
       _driveConsentIntent.value = null
       if (cloudPayload != null) {
         val local = repository.getAllLocalData()
@@ -1375,6 +1409,19 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
     viewModelScope.launch {
       syncMutex.withLock {
+        if (repository.isGuestDataMode()) {
+          val message = "Guest records are kept local and will not be uploaded automatically. Re-enter guest mode, export a JSON backup, clear guest data in Settings, then sign in and import the backup if you want to move it."
+          _syncErrorMessage.value = message
+          onResult?.invoke(false, message)
+          return@withLock
+        }
+        val existingGoogleId = _userProfile.value.googleId
+        if (!existingGoogleId.isNullOrBlank() && existingGoogleId != account.id) {
+          val message = accountMismatchMessage()
+          _syncErrorMessage.value = message
+          onResult?.invoke(false, message)
+          return@withLock
+        }
         _userProfile.value = profile
         repository.saveUserProfile(profile)
         driveService.saveConnectedEmail(email)
@@ -1409,6 +1456,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // Flip the guard immediately so an in-flight sync cannot upload guest data.
     _userProfile.value = profile
     repository.saveUserProfile(profile)
+    repository.setGuestDataMode(true)
     _googleDriveState.value = GoogleDriveState.NotConnected
     viewModelScope.launch {
       syncMutex.withLock {
@@ -1442,6 +1490,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         val account = driveService.getLastSignedInAccount()
         if (account == null) {
           onErrorMessage("Not signed in to Google Drive")
+          return@withLock
+        }
+        if (!isActiveGoogleAccount(account)) {
+          _syncErrorMessage.value = accountMismatchMessage()
+          onErrorMessage(accountMismatchMessage())
           return@withLock
         }
         _isSyncing.value = true
