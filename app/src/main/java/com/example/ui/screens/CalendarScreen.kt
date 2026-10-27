@@ -61,6 +61,7 @@ import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.PremiumCard
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.LocalAdaptiveInfo
@@ -119,23 +120,18 @@ fun CalendarScreen(
       verticalArrangement = Arrangement.spacedBy(17.dp)
     ) {
       item {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-          com.example.ui.components.PremiumSectionHeading(
-            title = "Calendar",
-            subtitle = "Your money, day by day.",
-            modifier = Modifier.weight(1f)
-          )
-          com.example.ui.components.PremiumMonthNavigator(
-            label = monthLabel,
-            onPrevious = { viewModel.previousCalendarMonth() },
-            onNext = { viewModel.nextCalendarMonth() },
-            onPick = { showDatePicker = true }
-          )
-        }
+        PremiumPageHeader(
+          title = "Calendar",
+          subtitle = "Your money, day by day.",
+          trailing = {
+            com.example.ui.components.PremiumMonthNavigator(
+              label = monthLabel,
+              onPrevious = { viewModel.previousCalendarMonth() },
+              onNext = { viewModel.nextCalendarMonth() },
+              onPick = { showDatePicker = true }
+            )
+          }
+        )
       }
 
       item {
