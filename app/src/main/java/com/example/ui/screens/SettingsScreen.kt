@@ -1142,47 +1142,44 @@ private fun SettingsRow(
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .padding(horizontal = 16.dp, vertical = 12.dp),
+      .padding(horizontal = 16.dp, vertical = 11.dp),
     verticalAlignment = Alignment.CenterVertically,
-    horizontalArrangement = Arrangement.SpaceBetween
+    horizontalArrangement = Arrangement.spacedBy(12.dp)
   ) {
-    Row(
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(14.dp),
-      modifier = Modifier.weight(1f)
+    Surface(
+      shape = RoundedCornerShape(14.dp),
+      color = iconBg,
+      modifier = Modifier.size(44.dp)
     ) {
-      Surface(
-        shape = CircleShape,
-        color = iconBg,
-        modifier = Modifier.size(38.dp)
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconTint,
-            modifier = Modifier.size(20.dp)
-          )
-        }
+      Box(contentAlignment = Alignment.Center) {
+        Icon(
+          imageVector = icon,
+          contentDescription = null,
+          tint = iconTint,
+          modifier = Modifier.size(21.dp)
+        )
       }
+    }
 
-      Column {
-        Text(
-          text = title,
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.SemiBold,
-          color = MaterialTheme.colorScheme.onSurface,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-        Text(
-          text = subtitle,
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-      }
+    Column(
+      modifier = Modifier.weight(1f),
+      verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+      Text(
+        text = title,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+      Text(
+        text = subtitle,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+      )
     }
 
     action()

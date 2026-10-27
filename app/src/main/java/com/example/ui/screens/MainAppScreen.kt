@@ -1326,6 +1326,7 @@ private fun MainScreenContent(
       0 -> DashboardScreen(
         viewModel = viewModel,
         onOpenAddTransaction = onOpenAddTransaction,
+        onEditTransaction = onEditTransaction,
         onOpenSetBudget = {
           onOpenSetBudget(
             DateUtils.getMonthKey(dashboardCalendar),

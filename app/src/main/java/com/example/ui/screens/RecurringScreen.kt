@@ -1,7 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,28 +15,23 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Undo
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -54,9 +50,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.data.model.OccurrenceStatus
@@ -64,9 +58,10 @@ import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionType
 import com.example.ui.components.ConfirmationDialog
-import com.example.ui.components.DateUtils
 import com.example.ui.components.IndianCurrencyFormatter
-import com.example.ui.theme.AccentAmber
+import com.example.ui.components.PremiumCard
+import com.example.ui.components.PremiumEmptyState
+import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
@@ -78,18 +73,19 @@ fun RecurringScreen(
   onEditRecurringRule: (rule: RecurringRule) -> Unit
 ) {
   val recurringRules by viewModel.allRecurringRules.collectAsStateWithLifecycle()
-  val scheduledOccurrences by viewModel.allScheduledOccurrences.collectAsStateWithLifecycle()
+  val occurrences by viewModel.allScheduledOccurrences.collectAsStateWithLifecycle()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+  var selectedTab by remember { mutableStateOf(0) }
   var ruleToDelete by remember { mutableStateOf<RecurringRule?>(null) }
-  var selectedTab by remember { mutableStateOf(0) } // 0: Upcoming Bills, 1: Recurring Rules
-
-  val currencySymbol = userProfile.currencySymbol
   var occurrenceToCancel by remember { mutableStateOf<RecurringOccurrence?>(null) }
+  val currencySymbol = userProfile.currencySymbol
 
   if (ruleToDelete != null) {
     ConfirmationDialog(
-      title = "Delete Recurring Rule?",
-      message = "Are you sure you want to delete the recurring rule \"${ruleToDelete?.title}\"? Existing transactions generated from it will remain intact.",
+      title = "Delete recurring rule?",
+      message = "Delete “${ruleToDelete?.title}”? Transactions already recorded from this rule will remain.",
+      confirmButtonText = "Delete rule",
+      confirmButtonColor = ExpenseRed,
       onConfirm = {
         ruleToDelete?.let { viewModel.deleteRecurringRule(it.id) }
         ruleToDelete = null
@@ -97,12 +93,12 @@ fun RecurringScreen(
       onDismiss = { ruleToDelete = null }
     )
   }
-
   if (occurrenceToCancel != null) {
     ConfirmationDialog(
-      title = "Cancel Payment Occurrence?",
-      message = "This will cancel the payment for ${occurrenceToCancel?.occurrenceDateKey} only. Your recurring rule \"${occurrenceToCancel?.rule?.title}\" will stay active for subsequent months. No transaction will be created.",
-      confirmButtonText = "Cancel Occurrence",
+      title = "Skip this payment?",
+      message = "Skip only the ${occurrenceToCancel?.occurrenceDateKey} occurrence. The recurring rule will remain active for future payments.",
+      confirmButtonText = "Skip payment",
+      confirmButtonColor = ExpenseRed,
       onConfirm = {
         occurrenceToCancel?.let { viewModel.cancelRecurringOccurrence(it) }
         occurrenceToCancel = null
@@ -111,538 +107,242 @@ fun RecurringScreen(
     )
   }
 
-  LazyColumn(
-    modifier = Modifier
-      .fillMaxSize()
-      .background(MaterialTheme.colorScheme.background)
-      .testTag("recurring_screen"),
-    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
+  val outstanding = remember(occurrences) {
+    occurrences.filter {
+      it.status == OccurrenceStatus.SCHEDULED ||
+        it.status == OccurrenceStatus.DUE_TODAY ||
+        it.status == OccurrenceStatus.OVERDUE
+    }.sortedBy { it.occurrenceTimestamp }
+  }
+  val outstandingTotal = outstanding.sumOf { it.rule.amount }
+
+  Box(
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter
   ) {
-    // 1. Header
-    item {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = "Recurring & Bills",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-          Spacer(modifier = Modifier.height(2.dp))
-          Text(
-            text = "Track upcoming dues & manage subscriptions",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-          )
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Button(
-          onClick = onOpenAddRecurringRule,
-          shape = RoundedCornerShape(18.dp),
-          contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-          modifier = Modifier.testTag("add_recurring_rule_button")
-        ) {
-          Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-          Spacer(modifier = Modifier.width(4.dp))
-          Text("New Rule")
-        }
-      }
-    }
-
-    // 2. Segmented Navigation (Upcoming Bills vs Rules)
-    item {
-      Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-        modifier = Modifier.fillMaxWidth()
-      ) {
-        Row(modifier = Modifier.padding(4.dp)) {
-          Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = if (selectedTab == 0) MaterialTheme.colorScheme.surface else Color.Transparent,
-            tonalElevation = if (selectedTab == 0) 2.dp else 0.dp,
-            modifier = Modifier
-              .weight(1f)
-              .clip(RoundedCornerShape(16.dp))
-              .clickable { selectedTab = 0 }
-          ) {
-            Box(
-              modifier = Modifier.padding(vertical = 10.dp),
-              contentAlignment = Alignment.Center
-            ) {
-              Text(
-                text = "Upcoming Bills (${scheduledOccurrences.count { it.status != OccurrenceStatus.PAID }})",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                color = if (selectedTab == 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            }
-          }
-
-          Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = if (selectedTab == 1) MaterialTheme.colorScheme.surface else Color.Transparent,
-            tonalElevation = if (selectedTab == 1) 2.dp else 0.dp,
-            modifier = Modifier
-              .weight(1f)
-              .clip(RoundedCornerShape(16.dp))
-              .clickable { selectedTab = 1 }
-          ) {
-            Box(
-              modifier = Modifier.padding(vertical = 10.dp),
-              contentAlignment = Alignment.Center
-            ) {
-              Text(
-                text = "Active Rules (${recurringRules.size})",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                color = if (selectedTab == 1) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-              )
-            }
-          }
-        }
-      }
-    }
-
-    if (selectedTab == 0) {
-      // UPCOMING BILLS TAB with Mark As Paid
-      if (scheduledOccurrences.isEmpty()) {
-        item {
-          Card(
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Column(
-              modifier = Modifier.padding(28.dp),
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.Center
-            ) {
-              Icon(
-                Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = IncomeGreen,
-                modifier = Modifier.size(48.dp)
-              )
-              Spacer(modifier = Modifier.height(12.dp))
-              Text(
-                text = "No Upcoming Bills",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-              )
-              Spacer(modifier = Modifier.height(4.dp))
-              Text(
-                text = "Add recurring rules like rent, electricity, or subscriptions to track upcoming payments.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-              )
-            }
-          }
-        }
-      } else {
-        items(scheduledOccurrences, key = { "${it.rule.id}_${it.occurrenceDateKey}" }) { occ ->
-          val isExpense = occ.rule.type == TransactionType.EXPENSE
-          val dueDateLabel = DateUtils.getFriendlyRelativeDate(occ.occurrenceTimestamp)
-          val isPaid = occ.status == OccurrenceStatus.PAID
-
-          Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-              ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(12.dp),
-                  modifier = Modifier.weight(1f)
-                ) {
-                  Surface(
-                    shape = CircleShape,
-                    color = occ.rule.category.color.copy(alpha = 0.12f),
-                    modifier = Modifier.size(42.dp)
-                  ) {
-                    Box(contentAlignment = Alignment.Center) {
-                      Icon(
-                        occ.rule.category.icon,
-                        contentDescription = null,
-                        tint = occ.rule.category.color,
-                        modifier = Modifier.size(22.dp)
-                      )
-                    }
-                  }
-
-                  Column {
-                    Text(
-                      text = occ.rule.title,
-                      style = MaterialTheme.typography.bodyLarge,
-                      fontWeight = FontWeight.SemiBold,
-                      color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                      text = "$dueDateLabel • ${occ.rule.paymentMethod.displayName}",
-                      style = MaterialTheme.typography.bodySmall,
-                      color = if (!isPaid && occ.occurrenceTimestamp <= System.currentTimeMillis()) AccentAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                  }
-                }
-
-                Text(
-                  text = "${if (isExpense) "-" else "+"}${IndianCurrencyFormatter.formatWithSymbol(occ.rule.amount, currencySymbol)}",
-                  style = MaterialTheme.typography.titleMedium,
-                  fontWeight = FontWeight.Bold,
-                  color = if (isExpense) ExpenseRed else IncomeGreen
-                )
-              }
-
-              Spacer(modifier = Modifier.height(14.dp))
-
-              // Action Row
-              val isCancelled = occ.status == OccurrenceStatus.CANCELLED
-              val isOverdue = occ.status == OccurrenceStatus.OVERDUE
-              val isDueToday = occ.status == OccurrenceStatus.DUE_TODAY
-
-              val statusColor = when {
-                isPaid -> IncomeGreen
-                isCancelled -> MaterialTheme.colorScheme.outline
-                isOverdue -> ExpenseRed
-                isDueToday -> MaterialTheme.colorScheme.primary
-                else -> AccentAmber
-              }
-
-              val statusText = when {
-                isPaid -> "Paid"
-                isCancelled -> "Cancelled"
-                isOverdue -> "Overdue"
-                isDueToday -> "Due Today"
-                else -> "Scheduled"
-              }
-
-              val statusIcon = when {
-                isPaid -> Icons.Default.CheckCircle
-                isCancelled -> Icons.Default.Block
-                isOverdue -> Icons.Default.Warning
-                isDueToday -> Icons.Default.Schedule
-                else -> Icons.Default.CalendarToday
-              }
-
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Surface(
-                  shape = RoundedCornerShape(16.dp),
-                  color = statusColor.copy(alpha = 0.12f)
-                ) {
-                  Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                  ) {
-                    Icon(
-                      statusIcon,
-                      contentDescription = null,
-                      modifier = Modifier.size(14.dp),
-                      tint = statusColor
-                    )
-                    Text(
-                      text = statusText,
-                      style = MaterialTheme.typography.labelSmall,
-                      fontWeight = FontWeight.Bold,
-                      color = statusColor
-                    )
-                  }
-                }
-
-                when {
-                  isCancelled -> {
-                    OutlinedButton(
-                      onClick = { viewModel.restoreRecurringOccurrence(occ) },
-                      shape = RoundedCornerShape(16.dp),
-                      modifier = Modifier.testTag("restore_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
-                    ) {
-                      Icon(Icons.Default.Undo, contentDescription = null, modifier = Modifier.size(14.dp))
-                      Spacer(modifier = Modifier.width(4.dp))
-                      Text("Restore", style = MaterialTheme.typography.labelSmall)
-                    }
-                  }
-                  !isPaid -> {
-                    Row(
-                      horizontalArrangement = Arrangement.spacedBy(8.dp),
-                      verticalAlignment = Alignment.CenterVertically
-                    ) {
-                      OutlinedButton(
-                        onClick = { occurrenceToCancel = occ },
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.testTag("cancel_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
-                      ) {
-                        Icon(Icons.Default.Cancel, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Skip", style = MaterialTheme.typography.labelSmall)
-                      }
-
-                      Button(
-                        onClick = { viewModel.markRecurringPaymentPaid(occ) },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen, contentColor = Color.White),
-                        modifier = Modifier.testTag("pay_occ_${occ.rule.id}_${occ.occurrenceDateKey}")
-                      ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Mark Paid", style = MaterialTheme.typography.labelSmall)
-                      }
-                    }
-                  }
-                  else -> {
-                    Text(
-                      text = "Transaction recorded",
-                      style = MaterialTheme.typography.bodySmall,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } else {
-      // ACTIVE RULES TAB
+    LazyColumn(
+      modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize().testTag("recurring_screen"),
+      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+      verticalArrangement = Arrangement.spacedBy(17.dp)
+    ) {
       item {
-        Surface(
-          shape = RoundedCornerShape(24.dp),
-          color = MaterialTheme.colorScheme.surface,
-          tonalElevation = 1.dp,
-          modifier = Modifier.fillMaxWidth()
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Recurring",
+            subtitle = "Bills, subscriptions and regular payments."
+          )
+          androidx.compose.material3.FilledTonalButton(onClick = onOpenAddRecurringRule) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Add rule")
+          }
+        }
+      }
+
+      item {
+        Surface(shape = RoundedCornerShape(26.dp), color = Color(0xFF163D2B), modifier = Modifier.fillMaxWidth()) {
           Row(
-            modifier = Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
           ) {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(12.dp),
-              modifier = Modifier.weight(1f)
-            ) {
-              Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(40.dp)
-              ) {
-                Box(contentAlignment = Alignment.Center) {
-                  Icon(Icons.Default.Schedule, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
-                }
-              }
-
-              Column {
-                Text(
-                  text = "Idempotent Generation",
-                  style = MaterialTheme.typography.titleSmall,
-                  fontWeight = FontWeight.Bold
-                )
-                Text(
-                  text = "Rules auto-generate transactions safely on due dates without duplicates.",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-              }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+              Text("UPCOMING COMMITMENTS", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.Bold)
+              Text("${outstanding.size} upcoming or overdue ${if (outstanding.size == 1) "payment" else "payments"}", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
             }
-
-            IconButton(onClick = { viewModel.processRecurringRules() }) {
-              Icon(Icons.Default.Refresh, contentDescription = "Sync now", tint = MaterialTheme.colorScheme.primary)
+            Surface(shape = RoundedCornerShape(17.dp), color = Color.White.copy(alpha = 0.10f)) {
+              Icon(Icons.Default.Repeat, contentDescription = null, tint = Color(0xFFD4EF75), modifier = Modifier.padding(13.dp).size(24.dp))
             }
           }
         }
       }
 
-      if (recurringRules.isEmpty()) {
+      item {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          FilterChip(selected = selectedTab == 0, onClick = { selectedTab = 0 }, label = { Text("Upcoming bills") })
+          FilterChip(selected = selectedTab == 1, onClick = { selectedTab = 1 }, label = { Text("Rules · ${recurringRules.size}") })
+        }
+      }
+
+      if (selectedTab == 0) {
         item {
-          Card(
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth()
-          ) {
-            Column(
-              modifier = Modifier.padding(28.dp),
-              horizontalAlignment = Alignment.CenterHorizontally,
-              verticalArrangement = Arrangement.Center
-            ) {
-              Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-                modifier = Modifier.size(56.dp)
-              ) {
-                Box(contentAlignment = Alignment.Center) {
-                  Icon(Icons.Default.Repeat, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Payment schedule",
+            subtitle = "Mark payments once they are completed."
+          )
+        }
+        if (outstanding.isEmpty()) {
+          item {
+            PremiumCard {
+              PremiumEmptyState(
+                title = "You're all caught up",
+                body = "No active scheduled or overdue payments are waiting for you.",
+                action = {
+                  OutlinedButton(onClick = onOpenAddRecurringRule) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add a recurring rule")
+                  }
                 }
-              }
-
-              Spacer(modifier = Modifier.height(14.dp))
-
-              Text(
-                text = "No Recurring Rules Yet",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
               )
-
-              Spacer(modifier = Modifier.height(6.dp))
-
-              Text(
-                text = "Create rules for regular monthly salary, house rent, subscriptions, electricity bills, etc.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-              )
-
-              Spacer(modifier = Modifier.height(20.dp))
-
-              Button(
-                onClick = onOpenAddRecurringRule,
-                shape = RoundedCornerShape(18.dp)
-              ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Add Your First Rule")
+            }
+          }
+        } else {
+          val grouped = outstanding.groupBy { it.occurrenceDateKey }
+          grouped.forEach { (dateKey, list) ->
+            item(key = "date_$dateKey") {
+              Text(dateKey, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            list.forEach { occurrence ->
+              item(key = "occ_${occurrence.rule.id}_${occurrence.occurrenceDateKey}") {
+                OccurrencePremiumCard(
+                  occurrence = occurrence,
+                  currencySymbol = currencySymbol,
+                  onMarkPaid = { viewModel.markRecurringPaymentPaid(occurrence) },
+                  onSkip = { occurrenceToCancel = occurrence }
+                )
               }
             }
           }
         }
       } else {
-        items(recurringRules, key = { it.id }) { rule ->
-          Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 1.dp,
-            modifier = Modifier
-              .fillMaxWidth()
-              .clickable { onEditRecurringRule(rule) }
-          ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-              ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(12.dp),
-                  modifier = Modifier.weight(1f)
-                ) {
-                  Surface(
-                    shape = CircleShape,
-                    color = rule.category.color.copy(alpha = 0.12f),
-                    modifier = Modifier.size(42.dp)
-                  ) {
-                    Box(contentAlignment = Alignment.Center) {
-                      Icon(rule.category.icon, contentDescription = null, tint = rule.category.color, modifier = Modifier.size(22.dp))
-                    }
-                  }
-
-                  Column {
-                    Text(
-                      text = rule.title,
-                      style = MaterialTheme.typography.bodyLarge,
-                      fontWeight = FontWeight.SemiBold,
-                      color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                      Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                      ) {
-                        Text(
-                          text = rule.interval.displayName,
-                          style = MaterialTheme.typography.labelSmall,
-                          fontWeight = FontWeight.Bold,
-                          color = MaterialTheme.colorScheme.primary,
-                          modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                      }
-
-                      Text(
-                        text = "${rule.category.displayName} • ${rule.paymentMethod.displayName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                      )
-                    }
+        item {
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Your recurring rules",
+            subtitle = "Pause or adjust a rule any time."
+          )
+        }
+        if (recurringRules.isEmpty()) {
+          item {
+            PremiumCard {
+              PremiumEmptyState(
+                title = "No rules yet",
+                body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
+                action = {
+                  Button(onClick = onOpenAddRecurringRule) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Create first rule")
                   }
                 }
-
-                // Amount
-                Text(
-                  text = IndianCurrencyFormatter.formatWithSymbol(
-                    amount = rule.amount,
-                    symbol = currencySymbol,
-                    includeSign = true
-                  ),
-                  style = MaterialTheme.typography.titleMedium,
-                  fontWeight = FontWeight.Bold,
-                  color = if (rule.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
-                )
-              }
-
-              Spacer(modifier = Modifier.height(14.dp))
-
-              // Footer row with Active switch and Delete button
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-              ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                  Switch(
-                    checked = rule.isActive,
-                    onCheckedChange = { viewModel.toggleRecurringRule(rule.id, it) },
-                    colors = SwitchDefaults.colors(
-                      checkedThumbColor = Color.White,
-                      checkedTrackColor = MaterialTheme.colorScheme.primary
-                    )
-                  )
-                  Text(
-                    text = if (rule.isActive) "Active" else "Paused",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = if (rule.isActive) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                  )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                  IconButton(onClick = { onEditRecurringRule(rule) }) {
-                    Icon(Icons.Default.Edit, contentDescription = "Edit", tint = MaterialTheme.colorScheme.primary)
-                  }
-                  IconButton(onClick = { ruleToDelete = rule }) {
-                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed)
-                  }
-                }
-              }
+              )
             }
           }
+        } else {
+          items(recurringRules.sortedBy { !it.isActive }, key = { "rule_${it.id}" }) { rule ->
+            RecurringRulePremiumCard(
+              rule = rule,
+              currencySymbol = currencySymbol,
+              onEdit = { onEditRecurringRule(rule) },
+              onDelete = { ruleToDelete = rule },
+              onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) }
+            )
+          }
+        }
+      }
+      item { Spacer(Modifier.height(10.dp)) }
+    }
+  }
+}
+
+@Composable
+private fun OccurrencePremiumCard(
+  occurrence: RecurringOccurrence,
+  currencySymbol: String,
+  onMarkPaid: () -> Unit,
+  onSkip: () -> Unit
+) {
+  val isOverdue = occurrence.status == OccurrenceStatus.OVERDUE
+  val isDue = occurrence.status == OccurrenceStatus.DUE_TODAY
+  val statusColor = when {
+    isOverdue -> ExpenseRed
+    isDue -> Color(0xFFB87918)
+    else -> MaterialTheme.colorScheme.primary
+  }
+  PremiumCard {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        Surface(shape = RoundedCornerShape(13.dp), color = occurrence.rule.category.color.copy(alpha = 0.13f)) {
+          Icon(occurrence.rule.category.icon, contentDescription = null, tint = occurrence.rule.category.color, modifier = Modifier.padding(10.dp).size(22.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+          Text(occurrence.rule.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+          Text("${occurrence.rule.category.displayName} · ${occurrence.rule.interval.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+          Text(IndianCurrencyFormatter.formatWithSymbol(occurrence.rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+          Surface(shape = CircleShape, color = statusColor.copy(alpha = 0.12f)) {
+            Text(occurrence.status.displayName, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.Bold)
+          }
+        }
+      }
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Button(
+          onClick = onMarkPaid,
+          modifier = Modifier.weight(1f),
+          shape = RoundedCornerShape(14.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen, contentColor = Color.White),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+        ) {
+          Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(Modifier.width(6.dp))
+          Text("Mark paid")
+        }
+        OutlinedButton(
+          onClick = onSkip,
+          shape = RoundedCornerShape(14.dp),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
+        ) {
+          Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
+          Spacer(Modifier.width(6.dp))
+          Text("Skip")
+        }
+      }
+    }
+  }
+}
+
+@Composable
+private fun RecurringRulePremiumCard(
+  rule: RecurringRule,
+  currencySymbol: String,
+  onEdit: () -> Unit,
+  onDelete: () -> Unit,
+  onToggle: (Boolean) -> Unit
+) {
+  PremiumCard {
+    Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
+        Surface(shape = RoundedCornerShape(13.dp), color = rule.category.color.copy(alpha = 0.13f)) {
+          Icon(rule.category.icon, contentDescription = null, tint = rule.category.color, modifier = Modifier.padding(10.dp).size(22.dp))
+        }
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+          Text(rule.title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+          Text("${rule.category.displayName} · ${rule.interval.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
+          Text(IndianCurrencyFormatter.formatWithSymbol(rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+          Text(if (rule.type == TransactionType.INCOME) "Income" else "Expense", style = MaterialTheme.typography.labelSmall, color = if (rule.type == TransactionType.INCOME) IncomeGreen else ExpenseRed)
+        }
+      }
+      androidx.compose.material3.HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
+      Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          Switch(
+            checked = rule.isActive,
+            onCheckedChange = onToggle,
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = MaterialTheme.colorScheme.primary)
+          )
+          Text(if (rule.isActive) "Active" else "Paused", style = MaterialTheme.typography.labelMedium, color = if (rule.isActive) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+          IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit ${rule.title}") }
+          IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${rule.title}", tint = ExpenseRed) }
         }
       }
     }
