@@ -1271,8 +1271,6 @@ private fun SettingsSection(
   }
 }
 
-@Composable
-
 private fun hasNotificationAccess(context: Context): Boolean {
   val runtimePermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
     ContextCompat.checkSelfPermission(
@@ -1282,6 +1280,7 @@ private fun hasNotificationAccess(context: Context): Boolean {
   return runtimePermissionGranted && NotificationManagerCompat.from(context).areNotificationsEnabled()
 }
 
+@Composable
 private fun SettingsRow(
   icon: ImageVector,
   iconTint: Color,
