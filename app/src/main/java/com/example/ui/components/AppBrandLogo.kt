@@ -14,7 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.example.ui.theme.IncomeGreen
+import com.example.ui.theme.AccentLime
 import com.example.ui.theme.MinimalIndigo
 
 /**
@@ -26,7 +26,7 @@ fun AppBrandLogo(
   modifier: Modifier = Modifier,
   size: Dp = 32.dp,
   primaryColor: Color = MaterialTheme.colorScheme.primary,
-  accentColor: Color = IncomeGreen
+  accentColor: Color = AccentLime
 ) {
   Box(
     modifier = modifier.size(size),
