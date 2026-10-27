@@ -28,8 +28,10 @@ import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import org.json.JSONObject
 import java.io.IOException
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
 
 class ConsentRequiredException(
@@ -79,6 +81,7 @@ class GoogleDriveBackupService(private val context: Context) {
   companion object {
     const val SCOPE_DRIVE_APPDATA = "https://www.googleapis.com/auth/drive.appdata"
     const val BACKUP_FILE_NAME = "paisa_financial_backup.json"
+    private const val MAX_CLOUD_BACKUP_BYTES = 25L * 1024L * 1024L
     private const val PREFS_NAME = "paisa_drive_prefs"
     private const val KEY_LAST_BACKUP = "key_last_backup_timestamp"
     private const val KEY_CONNECTED_EMAIL = "key_connected_email"
@@ -95,6 +98,28 @@ class GoogleDriveBackupService(private val context: Context) {
   private val moshi = Moshi.Builder()
     .addLast(KotlinJsonAdapterFactory())
     .build()
+
+  private fun readUtf8Bounded(body: ResponseBody, maxBytes: Long): String {
+    val declaredLength = body.contentLength()
+    if (declaredLength > maxBytes) {
+      throw IOException("Google Drive backup exceeds the supported 25 MB size limit.")
+    }
+    val output = ByteArrayOutputStream()
+    body.byteStream().use { input ->
+      val buffer = ByteArray(8192)
+      var total = 0L
+      while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) {
+          throw IOException("Google Drive backup exceeds the supported 25 MB size limit.")
+        }
+        output.write(buffer, 0, count)
+      }
+    }
+    return output.toString(Charsets.UTF_8.name())
+  }
 
   val signInClient: GoogleSignInClient
     get() {
@@ -222,12 +247,16 @@ class GoogleDriveBackupService(private val context: Context) {
         .build()
 
       val response = okHttpClient.newCall(request).execute()
-      if (!response.isSuccessful) {
+      val jsonContent = try {
+        if (!response.isSuccessful) {
+          throw IOException("Failed to download cloud records from Google Drive (${response.code})")
+        }
+        val body = response.body
+          ?: throw IOException("Google Drive returned an empty backup response.")
+        readUtf8Bounded(body, MAX_CLOUD_BACKUP_BYTES)
+      } finally {
         response.close()
-        throw IOException("Failed to download cloud records from Google Drive (${response.code})")
       }
-
-      val jsonContent = response.body?.string() ?: ""
       if (jsonContent.isBlank()) return@withContext null
 
       val userKeyId = account.id ?: account.email ?: "paisa_authenticated_user"
