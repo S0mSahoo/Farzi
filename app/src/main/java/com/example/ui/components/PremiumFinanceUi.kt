@@ -94,6 +94,67 @@ fun PremiumSectionHeading(
   }
 }
 
+/**
+ * Shared responsive page header. On compact widths the trailing control moves below the
+ * title rather than competing with it for horizontal space.
+ */
+@Composable
+fun PremiumPageHeader(
+  title: String,
+  subtitle: String? = null,
+  trailing: (@Composable () -> Unit)? = null,
+  modifier: Modifier = Modifier,
+  stackBelowWidth: Dp = 460.dp
+) {
+  androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    val titleBlock: @Composable () -> Unit = {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(3.dp)
+      ) {
+        Text(
+          text = title,
+          style = MaterialTheme.typography.headlineSmall,
+          fontWeight = FontWeight.Bold,
+          color = MaterialTheme.colorScheme.onBackground,
+          maxLines = 2,
+          overflow = TextOverflow.Ellipsis
+        )
+        if (!subtitle.isNullOrBlank()) {
+          Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+      }
+    }
+
+    if (trailing == null) {
+      titleBlock()
+    } else if (maxWidth < stackBelowWidth) {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
+        titleBlock()
+        trailing()
+      }
+    } else {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+      ) {
+        Column(modifier = Modifier.weight(1f)) {
+          titleBlock()
+        }
+        trailing()
+      }
+    }
+  }
+}
+
 @Composable
 fun PremiumCard(
   modifier: Modifier = Modifier,
