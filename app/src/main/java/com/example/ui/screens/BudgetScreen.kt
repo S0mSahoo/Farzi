@@ -292,7 +292,7 @@ private fun BudgetHeroCard(
   val spent = summary.totalExpense.coerceAtLeast(0.0)
   val used = if (limit > 0.0) (spent / limit).toFloat().coerceIn(0f, 1f) else 0f
   val remaining = limit - spent
-  val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+  val isLight = !com.example.ui.theme.isAppInDarkTheme()
   Surface(
     shape = RoundedCornerShape(28.dp),
     color = Color.Transparent,

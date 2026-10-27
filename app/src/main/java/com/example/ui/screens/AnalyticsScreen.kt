@@ -163,7 +163,7 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
 
       if (!isAnnualView) {
         item {
-          val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+          val isLight = !com.example.ui.theme.isAppInDarkTheme()
           Surface(
             shape = RoundedCornerShape(28.dp),
             color = Color.Transparent,
@@ -286,46 +286,53 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
         }
       } else {
         item {
+          val isLight = !com.example.ui.theme.isAppInDarkTheme()
+          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
           Surface(
             shape = RoundedCornerShape(28.dp),
             color = Color.Transparent,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f)),
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
             modifier = Modifier
               .fillMaxWidth()
               .background(
                 brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                  colors = listOf(
-                    Color(0xFF6D28D9),
-                    Color(0xFF4C1D95)
-                  )
+                  colors = if (isLight) {
+                    listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                  } else {
+                    listOf(
+                      Color(0xFF6D28D9),
+                      Color(0xFF4C1D95)
+                    )
+                  }
                 ),
                 shape = RoundedCornerShape(28.dp)
               )
           ) {
             Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
-              Text("YEARLY OVERVIEW", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.72f), fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              Text("YEARLY OVERVIEW", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
               Text(
                 IndianCurrencyFormatter.formatWithSymbol(yearlySummary.savings, currencySymbol, includeSign = true),
                 style = MaterialTheme.typography.headlineMedium,
-                color = Color.White,
+                color = textColor,
                 fontWeight = FontWeight.Bold
               )
-              Text("Net cash flow in $currentYear", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.72f))
+              Text("Net cash flow in $currentYear", style = MaterialTheme.typography.bodySmall, color = subTextColor)
               Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text("Income", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFF34D399), fontWeight = FontWeight.Bold)
+                  Text("Income", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = IncomeGreen, fontWeight = FontWeight.Bold)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.72f))
-                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = Color(0xFFF87171), fontWeight = FontWeight.Bold)
+                  Text("Expenses", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = ExpenseRed, fontWeight = FontWeight.Bold)
                 }
               }
               Text(
                 if (yearlySummary.totalIncome > 0.0) "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", yearlySummary.savingsRate)}%"
                 else "Record income and expenses to build your yearly overview.",
                 style = MaterialTheme.typography.bodySmall,
-                color = Color.White.copy(alpha = 0.75f)
+                color = subTextColor
               )
             }
           }

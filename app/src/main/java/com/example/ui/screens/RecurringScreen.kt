@@ -143,7 +143,7 @@ fun RecurringScreen(
       }
 
       item {
-        val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+        val isLight = !com.example.ui.theme.isAppInDarkTheme()
         Surface(
           shape = RoundedCornerShape(28.dp),
           color = Color.Transparent,

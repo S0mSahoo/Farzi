@@ -159,18 +159,23 @@ fun PremiumPageHeader(
 @Composable
 fun PremiumCard(
   modifier: Modifier = Modifier,
-  containerColor: Color = if (!androidx.compose.foundation.isSystemInDarkTheme()) Color(0xFFFFFFFF) else Color(0xFF130E22),
+  containerColor: Color = Color.Unspecified,
   content: @Composable () -> Unit
 ) {
-  val isLight = !androidx.compose.foundation.isSystemInDarkTheme()
+  val isDark = com.example.ui.theme.isAppInDarkTheme()
+  val resolvedContainerColor = if (containerColor != Color.Unspecified) {
+    containerColor
+  } else {
+    MaterialTheme.colorScheme.surface
+  }
   Card(
     modifier = modifier.animateContentSize(),
     shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(containerColor = containerColor),
-    elevation = CardDefaults.cardElevation(defaultElevation = if (isLight) 3.dp else 1.dp),
+    colors = CardDefaults.cardColors(containerColor = resolvedContainerColor),
+    elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 3.dp else 1.dp),
     border = androidx.compose.foundation.BorderStroke(
       1.dp,
-      if (isLight) Color(0xFFE2E8F0) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
+      if (!isDark) Color(0xFFE2E8F0) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
     )
   ) { content() }
 }
