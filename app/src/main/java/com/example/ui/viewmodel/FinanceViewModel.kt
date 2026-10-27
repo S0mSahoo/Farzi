@@ -1427,7 +1427,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         if (isGuestSession()) {
           // Migrate the guard for guest sessions created by older app versions too.
           repository.setGuestDataMode(true)
-          val message = "Guest records are kept local and will not be uploaded automatically. Re-enter guest mode, export a JSON backup, clear guest data in Settings, then sign in and import the backup if you want to move it."
+          val message = "Guest records stay on this device. To move them to Google, export a JSON backup in Guest Mode, clear guest data in Settings, choose Leave Guest Mode to return to onboarding, then sign in with Google and import the backup."
           _syncErrorMessage.value = message
           onResult?.invoke(false, message)
           return@withLock
@@ -1455,7 +1455,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             dump.recurringRules.isNotEmpty() || dump.paidOccurrences.isNotEmpty()
           if (hasUnboundRecords) {
             repository.setGuestDataMode(true)
-            val message = "Existing local financial records have no verified Google account. They were kept local and not uploaded. Re-enter guest mode, export a JSON backup, clear local data, then sign in and import the backup if you want to move it."
+            val message = "Existing records have no verified Google account and were kept local. Continue as Guest to review/export them, clear local data in Settings, choose Leave Guest Mode, then sign in with Google and import the backup if you want to move these records."
             _syncErrorMessage.value = message
             onResult?.invoke(false, message)
             return@withLock
