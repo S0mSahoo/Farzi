@@ -90,6 +90,12 @@ fun BudgetScreen(
       ?.sortedByDescending { it.value }
       ?: emptyList()
   }
+  val unbudgeted = remember(categoryActual, currentBudget) {
+    categoryActual.entries
+      .filter { it.value > 0.0 && (currentBudget?.categoryBudgets?.get(it.key) ?: 0.0) <= 0.0 }
+      .sortedByDescending { it.value }
+      .take(4)
+  }
 
   if (showMonthPicker) {
     MonthYearPickerDialog(
@@ -235,12 +241,6 @@ fun BudgetScreen(
           title = "Spending outside category caps",
           subtitle = "Categories with transactions but no individual limit."
         )
-      }
-      val unbudgeted = remember(categoryActual, currentBudget) {
-        categoryActual.entries
-          .filter { it.value > 0 && (currentBudget?.categoryBudgets?.get(it.key) ?: 0.0) <= 0.0 }
-          .sortedByDescending { it.value }
-          .take(4)
       }
       if (unbudgeted.isEmpty()) {
         item {
