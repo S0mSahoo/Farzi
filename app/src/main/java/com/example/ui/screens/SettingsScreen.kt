@@ -864,7 +864,11 @@ fun SettingsScreen(
                         }
                       )
                     } else {
-                      viewModel.setAppLockEnabled(targetState)
+                      Toast.makeText(
+                        context,
+                        "Set up a screen lock, PIN, pattern, or biometric before changing App Lock.",
+                        Toast.LENGTH_LONG
+                      ).show()
                     }
                   },
                   colors = SwitchDefaults.colors(
