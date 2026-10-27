@@ -17,6 +17,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
+import com.google.android.gms.tasks.Tasks
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlinx.coroutines.Dispatchers
@@ -134,8 +135,13 @@ class GoogleDriveBackupService(private val context: Context) {
 
   suspend fun signOut(): Boolean = withContext(Dispatchers.IO) {
     try {
-      signInClient.signOut()
-      prefs.edit().remove(KEY_CONNECTED_EMAIL).apply()
+      // Google sign-out returns a Task. Await it so stale credentials cannot be reused
+      // by the next guest session or after a user switches accounts.
+      Tasks.await(signInClient.signOut())
+      prefs.edit()
+        .remove(KEY_CONNECTED_EMAIL)
+        .remove(KEY_LAST_BACKUP)
+        .apply()
       true
     } catch (e: Exception) {
       false
@@ -325,30 +331,27 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   private fun findExistingBackupFileId(accessToken: String): String? {
-    try {
-      val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&fields=files(id,name)"
-      val request = Request.Builder()
-        .url(url)
-        .header("Authorization", "Bearer $accessToken")
-        .get()
-        .build()
+    val url = "https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='$BACKUP_FILE_NAME'+and+trashed=false&fields=files(id,name)"
+    val request = Request.Builder()
+      .url(url)
+      .header("Authorization", "Bearer $accessToken")
+      .get()
+      .build()
 
-      val response = okHttpClient.newCall(request).execute()
+    okHttpClient.newCall(request).execute().use { response ->
       if (!response.isSuccessful) {
-        response.close()
-        return null
+        // Do not mistake a transient API failure for "no backup"; otherwise every retry
+        // could create another file and split the user's backup history.
+        throw IOException("Google Drive backup lookup failed (${response.code}); refusing to create a duplicate backup.")
       }
-
-      val responseBody = response.body?.string() ?: ""
-      val json = JSONObject(responseBody)
-      val files = json.optJSONArray("files")
-      if (files != null && files.length() > 0) {
-        return files.getJSONObject(0).optString("id")
-      }
-    } catch (e: Exception) {
-      // Fallback to creating a new file
+      val responseBody = response.body?.string()
+        ?: throw IOException("Google Drive returned an empty backup lookup response.")
+      val files = JSONObject(responseBody).optJSONArray("files")
+      if (files == null || files.length() == 0) return null
+      val id = files.getJSONObject(0).optString("id")
+      if (id.isBlank()) throw IOException("Google Drive returned a backup without a file ID.")
+      return id
     }
-    return null
   }
 
   private fun createNewFile(accessToken: String, jsonContent: String): Boolean {
@@ -362,7 +365,7 @@ class GoogleDriveBackupService(private val context: Context) {
     val mediaBody = jsonContent.toRequestBody("application/json; charset=UTF-8".toMediaType())
 
     val requestBody = MultipartBody.Builder()
-      .setType(MultipartBody.FORM)
+      .setType("multipart/related".toMediaType())
       .addPart(metadataBody)
       .addPart(mediaBody)
       .build()
