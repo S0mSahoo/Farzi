@@ -55,7 +55,7 @@ import com.example.ui.components.MonthYearPickerDialog
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
 import com.example.ui.components.PremiumMonthNavigator
-import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumPageHeader
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
@@ -131,23 +131,18 @@ fun BudgetScreen(
       verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
       item {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-          PremiumSectionHeading(
-            title = "Budgets",
-            subtitle = "Make room for what matters.",
-            modifier = Modifier.weight(1f)
-          )
-          PremiumMonthNavigator(
-            label = summary.monthLabel,
-            onPrevious = { viewModel.previousBudgetMonth() },
-            onNext = { viewModel.nextBudgetMonth() },
-            onPick = { showMonthPicker = true }
-          )
-        }
+        PremiumPageHeader(
+          title = "Budgets",
+          subtitle = "Make room for what matters.",
+          trailing = {
+            PremiumMonthNavigator(
+              label = summary.monthLabel,
+              onPrevious = { viewModel.previousBudgetMonth() },
+              onNext = { viewModel.nextBudgetMonth() },
+              onPick = { showMonthPicker = true }
+            )
+          }
+        )
       }
 
       item {
