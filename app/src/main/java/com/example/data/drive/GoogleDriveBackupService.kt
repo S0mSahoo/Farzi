@@ -32,6 +32,7 @@ import okhttp3.ResponseBody
 import org.json.JSONObject
 import java.io.IOException
 import java.io.ByteArrayOutputStream
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 class ConsentRequiredException(
@@ -349,6 +350,68 @@ class GoogleDriveBackupService(private val context: Context) {
     saveLastBackupTimestamp(timestamp)
     account.email?.let { saveConnectedEmail(it) }
     timestamp
+  }
+
+  /**
+   * Explicitly deletes every Paisa backup file in this account's Drive AppData folder.
+   * Used by Clear All Data so a user can erase an existing legacy backup without needing to
+   * configure new-format backup encryption first. Any failed lookup/delete throws and callers
+   * must retain/restore local data.
+   */
+  suspend fun deleteCloudBackups(account: GoogleSignInAccount): Boolean = withContext(Dispatchers.IO) {
+    val accessToken = getAccessToken(account)
+    val fileIds = mutableListOf<String>()
+    var nextPageToken: String? = null
+
+    do {
+      val url = buildString {
+        append("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder")
+        append("&q=name%3D%27").append(BACKUP_FILE_NAME).append("%27%20and%20trashed%3Dfalse")
+        append("&pageSize=1000&fields=files%28id%2Cname%29%2CnextPageToken")
+        if (!nextPageToken.isNullOrBlank()) {
+          append("&pageToken=").append(URLEncoder.encode(nextPageToken, "UTF-8"))
+        }
+      }
+      val request = Request.Builder()
+        .url(url)
+        .header("Authorization", "Bearer $accessToken")
+        .get()
+        .build()
+
+      val pageJson = okHttpClient.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) {
+          throw IOException("Google Drive backup lookup failed (${response.code}); local data was not erased.")
+        }
+        response.body?.string()
+          ?: throw IOException("Google Drive returned an empty backup lookup response; local data was not erased.")
+      }
+      val page = JSONObject(pageJson)
+      val files = page.optJSONArray("files")
+      if (files != null) {
+        for (index in 0 until files.length()) {
+          val id = files.getJSONObject(index).optString("id")
+          if (id.isNotBlank()) fileIds += id
+        }
+      }
+      nextPageToken = page.optString("nextPageToken", "").takeIf { it.isNotBlank() }
+    } while (nextPageToken != null)
+
+    for (fileId in fileIds.distinct()) {
+      val request = Request.Builder()
+        .url("https://www.googleapis.com/drive/v3/files/$fileId")
+        .header("Authorization", "Bearer $accessToken")
+        .delete()
+        .build()
+      okHttpClient.newCall(request).execute().use { response ->
+        if (!response.isSuccessful && response.code != 404) {
+          throw IOException("Could not erase a Google Drive backup (${response.code}); local data was not erased.")
+        }
+      }
+    }
+
+    val timestampCleared = prefs.edit().remove(KEY_LAST_BACKUP).commit()
+    check(timestampCleared) { "Drive backups were deleted, but the local backup timestamp could not be cleared." }
+    true
   }
 
   /**
