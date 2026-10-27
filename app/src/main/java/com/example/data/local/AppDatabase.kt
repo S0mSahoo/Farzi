@@ -2,6 +2,8 @@ package com.example.data.local
 
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
+import android.content.ContentValues
+import android.util.Log
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
@@ -159,6 +161,158 @@ private fun migrateLegacyDatabaseFile(context: Context) {
 }
 
 /**
+ * A previous app revision created the new database filename but left the old v1 file behind.
+ * When both files exist, merge legacy transactions into the already-current database, using a
+ * transaction marker so a restart cannot import them a second time. The legacy file is archived,
+ * not deleted, after the import.
+ */
+private fun importLegacyTransactionsIfNeeded(context: Context, target: SupportSQLiteDatabase) {
+  val legacy = context.getDatabasePath("dailydraft_database")
+  if (!legacy.exists()) return
+
+  val markerTable = "paisa_migration_markers"
+  val markerName = "legacy_v1_transactions_imported"
+  target.execSQL(
+    "CREATE TABLE IF NOT EXISTS $markerTable (" +
+      "name TEXT NOT NULL PRIMARY KEY, completedAt INTEGER NOT NULL)"
+  )
+
+  val source = SQLiteDatabase.openDatabase(
+    legacy.absolutePath,
+    null,
+    SQLiteDatabase.OPEN_READWRITE
+  )
+  var importedSuccessfully = false
+  try {
+    source.rawQuery("PRAGMA wal_checkpoint(FULL)", null).use { cursor ->
+      if (cursor.moveToFirst()) {
+        val busy = cursor.getInt(0)
+        val logFrames = cursor.getInt(1)
+        val checkpointedFrames = cursor.getInt(2)
+        if (busy != 0 || (logFrames >= 0 && checkpointedFrames >= 0 && checkpointedFrames < logFrames)) {
+          throw IllegalStateException("Could not safely checkpoint the legacy Paisa database.")
+        }
+      }
+    }
+
+    // Only import known v1 files. Keep any unexpected legacy schema untouched for manual recovery.
+    if (source.version != 1) {
+      Log.w("PaisaDatabase", "Legacy database has unexpected user_version=${source.version}; leaving it untouched.")
+      return
+    }
+
+    target.beginTransaction()
+    try {
+      val alreadyImported = target.query(
+        "SELECT name FROM $markerTable WHERE name = ?",
+        arrayOf(markerName)
+      ).use { it.moveToFirst() }
+
+      if (!alreadyImported) {
+        // Deduplicate only against rows which existed before this import. Do not deduplicate
+        // repeated legacy rows against one another; two identical entries may be real purchases.
+        val existingSignatures = hashSetOf<String>()
+        target.query(
+          "SELECT title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt FROM transactions"
+        ).use { cursor ->
+          while (cursor.moveToNext()) {
+            existingSignatures += legacyTransactionSignature(
+              title = cursor.getString(0),
+              amount = cursor.getDouble(1),
+              type = cursor.getString(2),
+              category = cursor.getString(3),
+              timestamp = cursor.getLong(4),
+              note = cursor.getString(5),
+              paymentMethod = cursor.getString(6),
+              isRecurring = cursor.getInt(7) != 0,
+              createdAt = cursor.getLong(8)
+            )
+          }
+        }
+
+        source.rawQuery(
+          "SELECT title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt FROM transactions ORDER BY id",
+          null
+        ).use { cursor ->
+          while (cursor.moveToNext()) {
+            val title = cursor.getString(0)
+            val amount = cursor.getDouble(1)
+            val type = cursor.getString(2)
+            val category = cursor.getString(3)
+            val timestamp = cursor.getLong(4)
+            val note = cursor.getString(5)
+            val paymentMethod = cursor.getString(6)
+            val isRecurring = cursor.getInt(7) != 0
+            val createdAt = cursor.getLong(8)
+            if (legacyTransactionSignature(
+                title, amount, type, category, timestamp, note, paymentMethod, isRecurring, createdAt
+              ) in existingSignatures) {
+              continue
+            }
+
+            val values = ContentValues().apply {
+              put("title", title)
+              put("amount", amount)
+              put("type", type)
+              put("category", category)
+              put("timestamp", timestamp)
+              put("note", note)
+              put("paymentMethod", paymentMethod)
+              put("isRecurring", if (isRecurring) 1 else 0)
+              putNull("recurringRuleId")
+              put("createdAt", createdAt)
+              put("updatedAt", createdAt)
+            }
+            val inserted = target.insert("transactions", SQLiteDatabase.CONFLICT_ABORT, values)
+            if (inserted < 0) throw IllegalStateException("Could not import a legacy Paisa transaction.")
+          }
+        }
+      }
+
+      target.execSQL(
+        "INSERT OR REPLACE INTO $markerTable (name, completedAt) VALUES (?, ?)",
+        arrayOf(markerName, System.currentTimeMillis())
+      )
+      target.setTransactionSuccessful()
+      importedSuccessfully = true
+    } finally {
+      target.endTransaction()
+    }
+  } finally {
+    source.close()
+  }
+
+  if (importedSuccessfully) {
+    // SQLite has checkpointed and closed the source DB; sidecars no longer contain unique data.
+    listOf(File(legacy.absolutePath + "-wal"), File(legacy.absolutePath + "-shm")).forEach { sidecar ->
+      if (sidecar.exists() && !sidecar.delete()) {
+        Log.w("PaisaDatabase", "Could not remove old SQLite sidecar ${sidecar.name}; migration marker prevents duplicate import.")
+      }
+    }
+    val archive = File(legacy.absolutePath + ".migrated")
+    val destination = if (archive.exists()) File(legacy.absolutePath + ".migrated-" + System.currentTimeMillis()) else archive
+    if (!legacy.renameTo(destination)) {
+      Log.w("PaisaDatabase", "Legacy transaction import succeeded, but the original file could not be archived.")
+    }
+  }
+}
+
+private fun legacyTransactionSignature(
+  title: String,
+  amount: Double,
+  type: String,
+  category: String,
+  timestamp: Long,
+  note: String,
+  paymentMethod: String,
+  isRecurring: Boolean,
+  createdAt: Long
+): String = listOf(
+  title, java.lang.Double.doubleToLongBits(amount).toString(), type, category,
+  timestamp.toString(), note, paymentMethod, isRecurring.toString(), createdAt.toString()
+).joinToString("\u0000")
+
+/**
  * Version 2 only had the primary finance tables. Recreate the auxiliary tables introduced in
  * version 3 so the subsequent migration can normalize their structure without dropping records.
  */
@@ -232,6 +386,16 @@ abstract class AppDatabase : RoomDatabase() {
         )
           .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
           .build()
+
+        // When the old filename still exists alongside the active DB, import its transactions
+        // once after Room has migrated/validated the current database schema.
+        if (context.getDatabasePath("dailydraft_database").exists()) {
+          importLegacyTransactionsIfNeeded(
+            context.applicationContext,
+            instance.openHelper.writableDatabase
+          )
+        }
+
         INSTANCE = instance
         instance
       }
