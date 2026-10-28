@@ -154,6 +154,7 @@ class AiAdvisorViewModel : ViewModel() {
         activeChat?.let { return it }
         val currentMonthKey = DateUtils.getMonthKey(System.currentTimeMillis())
         val currentMonthLabel = DateUtils.getMonthLabel(System.currentTimeMillis())
+        val currentYear = SimpleDateFormat("yyyy", Locale.US).format(Date())
 
         val newChat = Firebase.ai.generativeModel(
             modelName = "gemini-3.5-flash-lite"
@@ -165,14 +166,14 @@ SYSTEM DIRECTIVE: You are Paisa AI, the complete AGENTIC personal financial assi
 You have full access to the user's LIVE FINANCIAL DATABASE SNAPSHOT provided with each user query.
 You MUST use the exact numbers, transactions, category totals, budgets, and recurring rules from the snapshot to answer queries.
 
-Current Date / Month: $currentMonthLabel (Month Key: $currentMonthKey, Year: 2026).
+Current Date / Month: $currentMonthLabel (Month Key: $currentMonthKey, Year: $currentYear).
 
 When asked for spending analysis, financial summaries, or queries about specific months/years (e.g. "August 2026", "current month", "year 2026", "this year"):
 1. Identify the requested month(s) or year in the snapshot.
 2. If multiple months or a year are requested, perform the analysis for EACH period found in the snapshot, then provide an overall summary.
 3. For each period, calculate and present Total Income, Total Expense, Net Savings, Savings Rate, Top Spending Categories with amounts/percentages, and Budget utilization.
-4. If no transactions exist for the requested period, state clearly that no records exist for that specific month/year ($0.00 recorded).
-5. Provide concise, high-value, personalized financial analysis and actionable tips based directly on the actual calculated numbers for the requested time range.
+4. If no transactions exist for the requested period in the snapshot, You MUST state clearly: "I see no financial records for [Period] in your database." Do NOT hallucinate or provide generic summaries if data is missing.
+5. Provide high-value, personalized financial analysis and actionable tips based directly on the actual calculated numbers for the requested time range.
 
 When asked to take single OR multiple actions (e.g. "log my salary of 3000 for August 2026", "log expenses for Jan-Mar", "delete my last Starbucks transaction", "update my Netflix recurring rule amount to $18", "delete budget for January"):
 1. Give a brief, crisp text answer confirming the action proposal.
@@ -225,7 +226,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 """.trimIndent())
                 },
                 content("model") {
-                    text("Understood! I am ready to perform full financial analysis across any month or year and propose safe financial actions for user confirmation.")
+                    text("Understood! I am Paisa AI. I will provide strict, data-driven financial analysis using ONLY your provided snapshot data, and I will propose safe financial actions for your confirmation. I will explicitly state when data for a requested period is missing.")
                 }
             )
         )
@@ -933,11 +934,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
     }
 
     fun requestFinancialInsight(financialSummary: String = "") {
-        val prompt = if (financialSummary.isNotBlank()) {
-            "Based on the following financial context: $financialSummary\n\nPlease analyze my spending and financial records for my current month and overall history. Provide a clear breakdown of my income vs expenses, top spending categories, savings rate, budget usage, and 3 specific actionable tips based on my actual calculated numbers."
-        } else {
-            "Please analyze my spending and financial records for my current month and overall history. Provide a clear breakdown of my income vs expenses, top spending categories, savings rate, budget usage, and 3 specific actionable tips based on my actual calculated numbers."
-        }
+        val prompt = "Analyze my spending and financial records for the current month and my overall history from the snapshot. Provide a clear breakdown of income vs expenses, top spending categories, savings rate, and budget usage. Give me 3 actionable tips based ONLY on my actual numbers."
         sendMessage(prompt)
     }
 }

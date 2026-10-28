@@ -21,11 +21,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -131,113 +137,20 @@ fun AiAdvisorScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        bottomBar = {
-            Surface(
-                tonalElevation = 6.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .navigationBarsPadding()
-                    .imePadding()
-            ) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    // Quick Action Chips
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .padding(bottom = 6.dp)
-                            .testTag("ai_suggestion_chips")
-                    ) {
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.requestFinancialInsight(financialSummaryContext) },
-                                enabled = !isControlsDisabled,
-                                label = { Text("📊 Analyze My Spending") },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log an expense of ₹45 for lunch paid via UPI") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("📝 Log ₹45 Lunch Expense") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log income of ₹3000 for monthly salary") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("💰 Log ₹3000 Salary") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Set my monthly budget for this month to ₹1500") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🎯 Set ₹1500 Budget") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Add a monthly recurring rule for Netflix subscription of ₹15 paid via credit card") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🔄 Add ₹15 Netflix Bill") }
-                            )
-                        }
-                    }
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        OutlinedTextField(
-                            value = inputText,
-                            onValueChange = { inputText = it },
-                            placeholder = { Text("Ask Paisa AI to log, set budget, or advise...") },
-                            shape = RoundedCornerShape(24.dp),
-                            enabled = !isControlsDisabled,
-                            modifier = Modifier
-                                .weight(1f)
-                                .testTag("ai_chat_input"),
-                            maxLines = 3
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        IconButton(
-                            onClick = {
-                                if (inputText.isNotBlank()) {
-                                    viewModel.sendMessage(inputText)
-                                    inputText = ""
-                                }
-                            },
-                            enabled = inputText.isNotBlank() && !isControlsDisabled,
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(
-                                    if (!isControlsDisabled && inputText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                    CircleShape
-                                )
-                                .testTag("ai_chat_send")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.Send,
-                                contentDescription = "Send",
-                                tint = if (!isControlsDisabled && inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-            }
-        }
+        contentWindowInsets = WindowInsets.statusBars
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .navigationBarsPadding()
                 .background(MaterialTheme.colorScheme.background)
         ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f)
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -346,6 +259,100 @@ fun AiAdvisorScreen(
                     }
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
+            }
+
+            Surface(
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    // Quick Action Chips
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier
+                            .padding(bottom = 6.dp)
+                            .testTag("ai_suggestion_chips")
+                    ) {
+                        item {
+                            AssistChip(
+                                onClick = { viewModel.requestFinancialInsight(financialSummaryContext) },
+                                enabled = !isControlsDisabled,
+                                label = { Text("📊 Analyze My Spending") },
+                                leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { viewModel.sendMessage("Log an expense of ₹45 for lunch paid via UPI") },
+                                enabled = !isControlsDisabled,
+                                label = { Text("📝 Log ₹45 Lunch Expense") }
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { viewModel.sendMessage("Log income of ₹3000 for monthly salary") },
+                                enabled = !isControlsDisabled,
+                                label = { Text("💰 Log ₹3000 Salary") }
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { viewModel.sendMessage("Set my monthly budget for this month to ₹1500") },
+                                enabled = !isControlsDisabled,
+                                label = { Text("🎯 Set ₹1500 Budget") }
+                            )
+                        }
+                        item {
+                            AssistChip(
+                                onClick = { viewModel.sendMessage("Add a monthly recurring rule for Netflix subscription of ₹15 paid via credit card") },
+                                enabled = !isControlsDisabled,
+                                label = { Text("🔄 Add ₹15 Netflix Bill") }
+                            )
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = inputText,
+                            onValueChange = { inputText = it },
+                            placeholder = { Text("Ask Paisa AI to log, set budget, or advise...") },
+                            shape = RoundedCornerShape(24.dp),
+                            enabled = !isControlsDisabled,
+                            modifier = Modifier
+                                .weight(1f)
+                                .testTag("ai_chat_input"),
+                            maxLines = 3
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        IconButton(
+                            onClick = {
+                                if (inputText.isNotBlank()) {
+                                    viewModel.sendMessage(inputText)
+                                    inputText = ""
+                                }
+                            },
+                            enabled = inputText.isNotBlank() && !isControlsDisabled,
+                            modifier = Modifier
+                                .size(48.dp)
+                                .background(
+                                    if (!isControlsDisabled && inputText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
+                                .testTag("ai_chat_send")
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send",
+                                tint = if (!isControlsDisabled && inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
