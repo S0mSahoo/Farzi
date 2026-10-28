@@ -168,16 +168,30 @@ fun PremiumCard(
   } else {
     com.example.ui.theme.resolveCardSurfaceColor()
   }
-  Card(
-    modifier = modifier.animateContentSize(),
-    shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(containerColor = resolvedContainerColor),
-    elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 3.dp else 1.dp),
-    border = androidx.compose.foundation.BorderStroke(
-      1.dp,
-      if (!isDark) Color(0xFFE2E8F0) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
+
+  // Force light content colors for dark surface in light mode
+  val contentColorScheme = if (!isDark) {
+    MaterialTheme.colorScheme.copy(
+      onSurface = Color(0xFFF8FAFC),
+      onSurfaceVariant = Color(0xFFA5B4FC),
+      onPrimaryContainer = Color(0xFFF8FAFC)
     )
-  ) { content() }
+  } else {
+    MaterialTheme.colorScheme
+  }
+
+  MaterialTheme(colorScheme = contentColorScheme) {
+    Card(
+      modifier = modifier.animateContentSize(),
+      shape = RoundedCornerShape(24.dp),
+      colors = CardDefaults.cardColors(containerColor = resolvedContainerColor),
+      elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 3.dp else 1.dp),
+      border = androidx.compose.foundation.BorderStroke(
+        1.dp,
+        if (!isDark) Color(0xFF8B5CF6).copy(alpha = 0.35f) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
+      )
+    ) { content() }
+  }
 }
 
 @Composable

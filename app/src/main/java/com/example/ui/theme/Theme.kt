@@ -26,11 +26,7 @@ fun isAppInDarkTheme(): Boolean {
 
 @Composable
 fun resolveCardSurfaceColor(): Color {
-  return if (isAppInDarkTheme()) {
-    MaterialTheme.colorScheme.surface
-  } else {
-    LightSurfaceContainerLow
-  }
+  return DarkSurface
 }
 
 // ==========================================

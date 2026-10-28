@@ -99,21 +99,21 @@ val Typography = Typography(
   // Body content, notes, descriptions
   bodyLarge = TextStyle(
     fontFamily = PlusJakartaSansFont,
-    fontWeight = FontWeight.Normal,
+    fontWeight = FontWeight.Medium,
     fontSize = 15.sp,
     lineHeight = 22.sp,
     letterSpacing = 0.15.sp
   ),
   bodyMedium = TextStyle(
     fontFamily = PlusJakartaSansFont,
-    fontWeight = FontWeight.Normal,
+    fontWeight = FontWeight.Medium,
     fontSize = 13.sp,
     lineHeight = 18.sp,
     letterSpacing = 0.15.sp
   ),
   bodySmall = TextStyle(
     fontFamily = PlusJakartaSansFont,
-    fontWeight = FontWeight.Normal,
+    fontWeight = FontWeight.Medium,
     fontSize = 12.sp,
     lineHeight = 16.sp,
     letterSpacing = 0.2.sp
