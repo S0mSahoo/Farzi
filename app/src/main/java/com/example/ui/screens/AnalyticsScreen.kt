@@ -255,8 +255,16 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
             val item = list[index]
             com.example.ui.components.PremiumCard {
               Column(modifier = Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                val haptics = com.example.ui.util.rememberPaisaHaptics()
                 Row(
-                  modifier = Modifier.fillMaxWidth().clickable { viewModel.selectCategoryForDetail(item.category) },
+                  modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                      haptics.performLightHaptic()
+                      viewModel.selectCategoryForDetail(item.category)
+                    }
+                    .padding(vertical = 4.dp),
                   verticalAlignment = Alignment.CenterVertically,
                   horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {

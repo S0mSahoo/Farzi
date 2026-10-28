@@ -1,8 +1,12 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -582,9 +586,21 @@ private fun PremiumQuickAction(
   modifier: Modifier = Modifier,
   onClick: () -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
+
   Surface(
-    onClick = onClick,
-    modifier = modifier,
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    },
+    interactionSource = interactionSource,
     shape = RoundedCornerShape(18.dp),
     color = com.example.ui.theme.resolveCardSurfaceColor(),
     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
@@ -684,6 +700,7 @@ private fun PremiumCategoryOverview(
   onCategoryClick: (com.example.data.model.TransactionCategory) -> Unit,
   modifier: Modifier = Modifier
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
   PremiumCard(modifier = modifier) {
     Column(
       modifier = Modifier.padding(18.dp),
@@ -702,7 +719,10 @@ private fun PremiumCategoryOverview(
             modifier = Modifier
               .fillMaxWidth()
               .clip(RoundedCornerShape(12.dp))
-              .clickable { onCategoryClick(item.category) }
+              .clickable {
+                haptics.performLightHaptic()
+                onCategoryClick(item.category)
+              }
               .padding(vertical = 2.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
           ) {

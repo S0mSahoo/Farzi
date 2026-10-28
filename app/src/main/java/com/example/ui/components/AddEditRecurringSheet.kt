@@ -123,8 +123,10 @@ fun AddEditRecurringSheet(
     TransactionCategory.values().filter { it.defaultType == ruleType }
   }
 
-  if (selectedCategory.defaultType != ruleType) {
-    selectedCategory = availableCategories.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
+  androidx.compose.runtime.LaunchedEffect(ruleType) {
+    if (selectedCategory.defaultType != ruleType) {
+      selectedCategory = availableCategories.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
+    }
   }
 
   val activeColor by animateColorAsState(

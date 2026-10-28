@@ -217,7 +217,11 @@ private fun CategoryPremiumRow(
 ) {
   PremiumCard {
     Column(
-      modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp)).clickable(onClick = onClick).padding(16.dp),
+      modifier = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(24.dp))
+        .clickable(onClick = onClick)
+        .padding(16.dp),
       verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

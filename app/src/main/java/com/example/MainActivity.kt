@@ -39,8 +39,17 @@ class MainActivity : FragmentActivity() {
         ThemeMode.DARK -> true
       }
 
-      val lifecycleOwner = LocalLifecycleOwner.current
       val context = LocalContext.current
+      val lifecycleOwner = LocalLifecycleOwner.current
+
+      androidx.compose.runtime.SideEffect {
+          val window = (context as? FragmentActivity)?.window
+          window?.let {
+              val controller = androidx.core.view.WindowCompat.getInsetsController(it, it.decorView)
+              controller.isAppearanceLightStatusBars = !isDark
+              controller.isAppearanceLightNavigationBars = !isDark
+          }
+      }
 
       // (FLAG_SECURE removed for browser emulator visibility)
 
