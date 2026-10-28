@@ -1053,6 +1053,16 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     syncCurrentStateToDrive()
   }
 
+  fun updateUserProfile(name: String? = null) {
+    val current = _userProfile.value
+    val updated = current.copy(
+      name = if (!name.isNullOrBlank()) name.trim() else current.name
+    )
+    _userProfile.value = updated
+    repository.saveUserProfile(updated)
+    syncCurrentStateToDrive()
+  }
+
   // ================= Transaction Operations =================
 
   fun addTransaction(

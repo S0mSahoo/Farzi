@@ -1,5 +1,7 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
@@ -131,7 +133,10 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         )
       }
       item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+          modifier = Modifier.selectableGroup(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
           FilterChip(selected = selectedType == TransactionType.EXPENSE, onClick = { selectedType = TransactionType.EXPENSE }, label = { Text("Spending") })
           FilterChip(selected = selectedType == TransactionType.INCOME, onClick = { selectedType = TransactionType.INCOME }, label = { Text("Income") })
         }

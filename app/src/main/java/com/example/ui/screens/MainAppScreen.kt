@@ -39,6 +39,7 @@ import com.example.ui.viewmodel.AiAdvisorViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -1040,6 +1041,7 @@ fun MainAppScreen(
 
     if (isAiAdvisorOpen) {
       BackHandler { isAiAdvisorOpen = false }
+      aiViewModel.bindFinanceViewModel(viewModel)
       AiAdvisorScreen(
         viewModel = aiViewModel,
         onClose = { isAiAdvisorOpen = false },
@@ -1068,66 +1070,71 @@ private fun MainScreenContent(
   onEditRecurringRule: (rule: RecurringRule) -> Unit,
   onOpenExportModal: () -> Unit
 ) {
-  if (isSettingsOpen) {
-    BackHandler { onBackFromSettings() }
-    SettingsScreen(
-      viewModel = viewModel,
-      onOpenExportModal = onOpenExportModal
-    )
-  } else {
-    Crossfade(
-      targetState = selectedTab,
-      label = "paisa_primary_navigation"
-    ) { destination ->
-      when (destination) {
-        0 -> DashboardScreen(
-          viewModel = viewModel,
-          onOpenAddTransaction = onOpenAddTransaction,
-          onEditTransaction = onEditTransaction,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(dashboardCalendar),
-              DateUtils.getMonthLabel(dashboardCalendar)
-            )
-          },
-          onOpenAllTransactions = { onNavigateTab(1) }
-        )
-        1 -> TransactionsScreen(
-          viewModel = viewModel,
-          onEditTransaction = onEditTransaction
-        )
-        2 -> CalendarScreen(
-          viewModel = viewModel,
-          onAddTransactionForDate = onAddTransactionForDate,
-          onEditTransaction = onEditTransaction
-        )
-        3 -> BudgetScreen(
-          viewModel = viewModel,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(budgetCalendar),
-              DateUtils.getMonthLabel(budgetCalendar)
-            )
-          }
-        )
-        4 -> RecurringScreen(
-          viewModel = viewModel,
-          onOpenAddRecurringRule = onOpenAddRecurringRule,
-          onEditRecurringRule = onEditRecurringRule
-        )
-        5 -> CategoriesScreen(viewModel = viewModel)
-        else -> DashboardScreen(
-          viewModel = viewModel,
-          onOpenAddTransaction = onOpenAddTransaction,
-          onEditTransaction = onEditTransaction,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(dashboardCalendar),
-              DateUtils.getMonthLabel(dashboardCalendar)
-            )
-          },
-          onOpenAllTransactions = { onNavigateTab(1) }
-        )
+  Crossfade(
+    targetState = isSettingsOpen,
+    label = "settings_navigation_crossfade"
+  ) { settingsOpen ->
+    if (settingsOpen) {
+      BackHandler { onBackFromSettings() }
+      SettingsScreen(
+        viewModel = viewModel,
+        onOpenExportModal = onOpenExportModal
+      )
+    } else {
+      Crossfade(
+        targetState = selectedTab,
+        label = "paisa_primary_navigation"
+      ) { destination ->
+        when (destination) {
+          0 -> DashboardScreen(
+            viewModel = viewModel,
+            onOpenAddTransaction = onOpenAddTransaction,
+            onEditTransaction = onEditTransaction,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(dashboardCalendar),
+                DateUtils.getMonthLabel(dashboardCalendar)
+              )
+            },
+            onOpenAllTransactions = { onNavigateTab(1) }
+          )
+          1 -> TransactionsScreen(
+            viewModel = viewModel,
+            onEditTransaction = onEditTransaction
+          )
+          2 -> CalendarScreen(
+            viewModel = viewModel,
+            onAddTransactionForDate = onAddTransactionForDate,
+            onEditTransaction = onEditTransaction
+          )
+          3 -> BudgetScreen(
+            viewModel = viewModel,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(budgetCalendar),
+                DateUtils.getMonthLabel(budgetCalendar)
+              )
+            }
+          )
+          4 -> RecurringScreen(
+            viewModel = viewModel,
+            onOpenAddRecurringRule = onOpenAddRecurringRule,
+            onEditRecurringRule = onEditRecurringRule
+          )
+          5 -> CategoriesScreen(viewModel = viewModel)
+          else -> DashboardScreen(
+            viewModel = viewModel,
+            onOpenAddTransaction = onOpenAddTransaction,
+            onEditTransaction = onEditTransaction,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(dashboardCalendar),
+                DateUtils.getMonthLabel(dashboardCalendar)
+              )
+            },
+            onOpenAllTransactions = { onNavigateTab(1) }
+          )
+        }
       }
     }
   }

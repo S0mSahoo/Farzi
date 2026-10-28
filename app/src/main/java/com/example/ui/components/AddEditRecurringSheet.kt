@@ -65,6 +65,11 @@ import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -209,11 +214,15 @@ fun AddEditRecurringSheet(
             .background(activeColor)
         )
 
-        Row(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
+        Row(modifier = Modifier.fillMaxWidth().fillMaxHeight().selectableGroup()) {
           Box(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
+              .semantics {
+                selected = (ruleType == TransactionType.EXPENSE)
+                role = Role.RadioButton
+              }
               .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -239,6 +248,10 @@ fun AddEditRecurringSheet(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
+              .semantics {
+                selected = (ruleType == TransactionType.INCOME)
+                role = Role.RadioButton
+              }
               .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
@@ -272,7 +285,7 @@ fun AddEditRecurringSheet(
       )
       Spacer(modifier = Modifier.height(6.dp))
       Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().selectableGroup(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
       ) {
         RecurrenceInterval.values().forEach { interval ->
@@ -283,6 +296,10 @@ fun AddEditRecurringSheet(
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
               .weight(1f)
+              .semantics {
+                selected = isSelected
+                role = Role.Tab
+              }
               .testTag("interval_${interval.name}")
           ) {
             Box(
@@ -388,6 +405,7 @@ fun AddEditRecurringSheet(
         modifier = Modifier
           .fillMaxWidth()
           .height(44.dp)
+          .selectableGroup()
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -400,6 +418,10 @@ fun AddEditRecurringSheet(
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
               .fillMaxHeight()
+              .semantics {
+                selected = isCatSelected
+                role = Role.Tab
+              }
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 12.dp),

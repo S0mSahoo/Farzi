@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <resources>
-    <string name="firestore_database_id" translatable="false">ai-studio-android-farzi-7f7e31e5-1afe-47c9-8ae1-d03f7e8dc61d</string>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-farzi-ebda817f-9fab-4c2d-9628-e23cb5f0293e</string>
+    <string name="recaptcha_site_key" translatable="false">6LdijgQuAAAAAIN2uwtjizV0niGKVsXGcuOZ1ReU</string>
 </resources>

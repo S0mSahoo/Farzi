@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
@@ -185,7 +186,10 @@ fun RecurringScreen(
       }
 
       item {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+          modifier = Modifier.selectableGroup(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
           FilterChip(selected = selectedTab == 0, onClick = { selectedTab = 0 }, label = { Text("Upcoming bills") })
           FilterChip(selected = selectedTab == 1, onClick = { selectedTab = 1 }, label = { Text("Rules · ${recurringRules.size}") })
         }

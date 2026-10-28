@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
@@ -122,7 +123,10 @@ fun AnalyticsScreen(viewModel: FinanceViewModel) {
       item {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
           val periodSwitcher: @Composable () -> Unit = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+              modifier = Modifier.selectableGroup(),
+              horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
               FilterChip(
                 selected = !isAnnualView,
                 onClick = { isAnnualView = false },

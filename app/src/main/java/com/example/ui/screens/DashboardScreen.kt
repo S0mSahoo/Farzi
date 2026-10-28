@@ -29,8 +29,11 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
@@ -89,7 +92,8 @@ fun DashboardScreen(
   onOpenAddTransaction: (prefilledType: TransactionType?) -> Unit,
   onOpenSetBudget: () -> Unit,
   onEditTransaction: (item: TransactionItem) -> Unit,
-  onOpenAllTransactions: () -> Unit
+  onOpenAllTransactions: () -> Unit,
+  onOpenPaisaAi: () -> Unit = {}
 ) {
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
