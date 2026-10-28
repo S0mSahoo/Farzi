@@ -178,7 +178,7 @@ fun AddEditRecurringSheet(
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
-        IconButton(
+        PremiumIconButton(
           onClick = onDismiss,
           modifier = Modifier.size(36.dp)
         ) {
@@ -474,16 +474,16 @@ fun AddEditRecurringSheet(
 
       Spacer(modifier = Modifier.height(20.dp))
 
-      Button(
+      PremiumButton(
         onClick = {
           val amt = amountText.toDoubleOrNull()
           if (amt == null || amt <= 0.0) {
             errorMessage = "Please enter a valid amount"
-            return@Button
+            return@PremiumButton
           }
           if (titleText.trim().isEmpty()) {
             errorMessage = "Please enter a rule title"
-            return@Button
+            return@PremiumButton
           }
 
           onSave(

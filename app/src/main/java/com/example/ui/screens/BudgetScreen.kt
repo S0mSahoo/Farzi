@@ -52,9 +52,12 @@ import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
+import com.example.ui.components.PremiumButton
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
+import com.example.ui.components.PremiumIconButton
 import com.example.ui.components.PremiumMonthNavigator
+import com.example.ui.components.PremiumOutlinedButton
 import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.theme.ExpenseRed
@@ -154,7 +157,7 @@ fun BudgetScreen(
               title = "Build your first monthly plan",
               body = "Set an overall limit, add category caps, and get a clearer view of what is left.",
               action = {
-                androidx.compose.material3.Button(onClick = onOpenSetBudget) {
+                PremiumButton(onClick = onOpenSetBudget) {
                   Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                   Spacer(Modifier.size(7.dp))
                   Text("Create budget")
@@ -198,7 +201,7 @@ fun BudgetScreen(
           title = "Category limits",
           subtitle = "Compare planned amounts with recorded spending.",
           trailing = {
-            OutlinedButton(onClick = onOpenSetBudget, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) {
+            PremiumOutlinedButton(onClick = onOpenSetBudget, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) {
               Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
               Spacer(Modifier.size(6.dp))
               Text(if (currentBudget == null) "Set up" else "Edit")
@@ -214,7 +217,7 @@ fun BudgetScreen(
               title = "No category limits yet",
               body = "Add caps for rent, groceries, transport, subscriptions and other categories to make the plan more useful.",
               action = {
-                OutlinedButton(onClick = onOpenSetBudget) { Text("Add category limits") }
+                PremiumOutlinedButton(onClick = onOpenSetBudget) { Text("Add category limits") }
               }
             )
           }
@@ -327,10 +330,10 @@ private fun BudgetHeroCard(
           Text(IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol), style = MaterialTheme.typography.headlineMedium, color = textColor, fontWeight = FontWeight.Bold)
         }
         Row {
-          IconButton(onClick = onEdit) {
+          PremiumIconButton(onClick = onEdit) {
             Icon(Icons.Default.Edit, contentDescription = "Edit budget", tint = textColor)
           }
-          IconButton(onClick = onDelete) {
+          PremiumIconButton(onClick = onDelete) {
             Icon(Icons.Default.DeleteOutline, contentDescription = "Delete budget", tint = subTextColor)
           }
         }

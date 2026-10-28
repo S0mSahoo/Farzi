@@ -104,8 +104,11 @@ import coil.compose.AsyncImage
 import com.example.data.drive.GoogleDriveState
 import com.example.data.model.ThemeMode
 import com.example.ui.components.ConfirmationDialog
-import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.DateUtils
+import com.example.ui.components.PremiumButton
+import com.example.ui.components.PremiumOutlinedButton
+import com.example.ui.components.PremiumPageHeader
+import com.example.ui.components.PremiumTextButton
 import com.example.ui.theme.AccentAmber
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
@@ -289,7 +292,7 @@ fun SettingsScreen(
         }
       },
       confirmButton = {
-        Button(
+        PremiumButton(
           onClick = {
             showImportConfirmDialog = false
             viewModel.confirmAndApplyImport(
@@ -312,7 +315,7 @@ fun SettingsScreen(
         }
       },
       dismissButton = {
-        OutlinedButton(
+        PremiumOutlinedButton(
           onClick = {
             showImportConfirmDialog = false
             pendingBackupToImport = null
@@ -384,7 +387,7 @@ fun SettingsScreen(
         }
       },
       confirmButton = {
-        TextButton(
+        PremiumTextButton(
           onClick = {
             when {
               recoveryPassphraseInput.length < 12 -> {
@@ -415,7 +418,7 @@ fun SettingsScreen(
         ) { Text("Save Passphrase") }
       },
       dismissButton = {
-        TextButton(
+        PremiumTextButton(
           onClick = {
             showRecoveryPassphraseDialog = false
             recoveryPassphraseInput = ""
@@ -570,7 +573,7 @@ fun SettingsScreen(
         }
       },
       confirmButton = {
-        Button(
+        PremiumButton(
           onClick = {
             isDeletingBulk = true
             if (bulkDeleteOption == "MONTH") {
@@ -612,7 +615,7 @@ fun SettingsScreen(
         }
       },
       dismissButton = {
-        OutlinedButton(
+        PremiumOutlinedButton(
           onClick = { showBulkDeleteDialog = false },
           enabled = !isDeletingBulk,
           shape = RoundedCornerShape(18.dp)
@@ -707,9 +710,8 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Sign Out Button
-            OutlinedButton(
+            PremiumOutlinedButton(
               onClick = { showSignOutDialog = true },
-              shape = RoundedCornerShape(18.dp),
               colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = ExpenseRed
               ),
@@ -864,9 +866,8 @@ fun SettingsScreen(
                   color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
               }
-              OutlinedButton(
-                onClick = { showRecoveryPassphraseDialog = true },
-                shape = RoundedCornerShape(14.dp)
+              PremiumOutlinedButton(
+                onClick = { showRecoveryPassphraseDialog = true }
               ) {
                 Text(if (isRecoveryPassphraseConfigured) "Enter / change" else "Set up")
               }
@@ -930,7 +931,7 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Sync / Grant Permission Button
-            Button(
+            PremiumButton(
               onClick = {
                 val currentConsent = driveConsentIntent
                 if (currentConsent != null) {
@@ -1128,7 +1129,7 @@ fun SettingsScreen(
                 "Enable notifications to receive payment due reminders"
               },
               action = {
-                OutlinedButton(
+                PremiumOutlinedButton(
                   onClick = {
                     val runtimePermissionMissing =
                       Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

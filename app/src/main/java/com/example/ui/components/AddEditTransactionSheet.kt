@@ -186,7 +186,7 @@ fun AddEditTransactionSheet(
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
-        IconButton(
+        PremiumIconButton(
           onClick = onDismiss,
           modifier = Modifier.size(36.dp)
         ) {
@@ -546,16 +546,16 @@ fun AddEditTransactionSheet(
       Spacer(modifier = Modifier.height(16.dp))
 
       // Save Button
-      Button(
+      PremiumButton(
         onClick = {
           val amt = amountText.toDoubleOrNull()
           if (amt == null || amt <= 0.0) {
             errorMessage = "Please enter a valid amount greater than 0"
-            return@Button
+            return@PremiumButton
           }
           if (titleText.trim().isEmpty()) {
             errorMessage = "Please enter a title or description"
-            return@Button
+            return@PremiumButton
           }
 
           onSave(

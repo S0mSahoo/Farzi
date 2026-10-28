@@ -63,8 +63,12 @@ import com.example.ui.components.MonthYearPickerDialog
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
 import com.example.ui.components.PremiumMonthNavigator
+import com.example.ui.components.PremiumOutlinedButton
 import com.example.ui.components.PremiumProgressTrack
 import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumSegmentedToggle
+import com.example.ui.components.PremiumTextButton
+import com.example.ui.components.PremiumTonalButton
 import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.components.PremiumTrendChart
 import com.example.ui.components.PremiumYearlyComparisonChart
@@ -168,37 +172,12 @@ fun DashboardScreen(
       verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
       item {
-        val greetingBlock: @Composable () -> Unit = {
-          Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-              text = "$greeting, $firstName",
-              style = MaterialTheme.typography.headlineSmall,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onBackground,
-              maxLines = 2,
-              overflow = TextOverflow.Ellipsis
-            )
-            Text(
-              text = "Here is your overall financial dashboard & insights.",
-              style = MaterialTheme.typography.bodyMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        }
-
         val periodSwitcher: @Composable () -> Unit = {
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(
-              selected = !isAnnualView,
-              onClick = { isAnnualView = false },
-              label = { Text("Monthly", fontWeight = FontWeight.Bold) }
-            )
-            FilterChip(
-              selected = isAnnualView,
-              onClick = { isAnnualView = true },
-              label = { Text("Yearly", fontWeight = FontWeight.Bold) }
-            )
-          }
+          PremiumSegmentedToggle(
+            options = listOf("Monthly", "Yearly"),
+            selectedIndex = if (isAnnualView) 1 else 0,
+            onSelect = { isAnnualView = (it == 1) }
+          )
         }
 
         val periodNavigator: @Composable () -> Unit = {
@@ -212,7 +191,7 @@ fun DashboardScreen(
 
         Column(
           modifier = Modifier.fillMaxWidth(),
-          verticalArrangement = Arrangement.spacedBy(16.dp)
+          verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
           Column(
             modifier = Modifier.fillMaxWidth(),
@@ -230,12 +209,18 @@ fun DashboardScreen(
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
-          Row(
+
+          Box(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            contentAlignment = Alignment.Center
           ) {
             periodSwitcher()
+          }
+
+          Box(
+            modifier = Modifier.fillMaxWidth(),
+            contentAlignment = Alignment.Center
+          ) {
             periodNavigator()
           }
         }
@@ -526,7 +511,7 @@ fun DashboardScreen(
           title = "Recent activity",
           subtitle = "Your latest entries for ${monthlySummary.monthLabel}",
           trailing = {
-            TextButton(onClick = onOpenAllTransactions) {
+            PremiumTextButton(onClick = onOpenAllTransactions) {
               Text("See all", fontWeight = FontWeight.Bold)
             }
           }
@@ -543,7 +528,7 @@ fun DashboardScreen(
                 "There are no entries for ${monthlySummary.monthLabel}. Choose another month or add a transaction for this period."
               },
               action = {
-                FilledTonalButton(onClick = { onOpenAddTransaction(null) }) {
+                PremiumTonalButton(onClick = { onOpenAddTransaction(null) }) {
                   Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                   Spacer(Modifier.width(8.dp))
                   Text("Add transaction")
@@ -684,7 +669,7 @@ private fun PremiumBudgetOverview(
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        androidx.compose.material3.OutlinedButton(onClick = onOpenSetBudget) {
+        PremiumOutlinedButton(onClick = onOpenSetBudget) {
           Text("Create monthly budget")
         }
       }

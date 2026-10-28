@@ -61,8 +61,10 @@ import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
+import com.example.ui.components.PremiumIconButton
 import com.example.ui.components.PremiumMonthNavigator
 import com.example.ui.components.PremiumSectionHeading
+import com.example.ui.components.PremiumTextButton
 import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
@@ -443,7 +445,7 @@ fun TransactionsScreen(
               },
               action = if (searchQuery.isNotBlank() || filterType != null || filterCategory != null || selectedDayOfMonth != null) {
                 {
-                  TextButton(onClick = {
+                  PremiumTextButton(onClick = {
                     viewModel.setSearchQuery("")
                     viewModel.setFilterType(null)
                     viewModel.setFilterCategory(null)
@@ -480,7 +482,7 @@ fun TransactionsScreen(
                     currencySymbol = currencySymbol,
                     onClick = { onEditTransaction(tx) },
                     trailing = {
-                      IconButton(onClick = { transactionToDelete = tx }, modifier = Modifier.size(36.dp)) {
+                      PremiumIconButton(onClick = { transactionToDelete = tx }, modifier = Modifier.size(36.dp)) {
                         Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${tx.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
                       }
                     }

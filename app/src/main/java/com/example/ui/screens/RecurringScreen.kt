@@ -59,9 +59,13 @@ import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionType
 import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.IndianCurrencyFormatter
+import com.example.ui.components.PremiumButton
 import com.example.ui.components.PremiumCard
 import com.example.ui.components.PremiumEmptyState
+import com.example.ui.components.PremiumIconButton
+import com.example.ui.components.PremiumOutlinedButton
 import com.example.ui.components.PremiumPageHeader
+import com.example.ui.components.PremiumTonalButton
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
@@ -133,7 +137,7 @@ fun RecurringScreen(
           title = "Recurring",
           subtitle = "Bills, subscriptions and regular payments.",
           trailing = {
-            androidx.compose.material3.FilledTonalButton(onClick = onOpenAddRecurringRule) {
+            PremiumTonalButton(onClick = onOpenAddRecurringRule) {
               Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
               Spacer(Modifier.width(6.dp))
               Text("Add rule")
@@ -152,7 +156,7 @@ fun RecurringScreen(
             .fillMaxWidth()
             .background(
               brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = if (isLight) {
+                 colors = if (isLight) {
                   listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
                 } else {
                   listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
@@ -201,7 +205,7 @@ fun RecurringScreen(
                 title = "You're all caught up",
                 body = "No active scheduled or overdue payments are waiting for you.",
                 action = {
-                  OutlinedButton(onClick = onOpenAddRecurringRule) {
+                  PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Add a recurring rule")
@@ -242,7 +246,7 @@ fun RecurringScreen(
                 title = "No rules yet",
                 body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
                 action = {
-                  Button(onClick = onOpenAddRecurringRule) {
+                  PremiumButton(onClick = onOpenAddRecurringRule) {
                     Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Create first rule")
@@ -300,10 +304,9 @@ private fun OccurrencePremiumCard(
         }
       }
       Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        Button(
+        PremiumButton(
           onClick = onMarkPaid,
           modifier = Modifier.weight(1f),
-          shape = RoundedCornerShape(14.dp),
           colors = ButtonDefaults.buttonColors(containerColor = IncomeGreen, contentColor = Color.White),
           contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
         ) {
@@ -311,9 +314,8 @@ private fun OccurrencePremiumCard(
           Spacer(Modifier.width(6.dp))
           Text(if (occurrence.rule.type == TransactionType.INCOME) "Mark received" else "Mark paid")
         }
-        OutlinedButton(
+        PremiumOutlinedButton(
           onClick = onSkip,
-          shape = RoundedCornerShape(14.dp),
           contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp)
         ) {
           Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -359,8 +361,8 @@ private fun RecurringRulePremiumCard(
           Text(if (rule.isActive) "Active" else "Paused", style = MaterialTheme.typography.labelMedium, color = if (rule.isActive) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-          IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit ${rule.title}") }
-          IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${rule.title}", tint = ExpenseRed) }
+          PremiumIconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = "Edit ${rule.title}") }
+          PremiumIconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${rule.title}", tint = ExpenseRed) }
         }
       }
     }

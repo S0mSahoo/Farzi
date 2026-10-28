@@ -20,16 +20,32 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonColors
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -667,4 +683,155 @@ fun PremiumYearlyComparisonChart(
     }
   }
 }
+
+// ==========================================
+// Consistent Premium Button Design System
+// ==========================================
+
+@Composable
+fun PremiumButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: ButtonColors = ButtonDefaults.buttonColors(),
+  elevation: ButtonElevation? = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 2.dp),
+  shape: Shape = RoundedCornerShape(16.dp),
+  border: BorderStroke? = null,
+  contentPadding: PaddingValues = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
+  content: @Composable RowScope.() -> Unit
+) {
+  Button(
+    onClick = onClick,
+    modifier = modifier.heightIn(min = 44.dp),
+    enabled = enabled,
+    colors = colors,
+    elevation = elevation,
+    shape = shape,
+    border = border,
+    contentPadding = contentPadding,
+    content = content
+  )
+}
+
+@Composable
+fun PremiumOutlinedButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+  border: BorderStroke? = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+  shape: Shape = RoundedCornerShape(16.dp),
+  contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+  content: @Composable RowScope.() -> Unit
+) {
+  OutlinedButton(
+    onClick = onClick,
+    modifier = modifier.heightIn(min = 44.dp),
+    enabled = enabled,
+    colors = colors,
+    border = border,
+    shape = shape,
+    contentPadding = contentPadding,
+    content = content
+  )
+}
+
+@Composable
+fun PremiumTonalButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: ButtonColors = ButtonDefaults.filledTonalButtonColors(),
+  shape: Shape = RoundedCornerShape(16.dp),
+  contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+  content: @Composable RowScope.() -> Unit
+) {
+  FilledTonalButton(
+    onClick = onClick,
+    modifier = modifier.heightIn(min = 44.dp),
+    enabled = enabled,
+    colors = colors,
+    shape = shape,
+    contentPadding = contentPadding,
+    content = content
+  )
+}
+
+@Composable
+fun PremiumTextButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: ButtonColors = ButtonDefaults.textButtonColors(),
+  shape: Shape = RoundedCornerShape(14.dp),
+  contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
+  content: @Composable RowScope.() -> Unit
+) {
+  TextButton(
+    onClick = onClick,
+    modifier = modifier.heightIn(min = 40.dp),
+    enabled = enabled,
+    colors = colors,
+    shape = shape,
+    contentPadding = contentPadding,
+    content = content
+  )
+}
+
+@Composable
+fun PremiumIconButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+  enabled: Boolean = true,
+  colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
+  content: @Composable () -> Unit
+) {
+  IconButton(
+    onClick = onClick,
+    modifier = modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp),
+    enabled = enabled,
+    colors = colors,
+    content = content
+  )
+}
+
+@Composable
+fun PremiumSegmentedToggle(
+  options: List<String>,
+  selectedIndex: Int,
+  onSelect: (Int) -> Unit,
+  modifier: Modifier = Modifier
+) {
+  Surface(
+    modifier = modifier,
+    shape = RoundedCornerShape(18.dp),
+    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+  ) {
+    Row(
+      modifier = Modifier.padding(4.dp),
+      horizontalArrangement = Arrangement.spacedBy(4.dp),
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      options.forEachIndexed { index, title ->
+        val selected = index == selectedIndex
+        Surface(
+          onClick = { onSelect(index) },
+          shape = RoundedCornerShape(14.dp),
+          color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+          contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+          modifier = Modifier.animateContentSize()
+        ) {
+          Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
+          )
+        }
+      }
+    }
+  }
+}
+
 

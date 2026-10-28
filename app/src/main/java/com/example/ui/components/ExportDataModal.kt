@@ -234,7 +234,7 @@ fun ExportDataModal(
         }
       },
       confirmButton = {
-        Button(
+        PremiumButton(
           onClick = {
             showImportConfirmDialog = false
             viewModel.confirmAndApplyImport(
@@ -258,7 +258,7 @@ fun ExportDataModal(
         }
       },
       dismissButton = {
-        OutlinedButton(
+        PremiumOutlinedButton(
           onClick = {
             showImportConfirmDialog = false
             pendingBackupToImport = null
@@ -268,7 +268,7 @@ fun ExportDataModal(
         ) {
           Text("Cancel")
         }
-      }
+      },
     )
   }
 
@@ -315,7 +315,7 @@ fun ExportDataModal(
           )
         }
 
-        IconButton(onClick = onDismiss) {
+        PremiumIconButton(onClick = onDismiss) {
           Icon(Icons.Default.Close, contentDescription = "Close")
         }
       }
@@ -508,7 +508,7 @@ fun ExportDataModal(
         Spacer(modifier = Modifier.height(20.dp))
 
         // Export PDF Button
-        Button(
+        PremiumButton(
           onClick = {
             isExporting = true
             viewModel.exportToPdf(
@@ -599,7 +599,7 @@ fun ExportDataModal(
         Spacer(modifier = Modifier.height(20.dp))
 
         // 1. Export JSON Button
-        Button(
+        PremiumButton(
           onClick = {
             isExporting = true
             viewModel.exportJson(
@@ -644,7 +644,7 @@ fun ExportDataModal(
         Spacer(modifier = Modifier.height(14.dp))
 
         // 2. Import JSON Button
-        OutlinedButton(
+        PremiumOutlinedButton(
           onClick = {
             try {
               jsonPickerLauncher.launch("*/*")

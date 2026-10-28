@@ -135,7 +135,7 @@ fun SetBudgetSheet(
             fontWeight = FontWeight.Medium
           )
         }
-        IconButton(onClick = onDismiss) {
+        PremiumIconButton(onClick = onDismiss) {
           Icon(Icons.Default.Close, contentDescription = "Close")
         }
       }
@@ -197,9 +197,8 @@ fun SetBudgetSheet(
         }
 
         Box {
-          OutlinedButton(
+          PremiumOutlinedButton(
             onClick = { showAddCategoryMenu = true },
-            shape = RoundedCornerShape(18.dp),
             modifier = Modifier.testTag("add_category_budget_button")
           ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -296,7 +295,7 @@ fun SetBudgetSheet(
                   modifier = Modifier.width(110.dp)
                 )
 
-                IconButton(
+                PremiumIconButton(
                   onClick = { categoryBudgetsState.remove(category) },
                   modifier = Modifier.size(32.dp)
                 ) {
@@ -320,12 +319,12 @@ fun SetBudgetSheet(
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      Button(
+      PremiumButton(
         onClick = {
           val totalAmt = totalBudgetText.toDoubleOrNull() ?: 0.0
           if (totalAmt <= 0.0 && categoryBudgetsState.isEmpty()) {
             errorMessage = "Please enter a monthly budget limit greater than 0"
-            return@Button
+            return@PremiumButton
           }
 
           val catMap = mutableMapOf<TransactionCategory, Double>()

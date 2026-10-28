@@ -103,7 +103,7 @@ fun CategoryDetailSheet(
           }
         }
 
-        IconButton(onClick = onDismiss) {
+        PremiumIconButton(onClick = onDismiss) {
           Icon(Icons.Default.Close, contentDescription = "Close")
         }
       }

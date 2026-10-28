@@ -88,7 +88,7 @@ fun ConfirmationDialog(
       )
     },
     confirmButton = {
-      Button(
+      PremiumButton(
         onClick = {
           onConfirm()
           onDismiss()
@@ -103,7 +103,7 @@ fun ConfirmationDialog(
       }
     },
     dismissButton = {
-      OutlinedButton(
+      PremiumOutlinedButton(
         onClick = onDismiss,
         modifier = Modifier.testTag("cancel_dialog_button")
       ) {
@@ -157,7 +157,7 @@ fun MonthYearPickerDialog(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          IconButton(onClick = { selectedYear-- }) {
+          PremiumIconButton(onClick = { selectedYear-- }) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Year")
           }
           Text(
@@ -166,7 +166,7 @@ fun MonthYearPickerDialog(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
           )
-          IconButton(onClick = { selectedYear++ }) {
+          PremiumIconButton(onClick = { selectedYear++ }) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Next Year")
           }
         }
@@ -214,7 +214,7 @@ fun MonthYearPickerDialog(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.End
         ) {
-          TextButton(onClick = onDismiss) {
+          PremiumTextButton(onClick = onDismiss) {
             Text("Cancel")
           }
         }
@@ -265,7 +265,7 @@ fun YearPickerDialog(
           horizontalArrangement = Arrangement.SpaceBetween,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          IconButton(onClick = { baseYear -= 12 }) {
+          PremiumIconButton(onClick = { baseYear -= 12 }) {
             Icon(Icons.Default.ChevronLeft, contentDescription = "Previous Years")
           }
           Text(
@@ -274,7 +274,7 @@ fun YearPickerDialog(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
           )
-          IconButton(onClick = { baseYear += 12 }) {
+          PremiumIconButton(onClick = { baseYear += 12 }) {
             Icon(Icons.Default.ChevronRight, contentDescription = "Next Years")
           }
         }
@@ -322,7 +322,7 @@ fun YearPickerDialog(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.End
         ) {
-          TextButton(onClick = onDismiss) {
+          PremiumTextButton(onClick = onDismiss) {
             Text("Cancel")
           }
         }
@@ -345,7 +345,7 @@ fun AppDatePickerDialog(
   DatePickerDialog(
     onDismissRequest = onDismiss,
     confirmButton = {
-      TextButton(
+      PremiumTextButton(
         onClick = {
           datePickerState.selectedDateMillis?.let { onDateSelected(it) }
           onDismiss()
@@ -355,7 +355,7 @@ fun AppDatePickerDialog(
       }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) {
+      PremiumTextButton(onClick = onDismiss) {
         Text("Cancel")
       }
     }

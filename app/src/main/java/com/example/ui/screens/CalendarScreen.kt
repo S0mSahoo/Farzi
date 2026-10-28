@@ -65,6 +65,8 @@ import com.example.ui.components.ConfirmationDialog
 import com.example.ui.components.DateUtils
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.PremiumCard
+import com.example.ui.components.PremiumIconButton
+import com.example.ui.components.PremiumOutlinedButton
 import com.example.ui.components.PremiumPageHeader
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
@@ -354,7 +356,7 @@ fun CalendarScreen(
                   color = subTextColor
                 )
               }
-              IconButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
+              PremiumIconButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
                 Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
               }
             }
@@ -390,7 +392,7 @@ fun CalendarScreen(
               title = "A quiet day",
               body = "Nothing has been recorded for this date yet.",
               action = {
-                androidx.compose.material3.OutlinedButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
+                PremiumOutlinedButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
                   Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
                   Spacer(Modifier.width(7.dp))
                   Text("Add to this day")
@@ -409,7 +411,7 @@ fun CalendarScreen(
                   currencySymbol = currencySymbol,
                   onClick = { onEditTransaction(transaction) },
                   trailing = {
-                    IconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
+                    PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
                       Icon(Icons.Default.Delete, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                   }
