@@ -4,6 +4,8 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,6 +59,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -194,10 +197,14 @@ fun PremiumCard(
     modifier = modifier.animateContentSize(),
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(containerColor = resolvedContainerColor),
-    elevation = CardDefaults.cardElevation(defaultElevation = if (!isDark) 2.dp else 1.dp),
+    elevation = CardDefaults.cardElevation(
+        defaultElevation = if (!isDark) 3.dp else 1.5.dp,
+        focusedElevation = if (!isDark) 4.dp else 2.dp,
+        pressedElevation = if (!isDark) 2.dp else 0.dp
+    ),
     border = androidx.compose.foundation.BorderStroke(
       1.dp,
-      if (!isDark) Color(0xFFDDD6FE) else Color(0xFF8B5CF6).copy(alpha = 0.35f)
+      if (!isDark) Color(0xFFC4B5FD) else Color(0xFF8B5CF6).copy(alpha = 0.45f)
     )
   ) { content() }
 }
@@ -694,15 +701,29 @@ fun PremiumButton(
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
   colors: ButtonColors = ButtonDefaults.buttonColors(),
-  elevation: ButtonElevation? = ButtonDefaults.buttonElevation(defaultElevation = 1.dp, pressedElevation = 2.dp),
+  elevation: ButtonElevation? = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp, focusedElevation = 3.dp),
   shape: Shape = RoundedCornerShape(16.dp),
   border: BorderStroke? = null,
   contentPadding: PaddingValues = PaddingValues(horizontal = 18.dp, vertical = 11.dp),
   content: @Composable RowScope.() -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "scale")
+
   Button(
-    onClick = onClick,
-    modifier = modifier.heightIn(min = 44.dp),
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier
+        .heightIn(min = 44.dp)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    interactionSource = interactionSource,
     enabled = enabled,
     colors = colors,
     elevation = elevation,
@@ -724,9 +745,23 @@ fun PremiumOutlinedButton(
   contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
   content: @Composable RowScope.() -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "scale")
+
   OutlinedButton(
-    onClick = onClick,
-    modifier = modifier.heightIn(min = 44.dp),
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier
+        .heightIn(min = 44.dp)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    interactionSource = interactionSource,
     enabled = enabled,
     colors = colors,
     border = border,
@@ -746,9 +781,23 @@ fun PremiumTonalButton(
   contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
   content: @Composable RowScope.() -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "scale")
+
   FilledTonalButton(
-    onClick = onClick,
-    modifier = modifier.heightIn(min = 44.dp),
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier
+        .heightIn(min = 44.dp)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    interactionSource = interactionSource,
     enabled = enabled,
     colors = colors,
     shape = shape,
@@ -767,9 +816,23 @@ fun PremiumTextButton(
   contentPadding: PaddingValues = PaddingValues(horizontal = 12.dp, vertical = 7.dp),
   content: @Composable RowScope.() -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "scale")
+
   TextButton(
-    onClick = onClick,
-    modifier = modifier.heightIn(min = 40.dp),
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier
+        .heightIn(min = 40.dp)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    interactionSource = interactionSource,
     enabled = enabled,
     colors = colors,
     shape = shape,
@@ -786,9 +849,23 @@ fun PremiumIconButton(
   colors: IconButtonColors = IconButtonDefaults.iconButtonColors(),
   content: @Composable () -> Unit
 ) {
+  val haptics = com.example.ui.util.rememberPaisaHaptics()
+  val interactionSource = remember { MutableInteractionSource() }
+  val isPressed by interactionSource.collectIsPressedAsState()
+  val scale by animateFloatAsState(if (isPressed) 0.94f else 1f, label = "scale") // Slightly more aggressive for icons
+
   IconButton(
-    onClick = onClick,
-    modifier = modifier.sizeIn(minWidth = 40.dp, minHeight = 40.dp),
+    onClick = {
+        haptics.performLightHaptic()
+        onClick()
+    },
+    modifier = modifier
+        .sizeIn(minWidth = 40.dp, minHeight = 40.dp)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        },
+    interactionSource = interactionSource,
     enabled = enabled,
     colors = colors,
     content = content
@@ -815,12 +892,25 @@ fun PremiumSegmentedToggle(
     ) {
       options.forEachIndexed { index, title ->
         val selected = index == selectedIndex
+        val haptics = com.example.ui.util.rememberPaisaHaptics()
+        val interactionSource = remember { MutableInteractionSource() }
+        val isPressed by interactionSource.collectIsPressedAsState()
+        val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
         Surface(
-          onClick = { onSelect(index) },
+          onClick = {
+            haptics.performLightHaptic()
+            onSelect(index)
+          },
           shape = RoundedCornerShape(14.dp),
           color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
           contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.animateContentSize()
+          modifier = Modifier
+            .animateContentSize()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
+          interactionSource = interactionSource
         ) {
           Text(
             text = title,
