@@ -218,14 +218,16 @@ fun TransactionsScreen(
               horizontalArrangement = Arrangement.spacedBy(8.dp),
               verticalAlignment = Alignment.CenterVertically
             ) {
+              val isDark = com.example.ui.theme.isAppInDarkTheme()
+
               // "All Month" Pill
               Surface(
                 onClick = { selectedDayOfMonth = null },
                 shape = RoundedCornerShape(16.dp),
-                color = if (selectedDayOfMonth == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                color = if (selectedDayOfMonth == null) MaterialTheme.colorScheme.primary else if (isDark) MaterialTheme.colorScheme.surfaceVariant else Color.White.copy(alpha = 0.75f),
                 border = androidx.compose.foundation.BorderStroke(
                   1.dp,
-                  if (selectedDayOfMonth == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                  if (selectedDayOfMonth == null) MaterialTheme.colorScheme.primary else if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.35f) else Color(0xFFDDD6FE)
                 )
               ) {
                 Text(
@@ -254,12 +256,12 @@ fun TransactionsScreen(
                   shape = RoundedCornerShape(16.dp),
                   color = when {
                     isSelected -> MaterialTheme.colorScheme.primary
-                    hasTxOnDay -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                    else -> com.example.ui.theme.resolveCardSurfaceColor()
+                    hasTxOnDay -> if (isDark) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color(0xFFDDD6FE)
+                    else -> if (isDark) Color(0xFF1A162B) else Color.White.copy(alpha = 0.75f)
                   },
                   border = androidx.compose.foundation.BorderStroke(
                     1.dp,
-                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                    if (isSelected) MaterialTheme.colorScheme.primary else if (isDark) MaterialTheme.colorScheme.outline.copy(alpha = 0.35f) else Color(0xFFDDD6FE)
                   )
                 ) {
                   Column(

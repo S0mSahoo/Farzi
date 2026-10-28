@@ -246,15 +246,16 @@ fun CalendarScreen(
                   Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     week.forEach { day ->
                       if (day != null) {
+                        val isDark = com.example.ui.theme.isAppInDarkTheme()
                         val selected = day.dateKey == selectedDayKey
                         val fill = when {
                           selected -> MaterialTheme.colorScheme.primary
-                          day.isToday -> MaterialTheme.colorScheme.primaryContainer
-                          else -> com.example.ui.theme.resolveCardSurfaceColor()
+                          day.isToday -> if (isDark) MaterialTheme.colorScheme.primaryContainer else Color(0xFFDDD6FE)
+                          else -> if (isDark) Color(0xFF1A162B) else Color.White.copy(alpha = 0.75f)
                         }
                         val content = when {
                           selected -> Color.White
-                          day.isToday -> MaterialTheme.colorScheme.primary
+                          day.isToday -> if (isDark) MaterialTheme.colorScheme.primary else Color(0xFF4C1D95)
                           else -> MaterialTheme.colorScheme.onSurface
                         }
                         Surface(
@@ -267,8 +268,9 @@ fun CalendarScreen(
                           color = fill,
                           border = if (selected) null else androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (day.isToday) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                            else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+                            if (day.isToday) MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            else if (isDark) MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.32f)
+                            else Color(0xFFDDD6FE)
                           )
                         ) {
                           Column(
