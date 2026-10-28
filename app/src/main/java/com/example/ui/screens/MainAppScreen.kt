@@ -34,6 +34,9 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.AutoAwesome
+import com.example.ui.viewmodel.AiAdvisorViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -118,6 +121,8 @@ fun MainAppScreen(
 
   var selectedTab by remember { mutableIntStateOf(0) }
   var isSettingsOpen by remember { mutableStateOf(false) }
+  var isAiAdvisorOpen by remember { mutableStateOf(false) }
+  val aiViewModel: AiAdvisorViewModel = viewModel()
   var showProfileSheet by remember { mutableStateOf(false) }
   var showSignOutDialog by remember { mutableStateOf(false) }
 
@@ -572,6 +577,9 @@ fun MainAppScreen(
                     },
                     actions = {
                       if (!isSettingsOpen) {
+                        IconButton(onClick = { isAiAdvisorOpen = true }, modifier = Modifier.testTag("landscape_top_bar_ai_advisor")) {
+                          Icon(Icons.Default.AutoAwesome, contentDescription = "Paisa AI Advisor", tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(onClick = { showExportModal = true }, modifier = Modifier.testTag("landscape_top_bar_export")) {
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
@@ -736,6 +744,9 @@ fun MainAppScreen(
                     },
                     actions = {
                       if (!isSettingsOpen) {
+                        IconButton(onClick = { isAiAdvisorOpen = true }, modifier = Modifier.testTag("rail_top_bar_ai_advisor")) {
+                          Icon(Icons.Default.AutoAwesome, contentDescription = "Paisa AI Advisor", tint = MaterialTheme.colorScheme.primary)
+                        }
                         IconButton(onClick = { showExportModal = true }, modifier = Modifier.testTag("landscape_top_bar_export")) {
                           Icon(Icons.Default.PictureAsPdf, contentDescription = "Export", tint = MaterialTheme.colorScheme.primary)
                         }
@@ -860,6 +871,16 @@ fun MainAppScreen(
                   },
                   actions = {
                     if (!isSettingsOpen) {
+                      IconButton(
+                        onClick = { isAiAdvisorOpen = true },
+                        modifier = Modifier.testTag("top_bar_ai_advisor")
+                      ) {
+                        Icon(
+                          imageVector = Icons.Default.AutoAwesome,
+                          contentDescription = "Paisa AI Advisor",
+                          tint = MaterialTheme.colorScheme.primary
+                        )
+                      }
                       IconButton(
                         onClick = { showProfileSheet = true },
                         modifier = Modifier.testTag("top_bar_profile")
@@ -1015,6 +1036,15 @@ fun MainAppScreen(
           }
         }
       }
+    }
+
+    if (isAiAdvisorOpen) {
+      BackHandler { isAiAdvisorOpen = false }
+      AiAdvisorScreen(
+        viewModel = aiViewModel,
+        onClose = { isAiAdvisorOpen = false },
+        financialSummaryContext = "User currency: ${userProfile.currencySymbol}, User: ${userProfile.name}"
+      )
     }
   }
 }

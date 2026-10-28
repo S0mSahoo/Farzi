@@ -25,6 +25,7 @@ import com.example.ui.viewmodel.FinanceViewModel
 class MainActivity : FragmentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    com.example.util.configureAppCheck(this, intent)
     enableEdgeToEdge()
     setContent {
       val viewModel: FinanceViewModel = viewModel()
