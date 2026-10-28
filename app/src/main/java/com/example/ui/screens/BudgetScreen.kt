@@ -134,16 +134,17 @@ fun BudgetScreen(
       item {
         PremiumPageHeader(
           title = "Budgets",
-          subtitle = "Make room for what matters.",
-          trailing = {
-            PremiumMonthNavigator(
-              label = summary.monthLabel,
-              onPrevious = { viewModel.previousBudgetMonth() },
-              onNext = { viewModel.nextBudgetMonth() },
-              onPick = { showMonthPicker = true }
-            )
-          }
+          subtitle = "Make room for what matters."
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          PremiumMonthNavigator(
+            label = summary.monthLabel,
+            onPrevious = { viewModel.previousBudgetMonth() },
+            onNext = { viewModel.nextBudgetMonth() },
+            onPick = { showMonthPicker = true }
+          )
+        }
       }
 
       item {

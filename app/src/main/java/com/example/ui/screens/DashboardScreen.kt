@@ -207,34 +207,29 @@ fun DashboardScreen(
           )
         }
 
-        Row(
+        Column(
           modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
+          verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
           Column(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(3.dp)
           ) {
             Text(
               text = "$greeting, $firstName",
               style = MaterialTheme.typography.titleLarge,
               fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onBackground,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis
+              color = MaterialTheme.colorScheme.onBackground
             )
             Text(
               text = "Here is your overall financial dashboard.",
               style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
-          Spacer(Modifier.width(8.dp))
           Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
             periodSwitcher()

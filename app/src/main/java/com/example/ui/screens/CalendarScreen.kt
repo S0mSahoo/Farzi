@@ -187,28 +187,29 @@ fun CalendarScreen(
       item {
         PremiumPageHeader(
           title = "Calendar",
-          subtitle = "Your money, day by day.",
-          trailing = {
-            com.example.ui.components.PremiumMonthNavigator(
-              label = monthLabel,
-              onPrevious = {
-                if (pagerState.currentPage > 0) {
-                  coroutineScope.launch {
-                    pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                  }
-                }
-              },
-              onNext = {
-                if (pagerState.currentPage < CALENDAR_TOTAL_MONTHS - 1) {
-                  coroutineScope.launch {
-                    pagerState.animateScrollToPage(pagerState.currentPage + 1)
-                  }
-                }
-              },
-              onPick = { showDatePicker = true }
-            )
-          }
+          subtitle = "Your money, day by day."
         )
+        Spacer(modifier = Modifier.height(16.dp))
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          com.example.ui.components.PremiumMonthNavigator(
+            label = monthLabel,
+            onPrevious = {
+              if (pagerState.currentPage > 0) {
+                coroutineScope.launch {
+                  pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                }
+              }
+            },
+            onNext = {
+              if (pagerState.currentPage < CALENDAR_TOTAL_MONTHS - 1) {
+                coroutineScope.launch {
+                  pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                }
+              }
+            },
+            onPick = { showDatePicker = true }
+          )
+        }
       }
 
       item {

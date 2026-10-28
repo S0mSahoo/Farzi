@@ -182,20 +182,13 @@ fun TransactionsScreen(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
           ) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Text(
-                text = "Select Month & Date",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-              )
-              Spacer(Modifier.width(8.dp))
+            Text(
+              text = "Select Month & Date",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              modifier = Modifier.fillMaxWidth()
+            )
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
               PremiumMonthNavigator(
                 label = monthLabel,
                 onPrevious = {
@@ -209,7 +202,6 @@ fun TransactionsScreen(
                 onPick = { showMonthPicker = true }
               )
             }
-
             // Scrollable Day Pills
             Row(
               modifier = Modifier
