@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -186,7 +187,8 @@ fun TransactionsScreen(
               text = "Select Month & Date",
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold,
-              modifier = Modifier.fillMaxWidth()
+              modifier = Modifier.fillMaxWidth(),
+              textAlign = TextAlign.Center
             )
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
               PremiumMonthNavigator(

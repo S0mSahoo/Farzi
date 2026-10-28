@@ -67,7 +67,10 @@ import com.example.ui.components.PremiumProgressTrack
 import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.components.PremiumTrendChart
+import com.example.ui.components.PremiumYearlyComparisonChart
 import com.example.ui.components.YearPickerDialog
+import com.example.ui.theme.ExpenseRed
+import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 
@@ -318,6 +321,65 @@ fun DashboardScreen(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
               )
+            } else {
+              PremiumYearlyComparisonChart(
+                monthlyBreakdown = yearlySummary.monthlyBreakdown,
+                incomeColor = IncomeGreen,
+                expenseColor = ExpenseRed,
+                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                height = if (wide) 104.dp else 76.dp
+              )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Text(
+                  "Monthly income vs expenses",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                )
+                Row(
+                  horizontalArrangement = Arrangement.spacedBy(10.dp),
+                  verticalAlignment = Alignment.CenterVertically
+                ) {
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                  ) {
+                    Box(
+                      modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(IncomeGreen)
+                    )
+                    Text(
+                      text = "Income",
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                      fontWeight = FontWeight.SemiBold
+                    )
+                  }
+                  Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                  ) {
+                    Box(
+                      modifier = Modifier
+                        .size(7.dp)
+                        .clip(CircleShape)
+                        .background(ExpenseRed)
+                    )
+                    Text(
+                      text = "Expenses",
+                      style = MaterialTheme.typography.labelSmall,
+                      color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                      fontWeight = FontWeight.SemiBold
+                    )
+                  }
+                }
+              }
             }
 
             Row(

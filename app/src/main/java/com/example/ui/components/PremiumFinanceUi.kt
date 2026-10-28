@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,6 +32,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,10 +44,13 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.data.model.DailySpendingPoint
+import com.example.data.model.MonthlyFinancialSummary
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
@@ -504,3 +509,162 @@ fun PremiumTrendChart(
     }
   }
 }
+
+@Composable
+fun PremiumYearlyComparisonChart(
+  monthlyBreakdown: List<MonthlyFinancialSummary>,
+  modifier: Modifier = Modifier,
+  incomeColor: Color = IncomeGreen,
+  expenseColor: Color = ExpenseRed,
+  trackColor: Color = Color.White.copy(alpha = 0.15f),
+  labelColor: Color = Color.White.copy(alpha = 0.75f),
+  height: Dp = 86.dp
+) {
+  val monthShortNames = remember {
+    listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+  }
+  val dataPoints = remember(monthlyBreakdown) {
+    if (monthlyBreakdown.size == 12) {
+      monthlyBreakdown
+    } else {
+      (0..11).map { idx ->
+        monthlyBreakdown.getOrNull(idx) ?: MonthlyFinancialSummary(
+          monthKey = String.format(java.util.Locale.getDefault(), "%02d", idx + 1),
+          monthLabel = monthShortNames[idx]
+        )
+      }
+    }
+  }
+
+  val incomeValues = remember(dataPoints) { dataPoints.map { it.totalIncome.toFloat().coerceAtLeast(0f) } }
+  val expenseValues = remember(dataPoints) { dataPoints.map { it.totalExpense.toFloat().coerceAtLeast(0f) } }
+  val maxVal = remember(incomeValues, expenseValues) {
+    maxOf(incomeValues.maxOrNull() ?: 0f, expenseValues.maxOrNull() ?: 0f)
+  }
+
+  Column(
+    modifier = modifier.fillMaxWidth(),
+    verticalArrangement = Arrangement.spacedBy(6.dp)
+  ) {
+    Box(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(height)
+    ) {
+      Canvas(modifier = Modifier.fillMaxSize()) {
+        val w = size.width
+        val h = size.height
+        val verticalPadding = 8.dp.toPx()
+        val usableH = h - verticalPadding * 2
+
+        // Baseline track
+        drawLine(
+          color = trackColor,
+          start = Offset(0f, h - 1f),
+          end = Offset(w, h - 1f),
+          strokeWidth = 1.dp.toPx()
+        )
+
+        val count = dataPoints.size
+        if (count < 2) return@Canvas
+        // Center each point within its month column (w / count)
+        val cellW = w / count
+        val paddingX = cellW / 2f
+        val stepX = (w - paddingX * 2) / (count - 1).coerceAtLeast(1)
+
+        if (maxVal > 0f) {
+          // Subtle mid-height guideline
+          drawLine(
+            color = trackColor.copy(alpha = trackColor.alpha * 0.5f),
+            start = Offset(0f, verticalPadding + usableH * 0.5f),
+            end = Offset(w, verticalPadding + usableH * 0.5f),
+            strokeWidth = 1.dp.toPx()
+          )
+
+          fun computeCoords(values: List<Float>): List<Offset> {
+            return values.mapIndexed { index, value ->
+              val x = paddingX + index * stepX
+              val y = (h - verticalPadding - (value / maxVal) * usableH).coerceIn(verticalPadding, h - verticalPadding)
+              Offset(x, y)
+            }
+          }
+
+          val incomeCoords = computeCoords(incomeValues)
+          val expenseCoords = computeCoords(expenseValues)
+
+          fun drawSmoothCurve(coords: List<Offset>, color: Color) {
+            if (coords.isEmpty()) return
+            val path = Path().apply {
+              moveTo(coords.first().x, coords.first().y)
+              for (i in 1 until coords.size) {
+                val p0 = coords[i - 1]
+                val p1 = coords[i]
+                val dx = p1.x - p0.x
+                cubicTo(
+                  p0.x + dx * 0.42f, p0.y,
+                  p0.x + dx * 0.58f, p1.y,
+                  p1.x, p1.y
+                )
+              }
+            }
+            drawPath(
+              path = path,
+              color = color,
+              style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+            )
+          }
+
+          // Draw expense curve
+          drawSmoothCurve(expenseCoords, expenseColor)
+          // Draw income curve
+          drawSmoothCurve(incomeCoords, incomeColor)
+
+          // Draw active markers for non-zero data points
+          expenseCoords.forEachIndexed { idx, pt ->
+            if (expenseValues[idx] > 0f) {
+              drawCircle(color = expenseColor, radius = 2.5.dp.toPx(), center = pt)
+            }
+          }
+          incomeCoords.forEachIndexed { idx, pt ->
+            if (incomeValues[idx] > 0f) {
+              drawCircle(color = incomeColor, radius = 2.5.dp.toPx(), center = pt)
+            }
+          }
+        }
+      }
+
+      if (maxVal <= 0f) {
+        Box(
+          modifier = Modifier.fillMaxSize(),
+          contentAlignment = Alignment.Center
+        ) {
+          Text(
+            text = "No recorded income or expenses for this year",
+            style = MaterialTheme.typography.labelSmall,
+            color = labelColor.copy(alpha = 0.65f)
+          )
+        }
+      }
+    }
+
+    // 12 Month Labels row
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      monthShortNames.forEach { label ->
+        Text(
+          text = label,
+          style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+          color = labelColor,
+          textAlign = TextAlign.Center,
+          modifier = Modifier.weight(1f),
+          maxLines = 1,
+          softWrap = false
+        )
+      }
+    }
+  }
+}
+
