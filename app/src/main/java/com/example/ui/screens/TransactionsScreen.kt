@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -409,8 +410,11 @@ fun TransactionsScreen(
         }
       }
 
-      if (showCategoryFilters || filterCategory != null) {
-        item {
+      item {
+        AnimatedVisibility(
+          visible = showCategoryFilters || filterCategory != null,
+          label = "category_filters_visibility"
+        ) {
           Row(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(7.dp)

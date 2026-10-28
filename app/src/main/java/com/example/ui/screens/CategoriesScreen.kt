@@ -1,6 +1,11 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.items
@@ -142,71 +147,78 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         }
       }
       item {
-        val isLight = !com.example.ui.theme.isAppInDarkTheme()
-        Surface(
-          shape = RoundedCornerShape(28.dp),
-          color = Color.Transparent,
-          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-          modifier = Modifier
-            .fillMaxWidth()
-            .background(
-              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = if (isLight) {
-                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                } else {
-                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
-                }
-              ),
-              shape = RoundedCornerShape(28.dp)
-            )
-        ) {
+        AnimatedContent(
+          targetState = selectedType,
+          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          label = "categories_type_transition"
+        ) { type ->
+          val isExpense = type == TransactionType.EXPENSE
+          val isLight = !com.example.ui.theme.isAppInDarkTheme()
           val textColor = if (isLight) Color(0xFF2E1065) else Color.White
           val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-          Row(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-              Text(if (selectedType == TransactionType.EXPENSE) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-              Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
-              Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+
+          Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Surface(
+              shape = RoundedCornerShape(28.dp),
+              color = Color.Transparent,
+              border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                  brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = if (isLight) {
+                      listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                    } else {
+                      listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                    }
+                  ),
+                  shape = RoundedCornerShape(28.dp)
+                )
+            ) {
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                  Text(if (isExpense) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                  Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
+                  Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                }
+                Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
+                  Text(
+                    if (isExpense) "OUT" else "IN",
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
+                    color = textColor,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                  )
+                }
+              }
             }
-            Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
-              Text(
-                if (selectedType == TransactionType.EXPENSE) "OUT" else "IN",
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                color = textColor,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-              )
-            }
-          }
-        }
-      }
-      item {
-        PremiumSectionHeading(
-          title = if (selectedType == TransactionType.EXPENSE) "Your spending mix" else "Income sources",
-          subtitle = "Tap a category to see the underlying transactions."
-        )
-      }
-      if (populated.isEmpty()) {
-        item {
-          PremiumCard {
-            PremiumEmptyState(
-              title = "Nothing in these categories yet",
-              body = "When you record ${if (selectedType == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
+
+            PremiumSectionHeading(
+              title = if (isExpense) "Your spending mix" else "Income sources",
+              subtitle = "Tap a category to see the underlying transactions."
             )
+
+            if (populated.isEmpty()) {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "Nothing in these categories yet",
+                  body = "When you record ${if (isExpense) "spending" else "income"}, your category breakdown will appear here."
+                )
+              }
+            } else {
+              populated.forEach { item ->
+                CategoryPremiumRow(
+                  item = item,
+                  currencySymbol = currencySymbol,
+                  onClick = { viewModel.selectCategoryForDetail(item.category) }
+                )
+              }
+            }
           }
-        }
-      } else {
-        items(populated.size, key = { "category_${populated[it].category.name}" }) { index ->
-          val item = populated[index]
-          CategoryPremiumRow(
-            item = item,
-            currencySymbol = currencySymbol,
-            onClick = { viewModel.selectCategoryForDetail(item.category) }
-          )
         }
       }
       item { Spacer(Modifier.height(10.dp)) }

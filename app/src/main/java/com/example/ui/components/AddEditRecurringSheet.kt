@@ -66,6 +66,7 @@ import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -215,15 +216,15 @@ fun AddEditRecurringSheet(
         )
 
         Row(modifier = Modifier.fillMaxWidth().fillMaxHeight().selectableGroup()) {
+          val isExpense = ruleType == TransactionType.EXPENSE
           Box(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
-              .semantics {
-                selected = (ruleType == TransactionType.EXPENSE)
-                role = Role.RadioButton
-              }
-              .clickable(
+              .clip(RoundedCornerShape(16.dp))
+              .selectable(
+                selected = isExpense,
+                role = Role.RadioButton,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
               ) {
@@ -239,20 +240,20 @@ fun AddEditRecurringSheet(
             Text(
               text = "Recurring Expense",
               style = MaterialTheme.typography.titleSmall,
-              fontWeight = if (ruleType == TransactionType.EXPENSE) FontWeight.Bold else FontWeight.Medium,
-              color = if (ruleType == TransactionType.EXPENSE) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              fontWeight = if (isExpense) FontWeight.Bold else FontWeight.Medium,
+              color = if (isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
 
+          val isIncome = ruleType == TransactionType.INCOME
           Box(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
-              .semantics {
-                selected = (ruleType == TransactionType.INCOME)
-                role = Role.RadioButton
-              }
-              .clickable(
+              .clip(RoundedCornerShape(16.dp))
+              .selectable(
+                selected = isIncome,
+                role = Role.RadioButton,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
               ) {
@@ -268,8 +269,8 @@ fun AddEditRecurringSheet(
             Text(
               text = "Recurring Income",
               style = MaterialTheme.typography.titleSmall,
-              fontWeight = if (ruleType == TransactionType.INCOME) FontWeight.Bold else FontWeight.Medium,
-              color = if (ruleType == TransactionType.INCOME) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              fontWeight = if (isIncome) FontWeight.Bold else FontWeight.Medium,
+              color = if (isIncome) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
@@ -290,16 +291,18 @@ fun AddEditRecurringSheet(
       ) {
         RecurrenceInterval.values().forEach { interval ->
           val isSelected = selectedInterval == interval
+          val itemShape = RoundedCornerShape(18.dp)
           Surface(
-            onClick = { selectedInterval = interval },
-            shape = RoundedCornerShape(18.dp),
+            shape = itemShape,
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
               .weight(1f)
-              .semantics {
-                selected = isSelected
-                role = Role.Tab
-              }
+              .clip(itemShape)
+              .selectable(
+                selected = isSelected,
+                onClick = { selectedInterval = interval },
+                role = Role.RadioButton
+              )
               .testTag("interval_${interval.name}")
           ) {
             Box(
@@ -413,15 +416,16 @@ fun AddEditRecurringSheet(
         availableCategories.forEach { category ->
           val isCatSelected = selectedCategory == category
           Surface(
-            onClick = { selectedCategory = category },
             shape = RoundedCornerShape(20.dp),
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
               .fillMaxHeight()
-              .semantics {
-                selected = isCatSelected
-                role = Role.Tab
-              }
+              .clip(RoundedCornerShape(20.dp))
+              .selectable(
+                selected = isCatSelected,
+                role = Role.RadioButton,
+                onClick = { selectedCategory = category }
+              )
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 12.dp),

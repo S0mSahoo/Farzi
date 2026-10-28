@@ -7,6 +7,9 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -221,13 +224,16 @@ fun AddEditTransactionSheet(
             .background(activeColor)
         )
 
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(modifier = Modifier.fillMaxWidth().selectableGroup()) {
+          val isExpense = transactionType == TransactionType.EXPENSE
           Box(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(22.dp))
-              .clickable(
+              .selectable(
+                selected = isExpense,
+                role = Role.RadioButton,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
               ) { transactionType = TransactionType.EXPENSE }
@@ -238,16 +244,19 @@ fun AddEditTransactionSheet(
               text = "Expense",
               style = MaterialTheme.typography.titleSmall,
               fontWeight = FontWeight.Bold,
-              color = if (transactionType == TransactionType.EXPENSE) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              color = if (isExpense) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
 
+          val isIncome = transactionType == TransactionType.INCOME
           Box(
             modifier = Modifier
               .weight(1f)
               .fillMaxHeight()
               .clip(RoundedCornerShape(22.dp))
-              .clickable(
+              .selectable(
+                selected = isIncome,
+                role = Role.RadioButton,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
               ) { transactionType = TransactionType.INCOME }
@@ -258,7 +267,7 @@ fun AddEditTransactionSheet(
               text = "Income",
               style = MaterialTheme.typography.titleSmall,
               fontWeight = FontWeight.Bold,
-              color = if (transactionType == TransactionType.INCOME) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+              color = if (isIncome) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
@@ -349,6 +358,7 @@ fun AddEditTransactionSheet(
       Row(
         modifier = Modifier
           .fillMaxWidth()
+          .selectableGroup()
           .horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -361,7 +371,11 @@ fun AddEditTransactionSheet(
             modifier = Modifier
               .height(38.dp)
               .clip(RoundedCornerShape(24.dp))
-              .clickable { selectedCategory = category }
+              .selectable(
+                selected = isCatSelected,
+                onClick = { selectedCategory = category },
+                role = Role.RadioButton
+              )
               .testTag("category_chip_${category.name}")
           ) {
             Row(

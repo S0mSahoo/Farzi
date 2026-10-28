@@ -337,28 +337,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   // All Transactions from DB
   val allTransactions: StateFlow<List<TransactionItem>> = repository.allTransactions.stateIn(
     scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
+    started = SharingStarted.Eagerly,
     initialValue = emptyList()
   )
 
   // All Budgets from DB
   val allBudgets: StateFlow<List<BudgetModel>> = repository.allBudgets.stateIn(
     scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
+    started = SharingStarted.Eagerly,
     initialValue = emptyList()
   )
 
   // All Recurring Rules from DB
   val allRecurringRules: StateFlow<List<RecurringRule>> = repository.allRecurringRules.stateIn(
     scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
+    started = SharingStarted.Eagerly,
     initialValue = emptyList()
   )
 
   // All Paid Recurring Occurrences from DB
   val allPaidOccurrences: StateFlow<List<PaidRecurringOccurrenceEntity>> = repository.allPaidOccurrences.stateIn(
     scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
+    started = SharingStarted.Eagerly,
     initialValue = emptyList()
   )
 

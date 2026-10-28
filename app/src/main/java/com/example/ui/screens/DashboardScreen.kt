@@ -1,7 +1,13 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -256,38 +262,49 @@ fun DashboardScreen(
               horizontalArrangement = Arrangement.SpaceBetween,
               verticalAlignment = Alignment.Top
             ) {
-              Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(
-                  text = if (isAnnualView) "ANNUAL NET SAVINGS" else "NET CASH FLOW",
-                  style = MaterialTheme.typography.labelMedium,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                  fontWeight = FontWeight.Bold,
-                  letterSpacing = 1.2.sp
-                )
-                Text(
-                  text = IndianCurrencyFormatter.formatWithSymbol(
-                    displaySavings,
-                    currencySymbol,
-                    includeSign = true
-                  ),
-                  style = MaterialTheme.typography.headlineLarge,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                  maxLines = 1,
-                  softWrap = false,
-                  overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                  text = if (displayIncome > 0.0 && displayRate < 0.0) {
-                    "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(displayRate).coerceAtMost(999.0))}%"
-                  } else if (displayIncome > 0.0) {
-                    "${String.format(java.util.Locale.getDefault(), "%.1f", displayRate.coerceAtMost(999.0))}% of recorded income retained"
-                  } else {
-                    "Income and spending, in one clear picture"
-                  },
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
-                )
+              AnimatedContent(
+                targetState = isAnnualView,
+                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+                label = "dashboard_hero_summary_transition",
+                modifier = Modifier.weight(1f)
+              ) { annual ->
+                val displaySavings = if (annual) yearlySummary.savings else monthlySummary.savings
+                val displayIncome = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
+                val displayRate = if (annual) yearlySummary.savingsRate else monthlySummary.savingsRate
+
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                  Text(
+                    text = if (annual) "ANNUAL NET SAVINGS" else "NET CASH FLOW",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
+                  )
+                  Text(
+                    text = IndianCurrencyFormatter.formatWithSymbol(
+                      displaySavings,
+                      currencySymbol,
+                      includeSign = true
+                    ),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                  )
+                  Text(
+                    text = if (displayIncome > 0.0 && displayRate < 0.0) {
+                      "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(displayRate).coerceAtMost(999.0))}%"
+                    } else if (displayIncome > 0.0) {
+                      "${String.format(java.util.Locale.getDefault(), "%.1f", displayRate.coerceAtMost(999.0))}% of recorded income retained"
+                    } else {
+                      "Income and spending, in one clear picture"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                  )
+                }
               }
               Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -302,117 +319,136 @@ fun DashboardScreen(
               }
             }
 
-            if (!isAnnualView) {
-              PremiumTrendChart(
-                points = dailyTrend,
-                lineColor = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                height = if (wide) 104.dp else 76.dp
-              )
-              Text(
-                "Daily spending trend",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-              )
-            } else {
-              PremiumYearlyComparisonChart(
-                monthlyBreakdown = yearlySummary.monthlyBreakdown,
-                incomeColor = IncomeGreen,
-                expenseColor = ExpenseRed,
-                trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                height = if (wide) 104.dp else 76.dp
-              )
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-              ) {
-                Text(
-                  "Monthly income vs expenses",
-                  style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                )
-                Row(
-                  horizontalArrangement = Arrangement.spacedBy(10.dp),
-                  verticalAlignment = Alignment.CenterVertically
-                ) {
+            AnimatedContent(
+              targetState = isAnnualView,
+              transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) },
+              label = "dashboard_hero_chart_transition"
+            ) { annual ->
+              if (!annual) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                  PremiumTrendChart(
+                    points = dailyTrend,
+                    lineColor = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                    height = if (wide) 104.dp else 76.dp
+                  )
+                  Text(
+                    "Daily spending trend",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                  )
+                }
+              } else {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                  PremiumYearlyComparisonChart(
+                    monthlyBreakdown = yearlySummary.monthlyBreakdown,
+                    incomeColor = IncomeGreen,
+                    expenseColor = ExpenseRed,
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                    height = if (wide) 104.dp else 76.dp
+                  )
                   Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                   ) {
-                    Box(
-                      modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(IncomeGreen)
-                    )
                     Text(
-                      text = "Income",
+                      "Monthly income vs expenses",
                       style = MaterialTheme.typography.labelSmall,
-                      color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                      fontWeight = FontWeight.SemiBold
+                      color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     )
-                  }
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                  ) {
-                    Box(
-                      modifier = Modifier
-                        .size(7.dp)
-                        .clip(CircleShape)
-                        .background(ExpenseRed)
-                    )
-                    Text(
-                      text = "Expenses",
-                      style = MaterialTheme.typography.labelSmall,
-                      color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                      fontWeight = FontWeight.SemiBold
-                    )
+                    Row(
+                      horizontalArrangement = Arrangement.spacedBy(10.dp),
+                      verticalAlignment = Alignment.CenterVertically
+                    ) {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                      ) {
+                        Box(
+                          modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(IncomeGreen)
+                        )
+                        Text(
+                          text = "Income",
+                          style = MaterialTheme.typography.labelSmall,
+                          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                          fontWeight = FontWeight.SemiBold
+                        )
+                      }
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                      ) {
+                        Box(
+                          modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(ExpenseRed)
+                        )
+                        Text(
+                          text = "Expenses",
+                          style = MaterialTheme.typography.labelSmall,
+                          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                          fontWeight = FontWeight.SemiBold
+                        )
+                      }
+                    }
                   }
                 }
               }
             }
 
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-              Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+            AnimatedContent(
+              targetState = isAnnualView,
+              transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+              label = "dashboard_hero_totals_transition"
+            ) { annual ->
+              val displayIncome = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
+              val displayExpense = if (annual) yearlySummary.totalExpense else monthlySummary.totalExpense
+
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
               ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
-                  Text("Total Income", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                Column(
+                  modifier = Modifier.weight(1f),
+                  verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.ArrowDownward, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                    Text("Total Income", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                  }
+                  Text(
+                    text = IndianCurrencyFormatter.formatCompact(displayIncome, currencySymbol),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                    softWrap = false
+                  )
                 }
-                Text(
-                  text = IndianCurrencyFormatter.formatCompact(displayIncome, currencySymbol),
-                  style = MaterialTheme.typography.titleMedium,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                  maxLines = 1,
-                  softWrap = false
-                )
-              }
-              Box(Modifier.width(1.dp).height(42.dp).background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)))
-              Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-              ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(15.dp))
-                  Text("Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                Box(Modifier.width(1.dp).height(42.dp).background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f)))
+                Column(
+                  modifier = Modifier.weight(1f),
+                  verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                  Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Icons.Default.ArrowUpward, contentDescription = null, tint = Color(0xFFF43F5E), modifier = Modifier.size(15.dp))
+                    Text("Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                  }
+                  Text(
+                    text = IndianCurrencyFormatter.formatCompact(displayExpense, currencySymbol),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1,
+                    softWrap = false
+                  )
                 }
-                Text(
-                  text = IndianCurrencyFormatter.formatCompact(displayExpense, currencySymbol),
-                  style = MaterialTheme.typography.titleMedium,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onPrimaryContainer,
-                  maxLines = 1,
-                  softWrap = false
-                )
               }
             }
           }
@@ -451,13 +487,19 @@ fun DashboardScreen(
 
       // Income vs Expense Comparison Bar
       item {
-        val income = if (isAnnualView) yearlySummary.totalIncome else monthlySummary.totalIncome
-        val expense = if (isAnnualView) yearlySummary.totalExpense else monthlySummary.totalExpense
-        IncomeExpenseComparisonBar(
-          income = income,
-          expense = expense,
-          currencySymbol = currencySymbol
-        )
+        AnimatedContent(
+          targetState = isAnnualView,
+          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          label = "dashboard_comparison_bar_transition"
+        ) { annual ->
+          val income = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
+          val expense = if (annual) yearlySummary.totalExpense else monthlySummary.totalExpense
+          IncomeExpenseComparisonBar(
+            income = income,
+            expense = expense,
+            currencySymbol = currencySymbol
+          )
+        }
       }
 
       // Budget & Category Overview Cards

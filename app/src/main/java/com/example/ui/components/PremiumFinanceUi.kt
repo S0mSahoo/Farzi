@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
@@ -877,7 +880,8 @@ fun PremiumSegmentedToggle(
   options: List<String>,
   selectedIndex: Int,
   onSelect: (Int) -> Unit,
-  modifier: Modifier = Modifier
+  modifier: Modifier = Modifier,
+  role: androidx.compose.ui.semantics.Role = androidx.compose.ui.semantics.Role.Tab
 ) {
   Surface(
     modifier = modifier,
@@ -886,7 +890,9 @@ fun PremiumSegmentedToggle(
     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
   ) {
     Row(
-      modifier = Modifier.padding(4.dp),
+      modifier = Modifier
+        .padding(4.dp)
+        .selectableGroup(),
       horizontalArrangement = Arrangement.spacedBy(4.dp),
       verticalAlignment = Alignment.CenterVertically
     ) {
@@ -896,26 +902,37 @@ fun PremiumSegmentedToggle(
         val interactionSource = remember { MutableInteractionSource() }
         val isPressed by interactionSource.collectIsPressedAsState()
         val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
-        Surface(
-          onClick = {
-            haptics.performLightHaptic()
-            onSelect(index)
-          },
-          shape = RoundedCornerShape(14.dp),
-          color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-          contentColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        val itemShape = RoundedCornerShape(14.dp)
+
+        Box(
           modifier = Modifier
-            .animateContentSize()
+            .clip(itemShape)
+            .background(
+              color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+              shape = itemShape
+            )
+            .selectable(
+              selected = selected,
+              onClick = {
+                haptics.performLightHaptic()
+                onSelect(index)
+              },
+              role = role,
+              interactionSource = interactionSource,
+              indication = androidx.compose.material3.ripple(bounded = true)
+            )
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            },
-          interactionSource = interactionSource
+              scaleX = scale
+              scaleY = scale
+            }
+            .animateContentSize(),
+          contentAlignment = Alignment.Center
         ) {
           Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
           )
         }

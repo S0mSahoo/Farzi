@@ -11,6 +11,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,15 +35,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -61,13 +68,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
 import com.example.ui.viewmodel.ChatMessage
+import com.example.ui.viewmodel.PendingActionGroup
 import com.example.util.parseMarkdownToAnnotatedString
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,18 +86,24 @@ fun AiAdvisorScreen(
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingActionGroup by viewModel.pendingActionGroup.collectAsStateWithLifecycle()
+    val isProcessingAction by viewModel.isProcessingAction.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     val streamingLength = (uiState as? AiUiState.Streaming)?.text?.length ?: 0
 
     // Auto-scroll to latest line continuously during message updates and streaming generation
-    LaunchedEffect(messages.size, uiState, streamingLength) {
-        val totalCount = messages.size + if (uiState is AiUiState.Loading || uiState is AiUiState.Streaming || uiState is AiUiState.Error) 1 else 0
+    LaunchedEffect(messages.size, uiState, streamingLength, pendingActionGroup) {
+        val totalCount = messages.size +
+                (if (uiState is AiUiState.Loading || uiState is AiUiState.Streaming || uiState is AiUiState.Error) 1 else 0) +
+                (if (pendingActionGroup != null) 1 else 0)
         if (totalCount > 0) {
             listState.animateScrollToItem(totalCount - 1)
         }
     }
+
+    val isControlsDisabled = pendingActionGroup != null || isProcessingAction || uiState is AiUiState.Loading
 
     Scaffold(
         topBar = {
@@ -130,11 +143,14 @@ fun AiAdvisorScreen(
                     // Quick Action Chips
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(bottom = 6.dp).testTag("ai_suggestion_chips")
+                        modifier = Modifier
+                            .padding(bottom = 6.dp)
+                            .testTag("ai_suggestion_chips")
                     ) {
                         item {
                             AssistChip(
                                 onClick = { viewModel.requestFinancialInsight(financialSummaryContext) },
+                                enabled = !isControlsDisabled,
                                 label = { Text("📊 Analyze My Spending") },
                                 leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
                             )
@@ -142,24 +158,28 @@ fun AiAdvisorScreen(
                         item {
                             AssistChip(
                                 onClick = { viewModel.sendMessage("Log an expense of ₹45 for lunch paid via UPI") },
+                                enabled = !isControlsDisabled,
                                 label = { Text("📝 Log ₹45 Lunch Expense") }
                             )
                         }
                         item {
                             AssistChip(
                                 onClick = { viewModel.sendMessage("Log income of ₹3000 for monthly salary") },
+                                enabled = !isControlsDisabled,
                                 label = { Text("💰 Log ₹3000 Salary") }
                             )
                         }
                         item {
                             AssistChip(
                                 onClick = { viewModel.sendMessage("Set my monthly budget for this month to ₹1500") },
+                                enabled = !isControlsDisabled,
                                 label = { Text("🎯 Set ₹1500 Budget") }
                             )
                         }
                         item {
                             AssistChip(
                                 onClick = { viewModel.sendMessage("Add a monthly recurring rule for Netflix subscription of ₹15 paid via credit card") },
+                                enabled = !isControlsDisabled,
                                 label = { Text("🔄 Add ₹15 Netflix Bill") }
                             )
                         }
@@ -174,6 +194,7 @@ fun AiAdvisorScreen(
                             onValueChange = { inputText = it },
                             placeholder = { Text("Ask Paisa AI to log, set budget, or advise...") },
                             shape = RoundedCornerShape(24.dp),
+                            enabled = !isControlsDisabled,
                             modifier = Modifier
                                 .weight(1f)
                                 .testTag("ai_chat_input"),
@@ -187,16 +208,19 @@ fun AiAdvisorScreen(
                                     inputText = ""
                                 }
                             },
-                            enabled = inputText.isNotBlank() && uiState !is AiUiState.Loading,
+                            enabled = inputText.isNotBlank() && !isControlsDisabled,
                             modifier = Modifier
                                 .size(48.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                .background(
+                                    if (!isControlsDisabled && inputText.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    CircleShape
+                                )
                                 .testTag("ai_chat_send")
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.Send,
                                 contentDescription = "Send",
-                                tint = Color.White
+                                tint = if (!isControlsDisabled && inputText.isNotBlank()) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -229,11 +253,25 @@ fun AiAdvisorScreen(
                         ChatBubble(message = message)
                     }
                 }
+
+                pendingActionGroup?.let { group ->
+                    item {
+                        PendingActionPreviewCard(
+                            group = group,
+                            isProcessing = isProcessingAction,
+                            onConfirm = { viewModel.confirmAndExecutePendingAction() },
+                            onCancel = { viewModel.cancelPendingAction() }
+                        )
+                    }
+                }
+
                 if (uiState is AiUiState.Loading || uiState is AiUiState.Streaming) {
                     item {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(vertical = 4.dp).testTag("ai_typing_indicator")
+                            modifier = Modifier
+                                .padding(vertical = 4.dp)
+                                .testTag("ai_typing_indicator")
                         ) {
                             Surface(
                                 shape = CircleShape,
@@ -281,7 +319,9 @@ fun AiAdvisorScreen(
                     item {
                         Card(
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                            modifier = Modifier.fillMaxWidth().testTag("ai_error_card")
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ai_error_card")
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Text(
@@ -306,6 +346,140 @@ fun AiAdvisorScreen(
                     }
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+fun PendingActionPreviewCard(
+    group: PendingActionGroup,
+    isProcessing: Boolean,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val isDestructive = group.isDestructive || group.requiresExplicitDeleteAllConfirmation
+    val cardBg = if (isDestructive) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
+    val border = BorderStroke(1.dp, if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = border,
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("ai_pending_action_preview")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isDestructive) Icons.Default.Warning else Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (group.requiresExplicitDeleteAllConfirmation) "⚠️ Dedicated Delete All Confirmation"
+                    else if (isDestructive) "⚠️ Confirm Destructive Action"
+                    else "📋 Review Proposed Financial Action",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (group.requiresExplicitDeleteAllConfirmation) {
+                Surface(
+                    color = MaterialTheme.colorScheme.errorContainer,
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp)
+                ) {
+                    Text(
+                        text = "⚠️ EXPLICIT CONFIRMATION REQUIRED: This action will permanently delete all records matching the scope. This operation cannot be undone.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
+
+            group.actionItems.forEach { item ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = item.detailSummary,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (group.validationError != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("ai_validation_error_card")
+                ) {
+                    Text(
+                        text = "❌ Validation Error: ${group.validationError}",
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(10.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onCancel,
+                    enabled = !isProcessing,
+                    modifier = Modifier.testTag("ai_cancel_action")
+                ) {
+                    Text("Cancel")
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Button(
+                    onClick = onConfirm,
+                    enabled = group.validationError == null && !isProcessing,
+                    colors = if (isDestructive) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
+                    modifier = Modifier.testTag("ai_confirm_action")
+                ) {
+                    if (isProcessing) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Executing...")
+                    } else {
+                        Text(if (isDestructive) "Confirm Deletion" else "Confirm & Execute")
+                    }
+                }
             }
         }
     }

@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.testTag
@@ -195,79 +200,85 @@ fun RecurringScreen(
         }
       }
 
-      if (selectedTab == 0) {
-        item {
-          com.example.ui.components.PremiumSectionHeading(
-            title = "Payment schedule",
-            subtitle = "Mark payments once they are completed."
-          )
-        }
-        if (outstanding.isEmpty()) {
-          item {
-            PremiumCard {
-              PremiumEmptyState(
-                title = "You're all caught up",
-                body = "No active scheduled or overdue payments are waiting for you.",
-                action = {
-                  PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add a recurring rule")
+      item {
+        AnimatedContent(
+          targetState = selectedTab,
+          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          label = "recurring_tab_transition"
+        ) { tab ->
+          if (tab == 0) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+              com.example.ui.components.PremiumSectionHeading(
+                title = "Payment schedule",
+                subtitle = "Mark payments once they are completed."
+              )
+              if (outstanding.isEmpty()) {
+                PremiumCard {
+                  PremiumEmptyState(
+                    title = "You're all caught up",
+                    body = "No active scheduled or overdue payments are waiting for you.",
+                    action = {
+                      PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Add a recurring rule")
+                      }
+                    }
+                  )
+                }
+              } else {
+                val grouped = outstanding.groupBy { it.occurrenceDateKey }
+                grouped.forEach { (dateKey, list) ->
+                  Text(
+                    dateKey,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                  )
+                  list.forEach { occurrence ->
+                    OccurrencePremiumCard(
+                      occurrence = occurrence,
+                      currencySymbol = currencySymbol,
+                      onMarkPaid = { viewModel.markRecurringPaymentPaid(occurrence) },
+                      onSkip = { occurrenceToCancel = occurrence }
+                    )
                   }
                 }
-              )
-            }
-          }
-        } else {
-          val grouped = outstanding.groupBy { it.occurrenceDateKey }
-          grouped.forEach { (dateKey, list) ->
-            item(key = "date_$dateKey") {
-              Text(dateKey, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            list.forEach { occurrence ->
-              item(key = "occ_${occurrence.rule.id}_${occurrence.occurrenceDateKey}") {
-                OccurrencePremiumCard(
-                  occurrence = occurrence,
-                  currencySymbol = currencySymbol,
-                  onMarkPaid = { viewModel.markRecurringPaymentPaid(occurrence) },
-                  onSkip = { occurrenceToCancel = occurrence }
-                )
               }
             }
-          }
-        }
-      } else {
-        item {
-          com.example.ui.components.PremiumSectionHeading(
-            title = "Your recurring rules",
-            subtitle = "Pause or adjust a rule any time."
-          )
-        }
-        if (recurringRules.isEmpty()) {
-          item {
-            PremiumCard {
-              PremiumEmptyState(
-                title = "No rules yet",
-                body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
-                action = {
-                  PremiumButton(onClick = onOpenAddRecurringRule) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Create first rule")
-                  }
-                }
+          } else {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+              com.example.ui.components.PremiumSectionHeading(
+                title = "Your recurring rules",
+                subtitle = "Pause or adjust a rule any time."
               )
+              if (recurringRules.isEmpty()) {
+                PremiumCard {
+                  PremiumEmptyState(
+                    title = "No rules yet",
+                    body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
+                    action = {
+                      PremiumButton(onClick = onOpenAddRecurringRule) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Create first rule")
+                      }
+                    }
+                  )
+                }
+              } else {
+                recurringRules.sortedBy { !it.isActive }.forEach { rule ->
+                  RecurringRulePremiumCard(
+                    rule = rule,
+                    currencySymbol = currencySymbol,
+                    onEdit = { onEditRecurringRule(rule) },
+                    onDelete = { ruleToDelete = rule },
+                    onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) }
+                  )
+                }
+              }
             }
-          }
-        } else {
-          items(recurringRules.sortedBy { !it.isActive }, key = { "rule_${it.id}" }) { rule ->
-            RecurringRulePremiumCard(
-              rule = rule,
-              currencySymbol = currencySymbol,
-              onEdit = { onEditRecurringRule(rule) },
-              onDelete = { ruleToDelete = rule },
-              onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) }
-            )
           }
         }
       }

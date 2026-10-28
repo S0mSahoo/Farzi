@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.background
@@ -151,29 +156,37 @@ fun BudgetScreen(
       }
 
       item {
-        if (currentBudget == null || currentBudget.totalBudget <= 0.0) {
-          PremiumCard {
-            PremiumEmptyState(
-              title = "Build your first monthly plan",
-              body = "Set an overall limit, add category caps, and get a clearer view of what is left.",
-              action = {
-                PremiumButton(onClick = onOpenSetBudget) {
-                  Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                  Spacer(Modifier.size(7.dp))
-                  Text("Create budget")
+        AnimatedContent(
+          targetState = (currentBudget != null && currentBudget.totalBudget > 0.0),
+          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          label = "budget_hero_transition"
+        ) { hasBudget ->
+          if (!hasBudget) {
+            PremiumCard {
+              PremiumEmptyState(
+                title = "Build your first monthly plan",
+                body = "Set an overall limit, add category caps, and get a clearer view of what is left.",
+                action = {
+                  PremiumButton(onClick = onOpenSetBudget) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.size(7.dp))
+                    Text("Create budget")
+                  }
                 }
-              }
-            )
+              )
+            }
+          } else {
+            currentBudget?.let { budget ->
+              BudgetHeroCard(
+                budget = budget,
+                summary = summary,
+                currencySymbol = currencySymbol,
+                selectedCalendar = selectedCalendar,
+                onEdit = onOpenSetBudget,
+                onDelete = { showDeleteDialog = true }
+              )
+            }
           }
-        } else {
-          BudgetHeroCard(
-            budget = currentBudget,
-            summary = summary,
-            currencySymbol = currencySymbol,
-            selectedCalendar = selectedCalendar,
-            onEdit = onOpenSetBudget,
-            onDelete = { showDeleteDialog = true }
-          )
         }
       }
 
