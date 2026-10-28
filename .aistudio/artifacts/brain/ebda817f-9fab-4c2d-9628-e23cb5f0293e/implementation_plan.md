@@ -1,28 +1,21 @@
-# Implementation Plan: Paisa UI Consistency and Interaction Pass
+# Comprehensive UI Consistency, Interaction, and State Fix Plan
 
-## Phase 1: Core Shared Components Stabilization (Priority)
-1. **System Bars Syncing:** Update `MainActivity.kt` to synchronize status/navigation bar icon colors with the resolved `ThemeMode` (Light/Dark/AMOLED).
-2. **Button System & Ripple Clipping:**
-   - Standardize all clickable controls across the app to ensure ripple/highlight is clipped to their actual shape (rounded/circular).
-   - Audit `PremiumButton` wrappers in `PremiumFinanceUi.kt` and apply consistent clipping and interaction state handling.
-   - Refactor custom clickable elements across the app to use these premium wrappers or adopt the same `Modifier` pattern (e.g., `.clip(shape).clickable(...)`).
+## Phase 1 — Finish & Verify System-Bar Behavior (`MainActivity.kt`)
+- Verify status-bar and navigation-bar icon contrast logic using `WindowCompat.getInsetsController()` in `SideEffect`.
+- Ensure light mode shows dark icons and dark/AMOLED mode shows light icons, updating dynamically on theme changes.
 
-## Phase 2: Repository-Wide UI/UX Audit & Refinement
-1. **Repository Audit:** Systematically scan all files under `/app/src/main/java/com/example/` for:
-   - Improperly shaped ripples/pressed highlights.
-   - Bypassed premium cards (direct `Card` usage vs `PremiumCard`).
-   - Abrupt state transitions (need for `AnimatedVisibility`, `Crossfade`, etc.).
-   - State mutation during composition (specifically in `AddEditRecurringSheet.kt`).
-   - Accessibility/semantics (ensure selectable controls expose proper state).
-2. **Refinement Execution:** Apply fixes identified in the audit.
-   - Update `AddEditRecurringSheet.kt` to move state mutation out of composition.
-   - Apply `PremiumCard` styling consistently.
-   - Add transition animations for UI state changes (Home dashboard toggle, Analytics periods, etc.).
+## Phase 2 — Fix Rectangular Ripple and Press-Highlight Defects (`AddEditRecurringSheet.kt`)
+- Refactor recurrence interval selector buttons, category chips, and start-date selector to use shape-aware `Surface(onClick = ..., shape = ...)` instead of `modifier = Modifier.clickable(...)` without proper clipping. This guarantees shape-bound press ripples.
 
-## Phase 3: Verification
-1. **Unit/Build Tests:** Run `gradle :app:testDebugUnitTest` and ensure compilation success.
-2. **Manual Verification:**
-   - **System Bars:** Toggle Light/Dark/AMOLED and confirm icon contrast.
-   - **Ripples/Shapes:** Check rounded controls for clipped ripples.
-   - **Transitions:** Validate smooth toggling in Dashboard, Analytics, Recurring, etc.
-   - **Forms:** Verify category selection in `AddEditRecurringSheet.kt` for stability.
+## Phase 3 — Complete Transitions Across Screens
+- Add smooth, restrained transitions (`AnimatedContent` / `Crossfade`) for period toggles (`DashboardScreen`, `AnalyticsScreen`), tab switches (`RecurringScreen`), and type switches (`CategoriesScreen`).
+
+## Phase 4 — Unify Card Depth (`SettingsScreen.kt`, `AnalyticsScreen.kt`)
+- Replace direct zero-elevation Material 3 `Card` instances in `SettingsScreen.kt` and `AnalyticsScreen.kt` with `PremiumCard` to ensure consistent depth, borders, and visual hierarchy across Light and AMOLED Dark modes.
+
+## Phase 5 — Correct Recurring Form State & Semantics (`AddEditRecurringSheet.kt`)
+- Refactor `AddEditRecurringSheet` type switching to update category state directly in the user event handler rather than relying on `LaunchedEffect` during/after composition.
+- Add proper accessibility selection semantics (`semantics { role = Role.RadioButton / Tab / ToggleButton }` or `selected = ...`) where needed.
+
+## Phase 6 — Testing & Build Verification
+- Run `gradle :app:testDebugUnitTest` and `gradle :app:assembleDebug` to verify build integrity.

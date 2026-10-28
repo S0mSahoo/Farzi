@@ -647,10 +647,7 @@ fun SettingsScreen(
     // 1. Google Account Identity Card
     item {
       SettingsSection(title = "Google Account") {
-        Card(
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-          elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        com.example.ui.components.PremiumCard(
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -741,10 +738,7 @@ fun SettingsScreen(
     // 2. Google Drive Primary Cloud Storage Card
     item {
       SettingsSection(title = "Cloud Synchronization") {
-        Card(
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-          elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        com.example.ui.components.PremiumCard(
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(18.dp)) {
@@ -978,10 +972,7 @@ fun SettingsScreen(
     // 3. Currency & Preferences Section
     item {
       SettingsSection(title = "Regional & Display") {
-        Card(
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-          elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        com.example.ui.components.PremiumCard(
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -1058,10 +1049,7 @@ fun SettingsScreen(
     // Security & Privacy Section
     item {
       SettingsSection(title = "Security & Privacy") {
-        Card(
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-          elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        com.example.ui.components.PremiumCard(
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {
@@ -1183,10 +1171,7 @@ fun SettingsScreen(
     // 4. Data Management & Export Section
     item {
       SettingsSection(title = "Data & Reports") {
-        Card(
-          shape = RoundedCornerShape(24.dp),
-          colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-          elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        com.example.ui.components.PremiumCard(
           modifier = Modifier.fillMaxWidth()
         ) {
           Column(modifier = Modifier.padding(vertical = 4.dp)) {

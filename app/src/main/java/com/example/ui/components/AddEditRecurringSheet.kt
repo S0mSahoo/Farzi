@@ -123,12 +123,6 @@ fun AddEditRecurringSheet(
     TransactionCategory.values().filter { it.defaultType == ruleType }
   }
 
-  androidx.compose.runtime.LaunchedEffect(ruleType) {
-    if (selectedCategory.defaultType != ruleType) {
-      selectedCategory = availableCategories.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
-    }
-  }
-
   val activeColor by animateColorAsState(
     targetValue = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
     animationSpec = spring(stiffness = Spring.StiffnessMedium),
@@ -223,7 +217,13 @@ fun AddEditRecurringSheet(
               .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-              ) { ruleType = TransactionType.EXPENSE }
+              ) {
+                ruleType = TransactionType.EXPENSE
+                val cats = TransactionCategory.values().filter { it.defaultType == TransactionType.EXPENSE }
+                if (selectedCategory.defaultType != TransactionType.EXPENSE) {
+                  selectedCategory = cats.firstOrNull() ?: TransactionCategory.OTHER_EXPENSE
+                }
+              }
               .testTag("recurring_type_expense"),
             contentAlignment = Alignment.Center
           ) {
@@ -242,7 +242,13 @@ fun AddEditRecurringSheet(
               .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
-              ) { ruleType = TransactionType.INCOME }
+              ) {
+                ruleType = TransactionType.INCOME
+                val cats = TransactionCategory.values().filter { it.defaultType == TransactionType.INCOME }
+                if (selectedCategory.defaultType != TransactionType.INCOME) {
+                  selectedCategory = cats.firstOrNull() ?: TransactionCategory.SALARY
+                }
+              }
               .testTag("recurring_type_income"),
             contentAlignment = Alignment.Center
           ) {
@@ -272,11 +278,11 @@ fun AddEditRecurringSheet(
         RecurrenceInterval.values().forEach { interval ->
           val isSelected = selectedInterval == interval
           Surface(
+            onClick = { selectedInterval = interval },
             shape = RoundedCornerShape(18.dp),
             color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier
               .weight(1f)
-              .clickable { selectedInterval = interval }
               .testTag("interval_${interval.name}")
           ) {
             Box(
@@ -389,11 +395,11 @@ fun AddEditRecurringSheet(
         availableCategories.forEach { category ->
           val isCatSelected = selectedCategory == category
           Surface(
+            onClick = { selectedCategory = category },
             shape = RoundedCornerShape(20.dp),
             color = if (isCatSelected) category.color else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier
               .fillMaxHeight()
-              .clickable { selectedCategory = category }
           ) {
             Row(
               modifier = Modifier.padding(horizontal = 12.dp),
@@ -422,12 +428,12 @@ fun AddEditRecurringSheet(
       )
       Spacer(modifier = Modifier.height(6.dp))
       Surface(
+        onClick = { showStartDatePicker = true },
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
         modifier = Modifier
           .fillMaxWidth()
-          .clickable { showStartDatePicker = true }
       ) {
         Row(
           modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),

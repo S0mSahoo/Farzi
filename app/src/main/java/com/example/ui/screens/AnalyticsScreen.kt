@@ -495,10 +495,7 @@ private fun AnnualAnalyticsSummary(
     summary: YearlyFinancialSummary,
     currencySymbol: String
 ) {
-    Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    com.example.ui.components.PremiumCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -542,10 +539,7 @@ private fun AnnualMonthlyBreakdown(
     summary: YearlyFinancialSummary,
     currencySymbol: String
 ) {
-    Card(
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = com.example.ui.theme.resolveCardSurfaceColor()),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    com.example.ui.components.PremiumCard(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
