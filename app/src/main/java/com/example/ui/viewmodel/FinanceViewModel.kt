@@ -22,6 +22,8 @@ import com.example.data.model.ExportPeriod
 import com.example.data.model.MonthlyFinancialSummary
 import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
+import com.example.data.insight.FinanceInsight
+import com.example.data.insight.FinanceInsightEngine
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
@@ -360,6 +362,26 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // All Paid Recurring Occurrences from DB
   val allPaidOccurrences: StateFlow<List<PaidRecurringOccurrenceEntity>> = repository.allPaidOccurrences.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.Eagerly,
+    initialValue = emptyList()
+  )
+
+  // Finance Insights Flow
+  val financeInsights: StateFlow<List<FinanceInsight>> = combine(
+    allTransactions,
+    allBudgets,
+    allRecurringRules,
+    _universalCalendar
+  ) { transactions, budgets, rules, cal ->
+    val monthKey = DateUtils.getMonthKey(cal)
+    FinanceInsightEngine.generateMonthlyInsights(
+      monthKey = monthKey,
+      transactions = transactions,
+      budgets = budgets,
+      recurringRules = rules
+    )
+  }.stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
