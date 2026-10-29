@@ -506,18 +506,6 @@ fun DashboardScreen(
         }
       }
 
-      // Financial Insights Section
-      item {
-        val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
-        FinancialInsightsSection(
-          insights = activeInsights,
-          periodLabel = periodLabel,
-          currencySymbol = currencySymbol,
-          onOpenSetBudget = onOpenSetBudget,
-          onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
-        )
-      }
-
       // Budget & Category Overview Cards
       if (wide) {
         item {
@@ -551,24 +539,16 @@ fun DashboardScreen(
         }
       }
 
-      // Full Category Spending Analytics Breakdown
+      // Spending Insights & Analysis Section
       item {
-        PremiumCard {
-          Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-          ) {
-            PremiumSectionHeading(
-              title = "Spending Analytics & Categories",
-              subtitle = if (isAnnualView) "Category distribution for $currentYear" else "Category distribution for ${monthlySummary.monthLabel}"
-            )
-            CategorySpendingBreakdown(
-              categories = categorySpending,
-              currencySymbol = currencySymbol,
-              onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
-            )
-          }
-        }
+        val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
+        FinancialInsightsSection(
+          insights = activeInsights,
+          periodLabel = periodLabel,
+          currencySymbol = currencySymbol,
+          onOpenSetBudget = onOpenSetBudget,
+          onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
+        )
       }
 
       // Recent Activity
