@@ -29,13 +29,13 @@ interface BudgetDao {
   suspend fun insertAll(budgets: List<BudgetEntity>)
 
   @Update
-  suspend fun updateBudget(budget: BudgetEntity)
+  suspend fun updateBudget(budget: BudgetEntity): Int
 
   @Delete
-  suspend fun deleteBudget(budget: BudgetEntity)
+  suspend fun deleteBudget(budget: BudgetEntity): Int
 
   @Query("DELETE FROM budgets WHERE monthKey = :monthKey")
-  suspend fun deleteBudgetByMonth(monthKey: String)
+  suspend fun deleteBudgetByMonth(monthKey: String): Int
 
   @Query("DELETE FROM budgets")
   suspend fun clearAll()

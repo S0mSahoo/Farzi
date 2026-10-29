@@ -29,13 +29,13 @@ interface RecurringRuleDao {
   suspend fun insertAll(rules: List<RecurringRuleEntity>)
 
   @Update
-  suspend fun updateRule(rule: RecurringRuleEntity)
+  suspend fun updateRule(rule: RecurringRuleEntity): Int
 
   @Delete
-  suspend fun deleteRule(rule: RecurringRuleEntity)
+  suspend fun deleteRule(rule: RecurringRuleEntity): Int
 
   @Query("DELETE FROM recurring_rules WHERE id = :id")
-  suspend fun deleteRuleById(id: Long)
+  suspend fun deleteRuleById(id: Long): Int
 
   @Query("DELETE FROM recurring_rules")
   suspend fun clearAll()

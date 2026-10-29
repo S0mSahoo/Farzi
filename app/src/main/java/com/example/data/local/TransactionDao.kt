@@ -32,13 +32,13 @@ interface TransactionDao {
   suspend fun insertAll(transactions: List<TransactionEntity>)
 
   @Update
-  suspend fun updateTransaction(transaction: TransactionEntity)
+  suspend fun updateTransaction(transaction: TransactionEntity): Int
 
   @Delete
-  suspend fun deleteTransaction(transaction: TransactionEntity)
+  suspend fun deleteTransaction(transaction: TransactionEntity): Int
 
   @Query("DELETE FROM transactions WHERE id = :id")
-  suspend fun deleteById(id: Long)
+  suspend fun deleteById(id: Long): Int
 
   @Query("DELETE FROM transactions WHERE id IN (:ids)")
   suspend fun deleteByIds(ids: List<Long>): Int

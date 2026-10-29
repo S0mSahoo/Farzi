@@ -78,15 +78,15 @@ class FinanceRepository(private val context: Context) {
     transactionDao.insertTransaction(TransactionEntity.fromModel(item))
   }
 
-  suspend fun updateTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
+  suspend fun updateTransaction(item: TransactionItem): Int = withContext(Dispatchers.IO) {
     transactionDao.updateTransaction(TransactionEntity.fromModel(item))
   }
 
-  suspend fun deleteTransaction(item: TransactionItem) = withContext(Dispatchers.IO) {
+  suspend fun deleteTransaction(item: TransactionItem): Int = withContext(Dispatchers.IO) {
     transactionDao.deleteTransaction(TransactionEntity.fromModel(item))
   }
 
-  suspend fun deleteTransactionById(id: Long) = withContext(Dispatchers.IO) {
+  suspend fun deleteTransactionById(id: Long): Int = withContext(Dispatchers.IO) {
     transactionDao.deleteById(id)
   }
 
@@ -111,7 +111,7 @@ class FinanceRepository(private val context: Context) {
     budgetDao.insertOrUpdateBudget(BudgetEntity.fromModel(budget))
   }
 
-  suspend fun deleteBudgetForMonth(monthKey: String) = withContext(Dispatchers.IO) {
+  suspend fun deleteBudgetForMonth(monthKey: String): Int = withContext(Dispatchers.IO) {
     budgetDao.deleteBudgetByMonth(monthKey)
   }
 
@@ -121,13 +121,13 @@ class FinanceRepository(private val context: Context) {
     recurringRuleDao.insertRule(RecurringRuleEntity.fromModel(rule))
   }
 
-  suspend fun updateRecurringRule(rule: RecurringRule) = withContext(Dispatchers.IO) {
+  suspend fun updateRecurringRule(rule: RecurringRule): Int = withContext(Dispatchers.IO) {
     recurringRuleDao.updateRule(RecurringRuleEntity.fromModel(rule))
   }
 
-  suspend fun deleteRecurringRule(id: Long) = withContext(Dispatchers.IO) {
-    recurringRuleDao.deleteRuleById(id)
+  suspend fun deleteRecurringRule(id: Long): Int = withContext(Dispatchers.IO) {
     paidRecurringOccurrenceDao.deleteForRule(id)
+    recurringRuleDao.deleteRuleById(id)
   }
 
   suspend fun toggleRecurringRule(id: Long, isActive: Boolean) = withContext(Dispatchers.IO) {

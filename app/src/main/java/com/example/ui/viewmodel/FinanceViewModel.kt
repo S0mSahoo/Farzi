@@ -2,6 +2,7 @@ package com.example.ui.viewmodel
 
 import android.app.Application
 import android.content.Context
+import android.util.Log
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
@@ -1136,8 +1137,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     if (item.title.isBlank() || !item.amount.isFinite() || item.amount <= 0.0 || item.timestamp <= 0L) {
       throw IllegalArgumentException("Invalid transaction parameters")
     }
-    repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
-    syncCurrentStateToDrive()
+    val rows = repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
+    if (rows == 0) {
+      throw IllegalStateException("Transaction '${item.title}' no longer exists in database.")
+    }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after update", e) }
   }
 
   fun updateTransaction(item: TransactionItem) {
@@ -1149,8 +1153,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   suspend fun deleteTransactionSuspend(item: TransactionItem) = withContext(Dispatchers.IO) {
-    repository.deleteTransaction(item)
-    syncCurrentStateToDrive()
+    val rows = repository.deleteTransaction(item)
+    if (rows == 0) {
+      throw IllegalStateException("Transaction '${item.title}' no longer exists in database.")
+    }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after delete", e) }
   }
 
   fun deleteTransaction(item: TransactionItem) {
@@ -1160,8 +1167,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   suspend fun deleteTransactionByIdSuspend(id: Long) = withContext(Dispatchers.IO) {
-    repository.deleteTransactionById(id)
-    syncCurrentStateToDrive()
+    val rows = repository.deleteTransactionById(id)
+    if (rows == 0) {
+      throw IllegalStateException("Transaction no longer exists in database.")
+    }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after delete", e) }
   }
 
   fun deleteTransactionById(id: Long) {
@@ -1196,7 +1206,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       updatedAt = System.currentTimeMillis()
     )
     val id = repository.saveBudget(budget)
-    syncCurrentStateToDrive()
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after save budget", e) }
     id
   }
 
@@ -1213,8 +1223,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   }
 
   suspend fun deleteBudgetSuspend(monthKey: String) = withContext(Dispatchers.IO) {
-    repository.deleteBudgetForMonth(monthKey)
-    syncCurrentStateToDrive()
+    val rows = repository.deleteBudgetForMonth(monthKey)
+    if (rows == 0) {
+      throw IllegalStateException("Budget for month '$monthKey' no longer exists in database.")
+    }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after delete budget", e) }
   }
 
   fun deleteBudget(monthKey: String) {
@@ -1254,8 +1267,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       isActive = true
     )
     val id = repository.insertRecurringRule(rule)
-    repository.processDueRecurringRules()
-    syncCurrentStateToDrive()
+    try { repository.processDueRecurringRules() } catch (e: Exception) { Log.e("FinanceViewModel", "Process rules failed", e) }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after add rule", e) }
     id
   }
 
@@ -1282,9 +1295,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       rule.startDate <= 0L || (rule.endDate != null && rule.endDate < rule.startDate)) {
       throw IllegalArgumentException("Invalid recurring rule parameters")
     }
-    repository.updateRecurringRule(rule)
-    repository.processDueRecurringRules()
-    syncCurrentStateToDrive()
+    val rows = repository.updateRecurringRule(rule)
+    if (rows == 0) {
+      throw IllegalStateException("Recurring rule '${rule.title}' no longer exists in database.")
+    }
+    try { repository.processDueRecurringRules() } catch (e: Exception) { Log.e("FinanceViewModel", "Process rules failed", e) }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after update rule", e) }
   }
 
   fun updateRecurringRule(rule: RecurringRule) {
@@ -1299,15 +1315,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       repository.toggleRecurringRule(id, isActive)
       if (isActive) {
-        repository.processDueRecurringRules()
+        try { repository.processDueRecurringRules() } catch (e: Exception) { Log.e("FinanceViewModel", "Process rules failed", e) }
       }
-      syncCurrentStateToDrive()
+      try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after toggle rule", e) }
     }
   }
 
   suspend fun deleteRecurringRuleSuspend(id: Long) = withContext(Dispatchers.IO) {
-    repository.deleteRecurringRule(id)
-    syncCurrentStateToDrive()
+    val rows = repository.deleteRecurringRule(id)
+    if (rows == 0) {
+      throw IllegalStateException("Recurring rule no longer exists in database.")
+    }
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after delete rule", e) }
   }
 
   fun deleteRecurringRule(id: Long) {

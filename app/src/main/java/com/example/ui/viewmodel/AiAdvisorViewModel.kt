@@ -459,23 +459,68 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         }
     }
 
+    private sealed interface DateTarget {
+        data class MonthKey(val monthKey: String) : DateTarget
+        data class DayKey(val dayKey: String) : DateTarget
+    }
+
+    private fun parseAndNormalizeDateTarget(targetDate: String): Result<DateTarget> {
+        if (targetDate.isBlank()) return Result.failure(IllegalArgumentException("Target date cannot be blank."))
+        val clean = targetDate.trim()
+        val formats = listOf(
+            "yyyy-MM-dd" to false,
+            "yyyy-MM" to true,
+            "yyyy/MM/dd" to false,
+            "yyyy/MM" to true,
+            "MMMM yyyy" to true,
+            "MMM yyyy" to true,
+            "MMMM, yyyy" to true
+        )
+
+        val sdfDayOut = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val sdfMonthOut = SimpleDateFormat("yyyy-MM", Locale.US)
+
+        for ((pattern, isMonthOnly) in formats) {
+            val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            val pos = java.text.ParsePosition(0)
+            val parsed = sdf.parse(clean, pos)
+            if (parsed != null && pos.index == clean.length) {
+                return if (isMonthOnly) {
+                    Result.success(DateTarget.MonthKey(sdfMonthOut.format(parsed)))
+                } else {
+                    Result.success(DateTarget.DayKey(sdfDayOut.format(parsed)))
+                }
+            }
+        }
+        return Result.failure(IllegalArgumentException("Invalid target date format '$targetDate'."))
+    }
+
     private fun parseAndValidateSingleAction(json: JSONObject): ActionParseResult {
         val currency = getCurrencySymbol()
         val action = json.optString("action", "").trim().uppercase()
         return when (action) {
             "LOG_TRANSACTION", "ADD_TRANSACTION" -> {
-                val title = json.optString("title", "Transaction").trim()
+                val title = json.optString("title", "").trim()
+                if (title.isBlank()) {
+                    return ActionParseResult(error = "Transaction title cannot be blank.")
+                }
                 val amount = json.optDouble("amount", 0.0)
                 if (amount <= 0.0 || !amount.isFinite()) {
                     return ActionParseResult(error = "Invalid transaction amount: must be positive and finite.")
                 }
-                val typeStr = json.optString("type", "EXPENSE")
-                val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
+                val typeResult = parseTransactionType(if (json.has("type")) json.optString("type") else null)
+                val type = typeResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val catResult = parseCategory(if (json.has("category")) json.optString("category") else null, type)
+                if (!json.has("category") || json.optString("category").isBlank()) {
+                    return ActionParseResult(error = "Category is required for transaction.")
+                }
+                val catResult = parseCategory(json.optString("category"), type)
                 val category = catResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val pmResult = parsePaymentMethod(if (json.has("paymentMethod")) json.optString("paymentMethod") else null)
+                if (!json.has("paymentMethod") || json.optString("paymentMethod").isBlank()) {
+                    return ActionParseResult(error = "Payment method is required for transaction.")
+                }
+                val pmResult = parsePaymentMethod(json.optString("paymentMethod"))
                 val paymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
 
                 val dateResult = parseDateToTimestamp(if (json.has("date")) json.optString("date") else null)
@@ -509,17 +554,23 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     return ActionParseResult(error = "Update target cannot be blank. Please specify a transaction title or date.")
                 }
 
+                var normalizedDateTarget: DateTarget? = null
                 if (targetDate.isNotBlank()) {
-                    val dateCheck = parseDateToTimestamp(targetDate)
-                    if (dateCheck.isFailure) {
-                        return ActionParseResult(error = "Invalid target date format '$targetDate'.")
+                    val normResult = parseAndNormalizeDateTarget(targetDate)
+                    if (normResult.isFailure) {
+                        return ActionParseResult(error = normResult.exceptionOrNull()?.message ?: "Invalid target date format '$targetDate'.")
                     }
+                    normalizedDateTarget = normResult.getOrNull()
                 }
 
                 val allTxs = financeViewModel?.allTransactions?.value ?: emptyList()
                 val matches = allTxs.filter { tx ->
                     val queryMatch = targetQuery.isBlank() || tx.title.contains(targetQuery, ignoreCase = true) || tx.note.contains(targetQuery, ignoreCase = true)
-                    val dateMatch = targetDate.isBlank() || DateUtils.getMonthKey(tx.timestamp) == targetDate || SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(tx.timestamp)) == targetDate
+                    val dateMatch = when (normalizedDateTarget) {
+                        null -> true
+                        is DateTarget.MonthKey -> DateUtils.getMonthKey(tx.timestamp) == normalizedDateTarget.monthKey
+                        is DateTarget.DayKey -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(tx.timestamp)) == normalizedDateTarget.dayKey
+                    }
                     queryMatch && dateMatch
                 }
 
@@ -532,15 +583,25 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 val targetTx = matches.first()
                 val newTitle = if (json.has("newTitle")) json.optString("newTitle").trim() else targetTx.title
+                if (newTitle.isBlank()) {
+                    return ActionParseResult(error = "New transaction title cannot be blank.")
+                }
                 val newAmount = if (json.has("newAmount")) json.optDouble("newAmount", targetTx.amount) else targetTx.amount
                 if (newAmount <= 0.0 || !newAmount.isFinite()) {
                     return ActionParseResult(error = "New transaction amount must be positive and finite.")
                 }
-                val newTypeStr = if (json.has("newType")) json.optString("newType") else targetTx.type.name
-                val newType = if (newTypeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
+                val newTypeResult = if (json.has("newType")) parseTransactionType(json.optString("newType")) else Result.success(targetTx.type)
+                val newType = newTypeResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val catResult = if (json.has("newCategory")) parseCategory(json.optString("newCategory"), newType) else Result.success(targetTx.category)
-                val newCategory = catResult.getOrElse { return ActionParseResult(error = it.message) }
+                val newCategory = if (json.has("newCategory")) {
+                    val catResult = parseCategory(json.optString("newCategory"), newType)
+                    catResult.getOrElse { return ActionParseResult(error = it.message) }
+                } else {
+                    if (targetTx.category.defaultType != newType) {
+                        return ActionParseResult(error = "Existing category '${targetTx.category.displayName}' is not valid for ${newType.displayName} transactions. Please specify a new category.")
+                    }
+                    targetTx.category
+                }
 
                 val pmResult = if (json.has("newPaymentMethod")) parsePaymentMethod(json.optString("newPaymentMethod")) else Result.success(targetTx.paymentMethod)
                 val newPaymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
@@ -552,7 +613,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 val data = ProposedActionData.UpdateTransactionData(
                     targetTransaction = targetTx,
-                    newTitle = newTitle.ifBlank { targetTx.title },
+                    newTitle = newTitle,
                     newAmount = newAmount,
                     newType = newType,
                     newCategory = newCategory,
@@ -578,11 +639,13 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     return ActionParseResult(error = "Delete target cannot be blank. Please specify a transaction title or date.")
                 }
 
+                var normalizedDateTarget: DateTarget? = null
                 if (targetDate.isNotBlank()) {
-                    val dateCheck = parseDateToTimestamp(targetDate)
-                    if (dateCheck.isFailure) {
-                        return ActionParseResult(error = "Invalid target date format '$targetDate'.")
+                    val normResult = parseAndNormalizeDateTarget(targetDate)
+                    if (normResult.isFailure) {
+                        return ActionParseResult(error = normResult.exceptionOrNull()?.message ?: "Invalid target date format '$targetDate'.")
                     }
+                    normalizedDateTarget = normResult.getOrNull()
                 }
 
                 val allTxs = financeViewModel?.allTransactions?.value ?: emptyList()
@@ -590,7 +653,11 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 val matches = allTxs.filter { tx ->
                     val queryMatch = isAll || targetQuery.isBlank() || tx.title.contains(targetQuery, ignoreCase = true) || tx.category.displayName.contains(targetQuery, ignoreCase = true) || tx.note.contains(targetQuery, ignoreCase = true)
-                    val dateMatch = targetDate.isBlank() || DateUtils.getMonthKey(tx.timestamp) == targetDate || SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(tx.timestamp)) == targetDate
+                    val dateMatch = when (normalizedDateTarget) {
+                        null -> true
+                        is DateTarget.MonthKey -> DateUtils.getMonthKey(tx.timestamp) == normalizedDateTarget.monthKey
+                        is DateTarget.DayKey -> SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(tx.timestamp)) == normalizedDateTarget.dayKey
+                    }
                     val amountMatch = amount == null || amount <= 0.0 || Math.abs(tx.amount - amount) < 0.01
                     queryMatch && dateMatch && amountMatch
                 }
@@ -669,21 +736,33 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 ActionParseResult(item = item)
             }
             "LOG_RECURRING", "ADD_RECURRING" -> {
-                val title = json.optString("title", "Recurring Bill").trim()
+                val title = json.optString("title", "").trim()
+                if (title.isBlank()) {
+                    return ActionParseResult(error = "Recurring rule title cannot be blank.")
+                }
                 val amount = json.optDouble("amount", 0.0)
                 if (amount <= 0.0 || !amount.isFinite()) {
                     return ActionParseResult(error = "Recurring rule amount must be positive and finite.")
                 }
-                val typeStr = json.optString("type", "EXPENSE")
-                val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
+                val typeResult = parseTransactionType(if (json.has("type")) json.optString("type") else null)
+                val type = typeResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val catResult = parseCategory(if (json.has("category")) json.optString("category") else null, type)
+                if (!json.has("category") || json.optString("category").isBlank()) {
+                    return ActionParseResult(error = "Category is required for recurring rule.")
+                }
+                val catResult = parseCategory(json.optString("category"), type)
                 val category = catResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val intervalResult = parseInterval(if (json.has("interval")) json.optString("interval") else null)
+                if (!json.has("interval") || json.optString("interval").isBlank()) {
+                    return ActionParseResult(error = "Recurrence interval is required.")
+                }
+                val intervalResult = parseInterval(json.optString("interval"))
                 val interval = intervalResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val pmResult = parsePaymentMethod(if (json.has("paymentMethod")) json.optString("paymentMethod") else null)
+                if (!json.has("paymentMethod") || json.optString("paymentMethod").isBlank()) {
+                    return ActionParseResult(error = "Payment method is required.")
+                }
+                val pmResult = parsePaymentMethod(json.optString("paymentMethod"))
                 val paymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
 
                 val data = ProposedActionData.LogRecurringData(
@@ -722,15 +801,25 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 val targetRule = matches.first()
                 val newTitle = if (json.has("newTitle")) json.optString("newTitle").trim() else targetRule.title
+                if (newTitle.isBlank()) {
+                    return ActionParseResult(error = "New recurring rule title cannot be blank.")
+                }
                 val newAmount = if (json.has("newAmount")) json.optDouble("newAmount", targetRule.amount) else targetRule.amount
                 if (newAmount <= 0.0 || !newAmount.isFinite()) {
                     return ActionParseResult(error = "New recurring rule amount must be positive and finite.")
                 }
-                val newTypeStr = if (json.has("newType")) json.optString("newType") else targetRule.type.name
-                val newType = if (newTypeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
+                val newTypeResult = if (json.has("newType")) parseTransactionType(json.optString("newType")) else Result.success(targetRule.type)
+                val newType = newTypeResult.getOrElse { return ActionParseResult(error = it.message) }
 
-                val catResult = if (json.has("newCategory")) parseCategory(json.optString("newCategory"), newType) else Result.success(targetRule.category)
-                val newCategory = catResult.getOrElse { return ActionParseResult(error = it.message) }
+                val newCategory = if (json.has("newCategory")) {
+                    val catResult = parseCategory(json.optString("newCategory"), newType)
+                    catResult.getOrElse { return ActionParseResult(error = it.message) }
+                } else {
+                    if (targetRule.category.defaultType != newType) {
+                        return ActionParseResult(error = "Existing category '${targetRule.category.displayName}' is not valid for ${newType.displayName} transactions. Please specify a new category.")
+                    }
+                    targetRule.category
+                }
 
                 val intervalResult = if (json.has("newInterval")) parseInterval(json.optString("newInterval")) else Result.success(targetRule.interval)
                 val newInterval = intervalResult.getOrElse { return ActionParseResult(error = it.message) }
@@ -742,7 +831,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 val data = ProposedActionData.UpdateRecurringData(
                     targetRule = targetRule,
-                    newTitle = newTitle.ifBlank { targetRule.title },
+                    newTitle = newTitle,
                     newAmount = newAmount,
                     newType = newType,
                     newCategory = newCategory,
@@ -895,7 +984,10 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Logged **${data.type.displayName}** of **$currency${String.format(Locale.US, "%.2f", data.amount)}** (*${data.title}* - ${data.category.displayName} [$monthLabel])."
             }
             is ProposedActionData.UpdateTransactionData -> {
-                val updated = data.targetTransaction.copy(
+                val currentTx = vm.allTransactions.value.find { it.id == data.targetTransaction.id }
+                    ?: throw IllegalStateException("Transaction '${data.targetTransaction.title}' no longer exists in database.")
+
+                val updated = currentTx.copy(
                     title = data.newTitle,
                     amount = data.newAmount,
                     type = data.newType,
@@ -908,8 +1000,12 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Updated transaction **${data.targetTransaction.title}** → **${updated.title}** ($currency${String.format(Locale.US, "%.2f", updated.amount)})."
             }
             is ProposedActionData.DeleteTransactionsData -> {
-                val ids = data.transactionsToDelete.map { it.id }
-                val count = vm.deleteTransactionsByIdsSuspend(ids)
+                val remainingIds = data.transactionsToDelete.map { it.id }
+                val currentMatching = vm.allTransactions.value.filter { it.id in remainingIds }
+                if (currentMatching.isEmpty()) {
+                    throw IllegalStateException("Target transaction(s) no longer exist in database.")
+                }
+                val count = vm.deleteTransactionsByIdsSuspend(currentMatching.map { it.id })
                 "• Deleted $count transaction(s): ${data.scopeDescription}."
             }
             is ProposedActionData.SetBudgetData -> {
@@ -921,7 +1017,9 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Set budget for month **${data.monthKey}** to **$currency${String.format(Locale.US, "%.2f", data.totalBudget)}**."
             }
             is ProposedActionData.DeleteBudgetData -> {
-                vm.deleteBudgetSuspend(data.monthKey)
+                val currentBudget = vm.allBudgets.value.find { it.monthKey == data.monthKey }
+                    ?: throw IllegalStateException("No active budget found for month '${data.monthKey}'.")
+                vm.deleteBudgetSuspend(currentBudget.monthKey)
                 "• Deleted monthly budget for **${data.monthKey}**."
             }
             is ProposedActionData.LogRecurringData -> {
@@ -939,7 +1037,10 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Added recurring **${data.interval.displayName}** rule for **${data.title}** ($currency${String.format(Locale.US, "%.2f", data.amount)})."
             }
             is ProposedActionData.UpdateRecurringData -> {
-                val updated = data.targetRule.copy(
+                val currentRule = vm.allRecurringRules.value.find { it.id == data.targetRule.id }
+                    ?: throw IllegalStateException("Recurring rule '${data.targetRule.title}' no longer exists in database.")
+
+                val updated = currentRule.copy(
                     title = data.newTitle,
                     amount = data.newAmount,
                     type = data.newType,
@@ -952,7 +1053,9 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Updated recurring rule **${data.targetRule.title}** → **${updated.title}** ($currency${String.format(Locale.US, "%.2f", updated.amount)})."
             }
             is ProposedActionData.DeleteRecurringData -> {
-                vm.deleteRecurringRuleSuspend(data.targetRule.id)
+                val currentRule = vm.allRecurringRules.value.find { it.id == data.targetRule.id }
+                    ?: throw IllegalStateException("Recurring rule '${data.targetRule.title}' no longer exists in database.")
+                vm.deleteRecurringRuleSuspend(currentRule.id)
                 "• Deleted recurring rule **${data.targetRule.title}**."
             }
             is ProposedActionData.UpdateProfileData -> {
@@ -1008,10 +1111,23 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         return Result.failure(IllegalArgumentException("Invalid date format '$dateStr'. Please use YYYY-MM-DD or YYYY-MM."))
     }
 
+    private fun parseTransactionType(str: String?, default: TransactionType? = null): Result<TransactionType> {
+        if (str.isNullOrBlank()) {
+            return if (default != null) Result.success(default)
+            else Result.failure(IllegalArgumentException("Transaction type cannot be blank."))
+        }
+        val clean = str.trim()
+        val found = TransactionType.values().find {
+            it.name.equals(clean, ignoreCase = true) ||
+            it.displayName.equals(clean, ignoreCase = true)
+        } ?: return Result.failure(IllegalArgumentException("Unknown transaction type '$str'."))
+
+        return Result.success(found)
+    }
+
     private fun parseCategory(str: String?, type: TransactionType): Result<TransactionCategory> {
         if (str.isNullOrBlank()) {
-            val defaultCat = if (type == TransactionType.INCOME) TransactionCategory.OTHER_INCOME else TransactionCategory.OTHER_EXPENSE
-            return Result.success(defaultCat)
+            return Result.failure(IllegalArgumentException("Category cannot be blank."))
         }
         val clean = str.trim()
         val found = TransactionCategory.values().find {
@@ -1027,7 +1143,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
     private fun parsePaymentMethod(str: String?): Result<PaymentMethod> {
         if (str.isNullOrBlank()) {
-            return Result.success(PaymentMethod.UPI)
+            return Result.failure(IllegalArgumentException("Payment method cannot be blank."))
         }
         val clean = str.trim()
         val found = PaymentMethod.values().find {
@@ -1041,7 +1157,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
     private fun parseInterval(str: String?): Result<RecurrenceInterval> {
         if (str.isNullOrBlank()) {
-            return Result.success(RecurrenceInterval.MONTHLY)
+            return Result.failure(IllegalArgumentException("Recurrence interval cannot be blank."))
         }
         val clean = str.trim()
         val found = RecurrenceInterval.values().find {
@@ -1064,3 +1180,4 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         sendMessage(prompt)
     }
 }
+

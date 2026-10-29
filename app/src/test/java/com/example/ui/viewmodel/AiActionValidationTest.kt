@@ -122,7 +122,7 @@ class AiActionValidationTest {
     fun testInvalidAmountsRejectedWithValidationError() {
         val rawAiResponse = """
             Logging expense.
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Lunch", "amount": -15.0}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Lunch", "amount": -15.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawAiResponse)
@@ -138,7 +138,7 @@ class AiActionValidationTest {
         // Malformed explicit date
         val rawInvalidDateResponse = """
             Logging expense with bad date.
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0, "date": "not-a-valid-date"}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH", "date": "not-a-valid-date"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawInvalidDateResponse)
@@ -149,10 +149,24 @@ class AiActionValidationTest {
 
         aiViewModel.cancelPendingAction()
 
+        // Impossible calendar date Feb 30
+        val rawFeb30Response = """
+            Logging expense for Feb 30.
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH", "date": "2026-02-30"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawFeb30Response)
+        val feb30Group = aiViewModel.pendingActionGroup.value
+        assertNotNull(feb30Group)
+        assertNotNull("Validation error must be present for impossible calendar date", feb30Group?.validationError)
+        assertTrue(feb30Group?.validationError?.contains("Invalid date format") == true)
+
+        aiViewModel.cancelPendingAction()
+
         // Valid month-only date "2026-08" -> should parse to 2026-08-01 12:00:00
         val rawMonthOnlyResponse = """
             Logging expense for August 2026.
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Rent Deposit", "amount": 500.0, "type": "EXPENSE", "category": "HOUSING", "date": "2026-08"}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Rent Deposit", "amount": 500.0, "type": "EXPENSE", "category": "HOUSING", "paymentMethod": "NET_BANKING", "date": "2026-08"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawMonthOnlyResponse)
@@ -171,7 +185,7 @@ class AiActionValidationTest {
     fun testInvalidCategoryPaymentMethodAndInterval() {
         // Unknown Category
         val rawBadCategory = """
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Crypto", "amount": 100.0, "category": "CRYPTOCURRENCY"}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Crypto", "amount": 100.0, "type": "EXPENSE", "category": "CRYPTOCURRENCY", "paymentMethod": "CASH"}
         """.trimIndent()
         invokeProcessAgenticAction(rawBadCategory)
         val badCatGroup = aiViewModel.pendingActionGroup.value
@@ -182,7 +196,7 @@ class AiActionValidationTest {
 
         // Incompatible Category (SALARY for EXPENSE transaction)
         val rawIncompatibleCategory = """
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Incompatible", "amount": 100.0, "type": "EXPENSE", "category": "SALARY"}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Incompatible", "amount": 100.0, "type": "EXPENSE", "category": "SALARY", "paymentMethod": "CASH"}
         """.trimIndent()
         invokeProcessAgenticAction(rawIncompatibleCategory)
         val incompGroup = aiViewModel.pendingActionGroup.value
@@ -193,7 +207,7 @@ class AiActionValidationTest {
 
         // Unknown Payment Method
         val rawBadPm = """
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Gold", "amount": 100.0, "paymentMethod": "GOLD_COINS"}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Gold", "amount": 100.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "GOLD_COINS"}
         """.trimIndent()
         invokeProcessAgenticAction(rawBadPm)
         val badPmGroup = aiViewModel.pendingActionGroup.value
@@ -204,12 +218,111 @@ class AiActionValidationTest {
 
         // Unknown Recurrence Interval
         val rawBadInterval = """
-            ACTION_JSON: {"action": "LOG_RECURRING", "title": "Gym", "amount": 30.0, "interval": "BIWEEKLY"}
+            ACTION_JSON: {"action": "LOG_RECURRING", "title": "Gym", "amount": 30.0, "type": "EXPENSE", "category": "FITNESS", "interval": "BIWEEKLY", "paymentMethod": "CREDIT_CARD"}
         """.trimIndent()
         invokeProcessAgenticAction(rawBadInterval)
         val badIntervalGroup = aiViewModel.pendingActionGroup.value
         assertNotNull(badIntervalGroup?.validationError)
         assertTrue(badIntervalGroup?.validationError?.contains("Unknown recurrence interval") == true)
+    }
+
+    @Test
+    fun testUnknownTransactionTypeAndMissingRequiredFields() {
+        // Unknown transaction type
+        val rawBadType = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Stock", "amount": 100.0, "type": "CRYPTO", "category": "INVESTMENTS", "paymentMethod": "CASH"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawBadType)
+        val badTypeGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(badTypeGroup?.validationError)
+        assertTrue(badTypeGroup?.validationError?.contains("Unknown transaction type") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Blank title
+        val rawBlankTitle = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "   ", "amount": 100.0, "type": "EXPENSE", "category": "GROCERIES", "paymentMethod": "CASH"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawBlankTitle)
+        val blankTitleGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(blankTitleGroup?.validationError)
+        assertTrue(blankTitleGroup?.validationError?.contains("title cannot be blank") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Missing required category
+        val rawMissingCat = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Lunch", "amount": 15.0, "type": "EXPENSE", "paymentMethod": "CASH"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawMissingCat)
+        val missingCatGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(missingCatGroup?.validationError)
+        assertTrue(missingCatGroup?.validationError?.contains("Category is required") == true)
+    }
+
+    @Test
+    fun testTypeChangeIncompatibleWithCategoryOnUpdate() {
+        financeViewModel.addTransaction(
+            title = "Supermarket",
+            amount = 80.0,
+            type = TransactionType.EXPENSE,
+            category = TransactionCategory.GROCERIES,
+            timestamp = System.currentTimeMillis(),
+            note = "",
+            paymentMethod = PaymentMethod.CREDIT_CARD
+        )
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Supermarket" } }
+
+        // Change type to INCOME without providing newCategory (Groceries is EXPENSE-only)
+        val rawUpdateTypeResponse = """
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Supermarket", "newType": "INCOME"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawUpdateTypeResponse)
+        val group = aiViewModel.pendingActionGroup.value
+        assertNotNull(group)
+        assertNotNull("Incompatible category for new type must cause validation error", group?.validationError)
+        assertTrue(group?.validationError?.contains("not valid for Income") == true)
+    }
+
+    @Test
+    fun testNormalizedDateMatchingForUpdateAndDelete() {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val targetDateStr = "2026-08-15"
+        val targetTime = sdf.parse(targetDateStr)!!.time
+
+        financeViewModel.addTransaction(
+            title = "Target Date Tx",
+            amount = 45.0,
+            type = TransactionType.EXPENSE,
+            category = TransactionCategory.FOOD_DINING,
+            timestamp = targetTime,
+            note = "Special lunch",
+            paymentMethod = PaymentMethod.UPI
+        )
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Target Date Tx" } }
+
+        // Query with slash format "2026/08/15" -> should match normalized ISO day
+        val rawSlashQuery = """
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "2026/08/15", "newAmount": 55.0}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawSlashQuery)
+        val slashGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(slashGroup)
+        assertNull("Slash date '2026/08/15' should normalize and match successfully", slashGroup?.validationError)
+
+        aiViewModel.cancelPendingAction()
+
+        // Query with month name "August 2026" -> should match normalized month key
+        val rawMonthNameQuery = """
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "August 2026", "newAmount": 65.0}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawMonthNameQuery)
+        val monthGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(monthGroup)
+        assertNull("Month name 'August 2026' should normalize and match successfully", monthGroup?.validationError)
     }
 
     @Test
@@ -271,7 +384,7 @@ class AiActionValidationTest {
         val initialTxCount = financeViewModel.allTransactions.value.size
 
         val rawBadAction = """
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Bad Tx", "amount": -50.0}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Bad Tx", "amount": -50.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawBadAction)
@@ -344,7 +457,7 @@ class AiActionValidationTest {
 
         val rawAiResponse = """
             Logging expense.
-            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0}
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawAiResponse)
@@ -357,3 +470,4 @@ class AiActionValidationTest {
         assertEquals("Database must remain untouched after cancellation", initialCount, financeViewModel.allTransactions.value.size)
     }
 }
+
