@@ -452,6 +452,150 @@ class AiActionValidationTest {
     }
 
     @Test
+    fun testUnambiguousPaymentMethodParsing() {
+        // Canonical name
+        val rawCanonical = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Card Expense", "amount": 20.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "CREDIT_CARD"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawCanonical)
+        assertNull("Canonical enum name CREDIT_CARD must be accepted", aiViewModel.pendingActionGroup.value?.validationError)
+        aiViewModel.cancelPendingAction()
+
+        // Display name
+        val rawDisplay = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Cash Expense", "amount": 20.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "Cash"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawDisplay)
+        assertNull("Display name Cash must be accepted", aiViewModel.pendingActionGroup.value?.validationError)
+        aiViewModel.cancelPendingAction()
+
+        // Explicit alias CC
+        val rawAlias = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Alias Expense", "amount": 20.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "CC"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawAlias)
+        val aliasGroup = aiViewModel.pendingActionGroup.value
+        assertNull("Explicit alias CC must be accepted", aliasGroup?.validationError)
+        val data = aliasGroup?.actionItems?.first()?.data as ProposedActionData.LogTransactionData
+        assertEquals(PaymentMethod.CREDIT_CARD, data.paymentMethod)
+        aiViewModel.cancelPendingAction()
+
+        // Ambiguous prefix "C" must be rejected
+        val rawAmbiguous = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Ambiguous Expense", "amount": 20.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "C"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawAmbiguous)
+        val ambGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(ambGroup?.validationError)
+        assertTrue("Ambiguous prefix C must be rejected", ambGroup?.validationError?.contains("Unknown payment method") == true)
+        aiViewModel.cancelPendingAction()
+
+        // Unknown value "BITCOIN" must be rejected
+        val rawUnknown = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Crypto Expense", "amount": 20.0, "type": "EXPENSE", "category": "SHOPPING", "paymentMethod": "BITCOIN"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawUnknown)
+        val unkGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(unkGroup?.validationError)
+        assertTrue("Unknown value BITCOIN must be rejected", unkGroup?.validationError?.contains("Unknown payment method") == true)
+    }
+
+    @Test
+    fun testNormalizedDateMatchingForDeletionsActualRecords() {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val timeAug10 = sdf.parse("2026-08-10")!!.time
+        val timeAug15 = sdf.parse("2026-08-15")!!.time
+        val timeSept1 = sdf.parse("2026-09-01")!!.time
+
+        financeViewModel.addTransaction("Aug 10 Coffee", 10.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, timeAug10, "", PaymentMethod.CASH)
+        financeViewModel.addTransaction("Aug 15 Groceries", 50.0, TransactionType.EXPENSE, TransactionCategory.GROCERIES, timeAug15, "", PaymentMethod.UPI)
+        financeViewModel.addTransaction("Sept 1 Utilities", 100.0, TransactionType.EXPENSE, TransactionCategory.UTILITIES, timeSept1, "", PaymentMethod.NET_BANKING)
+
+        flushCoroutines { financeViewModel.allTransactions.value.size >= 3 }
+
+        // 1. Delete Aug 15 Groceries using slash format "2026/08/15"
+        val rawDeleteSlashDay = """
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "2026/08/15"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawDeleteSlashDay)
+        val pendingSlash = aiViewModel.pendingActionGroup.value
+        assertNotNull(pendingSlash)
+        assertNull(pendingSlash?.validationError)
+
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == "Aug 15 Groceries" } }
+
+        val txsAfterDayDelete = financeViewModel.allTransactions.value
+        assertTrue("Aug 15 Groceries must be deleted", txsAfterDayDelete.none { it.title == "Aug 15 Groceries" })
+        assertTrue("Aug 10 Coffee must remain", txsAfterDayDelete.any { it.title == "Aug 10 Coffee" })
+        assertTrue("Sept 1 Utilities must remain", txsAfterDayDelete.any { it.title == "Sept 1 Utilities" })
+
+        // 2. Delete ALL August transactions using month-name target "August 2026"
+        val rawDeleteAugMonth = """
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL", "targetDate": "August 2026"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawDeleteAugMonth)
+        val pendingAug = aiViewModel.pendingActionGroup.value
+        assertNotNull(pendingAug)
+        assertNull(pendingAug?.validationError)
+
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == "Aug 10 Coffee" } }
+
+        val txsAfterMonthDelete = financeViewModel.allTransactions.value
+        assertTrue("Aug 10 Coffee must be deleted", txsAfterMonthDelete.none { it.title == "Aug 10 Coffee" })
+        assertTrue("Sept 1 Utilities in different month MUST remain untouched", txsAfterMonthDelete.any { it.title == "Sept 1 Utilities" })
+    }
+
+    @Test
+    fun testPartialBatchRetrySkipsCompletedActionsAndRetriesFailed() {
+        // Pre-insert StaleTx into DB so Action 2 passes initial parse validation
+        financeViewModel.addTransaction("StaleTx", 15.0, TransactionType.EXPENSE, TransactionCategory.SHOPPING, System.currentTimeMillis(), "", PaymentMethod.CASH)
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "StaleTx" } }
+        val staleItem = financeViewModel.allTransactions.value.first { it.title == "StaleTx" }
+
+        val rawBatchAction = """
+            ACTION_JSON: [
+                {"action": "LOG_TRANSACTION", "title": "Batch Tx 1", "amount": 20.0, "type": "EXPENSE", "category": "FOOD_DINING", "paymentMethod": "CASH"},
+                {"action": "DELETE_TRANSACTION", "targetQuery": "StaleTx"}
+            ]
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawBatchAction)
+        val group = aiViewModel.pendingActionGroup.value
+        assertNotNull(group)
+        assertNull("Batch should be parsed without initial validation error", group?.validationError)
+        assertEquals(2, group?.actionItems?.size)
+
+        // Delete StaleTx directly to simulate a stale target at confirmation time
+        financeViewModel.deleteTransaction(staleItem)
+        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == "StaleTx" } }
+
+        // Confirm batch execution - Action 1 succeeds, Action 2 fails (stale target)
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { aiViewModel.pendingActionGroup.value?.actionItems?.get(0)?.status == ActionExecutionStatus.SUCCESS }
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Batch Tx 1" } }
+
+        val groupAfterFail = aiViewModel.pendingActionGroup.value
+        assertNotNull("Pending group should remain for partial batch retry", groupAfterFail)
+        assertEquals(ActionExecutionStatus.SUCCESS, groupAfterFail?.actionItems?.get(0)?.status)
+        assertEquals(ActionExecutionStatus.FAILED, groupAfterFail?.actionItems?.get(1)?.status)
+
+        val tx1CountBeforeRetry = financeViewModel.allTransactions.value.count { it.title == "Batch Tx 1" }
+        assertEquals(1, tx1CountBeforeRetry)
+
+        // Retry batch - Action 1 MUST be skipped and NOT duplicated!
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { !aiViewModel.isProcessingAction.value }
+        flushCoroutines()
+
+        val tx1CountAfterRetry = financeViewModel.allTransactions.value.count { it.title == "Batch Tx 1" }
+        assertEquals("Retrying MUST NOT duplicate successfully completed actions in batch", 1, tx1CountAfterRetry)
+    }
+
+    @Test
     fun testCancelPendingActionDismissesStateWithoutMutating() {
         val initialCount = financeViewModel.allTransactions.value.size
 
@@ -470,4 +614,5 @@ class AiActionValidationTest {
         assertEquals("Database must remain untouched after cancellation", initialCount, financeViewModel.allTransactions.value.size)
     }
 }
+
 

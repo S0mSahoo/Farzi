@@ -125,8 +125,8 @@ data class ProposedActionItem(
     val detailSummary: String,
     val isDestructive: Boolean,
     val data: ProposedActionData,
-    var status: ActionExecutionStatus = ActionExecutionStatus.PENDING,
-    var errorMessage: String? = null
+    val status: ActionExecutionStatus = ActionExecutionStatus.PENDING,
+    val errorMessage: String? = null
 )
 
 data class PendingActionGroup(
@@ -909,30 +909,35 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         _isProcessingAction.value = true
 
         viewModelScope.launch {
+            val updatedItems = group.actionItems.toMutableList()
             val confirmations = mutableListOf<String>()
             val errors = mutableListOf<String>()
 
             try {
-                for (item in group.actionItems) {
+                for (i in updatedItems.indices) {
+                    val item = updatedItems[i]
                     if (item.status == ActionExecutionStatus.SUCCESS) {
                         confirmations.add("• (Already completed) ${item.title}")
                         continue
                     }
                     try {
                         val conf = executeActionData(item.data)
-                        item.status = ActionExecutionStatus.SUCCESS
-                        item.errorMessage = null
+                        val successItem = item.copy(status = ActionExecutionStatus.SUCCESS, errorMessage = null)
+                        updatedItems[i] = successItem
+                        _pendingActionGroup.value = group.copy(actionItems = updatedItems.toList())
                         if (conf.isNotBlank()) confirmations.add(conf)
                     } catch (e: Exception) {
                         Log.e(TAG, "Failed to execute action ${item.title}", e)
-                        item.status = ActionExecutionStatus.FAILED
-                        item.errorMessage = e.localizedMessage ?: "Execution failed"
-                        errors.add("• Failed: ${item.title} (${e.localizedMessage ?: "Database error"})")
+                        val errorMsg = e.localizedMessage ?: "Execution failed"
+                        val failedItem = item.copy(status = ActionExecutionStatus.FAILED, errorMessage = errorMsg)
+                        updatedItems[i] = failedItem
+                        _pendingActionGroup.value = group.copy(actionItems = updatedItems.toList())
+                        errors.add("• Failed: ${item.title} ($errorMsg)")
                         break // Stop executing subsequent actions in this batch
                     }
                 }
 
-                val allSuccess = group.actionItems.all { it.status == ActionExecutionStatus.SUCCESS }
+                val allSuccess = updatedItems.all { it.status == ActionExecutionStatus.SUCCESS }
 
                 if (allSuccess) {
                     val finalMsg = if (confirmations.isNotEmpty()) {
@@ -954,7 +959,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                         append("\nPlease retry the failed action(s) or cancel.")
                     }
                     _messages.value = _messages.value + ChatMessage("model", partialMsg)
-                    _pendingActionGroup.value = group.copy()
+                    _pendingActionGroup.value = group.copy(actionItems = updatedItems.toList())
                 }
             } finally {
                 _isProcessingAction.value = false
@@ -963,6 +968,7 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
     }
 
     fun cancelPendingAction() {
+        if (_isProcessingAction.value) return
         _pendingActionGroup.value = null
     }
 
@@ -971,15 +977,23 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         val currency = getCurrencySymbol()
         return when (data) {
             is ProposedActionData.LogTransactionData -> {
-                vm.addTransactionSuspend(
-                    title = data.title,
-                    amount = data.amount,
-                    type = data.type,
-                    category = data.category,
-                    timestamp = data.timestamp,
-                    note = data.note,
-                    paymentMethod = data.paymentMethod
-                )
+                val existing = vm.allTransactions.value.find {
+                    it.title == data.title &&
+                    Math.abs(it.amount - data.amount) < 0.001 &&
+                    it.timestamp == data.timestamp &&
+                    it.category == data.category
+                }
+                if (existing == null) {
+                    vm.addTransactionSuspend(
+                        title = data.title,
+                        amount = data.amount,
+                        type = data.type,
+                        category = data.category,
+                        timestamp = data.timestamp,
+                        note = data.note,
+                        paymentMethod = data.paymentMethod
+                    )
+                }
                 val monthLabel = DateUtils.getMonthLabel(data.timestamp)
                 "• Logged **${data.type.displayName}** of **$currency${String.format(Locale.US, "%.2f", data.amount)}** (*${data.title}* - ${data.category.displayName} [$monthLabel])."
             }
@@ -1023,17 +1037,24 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Deleted monthly budget for **${data.monthKey}**."
             }
             is ProposedActionData.LogRecurringData -> {
-                vm.addRecurringRuleSuspend(
-                    title = data.title,
-                    amount = data.amount,
-                    type = data.type,
-                    category = data.category,
-                    interval = data.interval,
-                    startDate = System.currentTimeMillis(),
-                    endDate = null,
-                    paymentMethod = data.paymentMethod,
-                    note = data.note
-                )
+                val existing = vm.allRecurringRules.value.find {
+                    it.title == data.title &&
+                    Math.abs(it.amount - data.amount) < 0.001 &&
+                    it.interval == data.interval
+                }
+                if (existing == null) {
+                    vm.addRecurringRuleSuspend(
+                        title = data.title,
+                        amount = data.amount,
+                        type = data.type,
+                        category = data.category,
+                        interval = data.interval,
+                        startDate = System.currentTimeMillis(),
+                        endDate = null,
+                        paymentMethod = data.paymentMethod,
+                        note = data.note
+                    )
+                }
                 "• Added recurring **${data.interval.displayName}** rule for **${data.title}** ($currency${String.format(Locale.US, "%.2f", data.amount)})."
             }
             is ProposedActionData.UpdateRecurringData -> {
@@ -1146,10 +1167,24 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
             return Result.failure(IllegalArgumentException("Payment method cannot be blank."))
         }
         val clean = str.trim()
+        val uppercase = clean.uppercase()
+
+        val explicitAliasMap = mapOf(
+            "CC" to PaymentMethod.CREDIT_CARD,
+            "DC" to PaymentMethod.DEBIT_CARD,
+            "NETBANKING" to PaymentMethod.NET_BANKING,
+            "NET BANKING" to PaymentMethod.NET_BANKING,
+            "CREDIT CARD" to PaymentMethod.CREDIT_CARD,
+            "DEBIT CARD" to PaymentMethod.DEBIT_CARD,
+            "BANK_TRANSFER" to PaymentMethod.NET_BANKING,
+            "BANK TRANSFER" to PaymentMethod.NET_BANKING
+        )
+
+        explicitAliasMap[uppercase]?.let { return Result.success(it) }
+
         val found = PaymentMethod.values().find {
             it.name.equals(clean, ignoreCase = true) ||
-            it.displayName.equals(clean, ignoreCase = true) ||
-            it.displayName.startsWith(clean, ignoreCase = true)
+            it.displayName.equals(clean, ignoreCase = true)
         } ?: return Result.failure(IllegalArgumentException("Unknown payment method '$str'."))
 
         return Result.success(found)
@@ -1180,4 +1215,5 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         sendMessage(prompt)
     }
 }
+
 

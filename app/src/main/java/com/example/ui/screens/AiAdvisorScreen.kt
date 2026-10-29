@@ -78,6 +78,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.viewmodel.ActionExecutionStatus
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
 import com.example.ui.viewmodel.ChatMessage
@@ -366,6 +367,9 @@ fun PendingActionPreviewCard(
     onCancel: () -> Unit
 ) {
     val isDestructive = group.isDestructive || group.requiresExplicitDeleteAllConfirmation
+    val hasFailedItems = group.actionItems.any { it.status == ActionExecutionStatus.FAILED }
+    val hasCompletedItems = group.actionItems.any { it.status == ActionExecutionStatus.SUCCESS }
+
     val cardBg = if (isDestructive) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f)
     val border = BorderStroke(1.dp, if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
 
@@ -388,11 +392,12 @@ fun PendingActionPreviewCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = if (group.requiresExplicitDeleteAllConfirmation) "⚠️ Dedicated Delete All Confirmation"
+                    else if (hasFailedItems) "⚠️ Action Execution Incomplete"
                     else if (isDestructive) "⚠️ Confirm Destructive Action"
                     else "📋 Review Proposed Financial Action",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDestructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
+                    color = if (isDestructive || hasFailedItems) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -417,21 +422,71 @@ fun PendingActionPreviewCard(
             }
 
             group.actionItems.forEach { item ->
-                Column(
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = when (item.status) {
+                        ActionExecutionStatus.SUCCESS -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                        ActionExecutionStatus.FAILED -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.6f)
+                        ActionExecutionStatus.PENDING -> MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
+                        .testTag("action_status_${item.status.name.lowercase()}")
                 ) {
-                    Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = item.detailSummary,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = when (item.status) {
+                                    ActionExecutionStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                                    ActionExecutionStatus.FAILED -> MaterialTheme.colorScheme.error
+                                    ActionExecutionStatus.PENDING -> MaterialTheme.colorScheme.surfaceVariant
+                                }
+                            ) {
+                                Text(
+                                    text = when (item.status) {
+                                        ActionExecutionStatus.SUCCESS -> "✓ Completed"
+                                        ActionExecutionStatus.FAILED -> "✗ Failed"
+                                        ActionExecutionStatus.PENDING -> "⏳ Pending"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = when (item.status) {
+                                        ActionExecutionStatus.SUCCESS -> MaterialTheme.colorScheme.onPrimary
+                                        ActionExecutionStatus.FAILED -> MaterialTheme.colorScheme.onError
+                                        ActionExecutionStatus.PENDING -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    },
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = item.detailSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (item.status == ActionExecutionStatus.FAILED && !item.errorMessage.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "❌ Failure Reason: ${item.errorMessage}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
 
@@ -450,6 +505,15 @@ fun PendingActionPreviewCard(
                         modifier = Modifier.padding(10.dp)
                     )
                 }
+            }
+
+            if (hasFailedItems && hasCompletedItems) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "ℹ️ Retrying will skip completed actions and re-run only failed ones.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -472,7 +536,7 @@ fun PendingActionPreviewCard(
                 Button(
                     onClick = onConfirm,
                     enabled = group.validationError == null && !isProcessing,
-                    colors = if (isDestructive) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
+                    colors = if (isDestructive && !hasFailedItems) ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error) else ButtonDefaults.buttonColors(),
                     modifier = Modifier.testTag("ai_confirm_action")
                 ) {
                     if (isProcessing) {
@@ -484,7 +548,14 @@ fun PendingActionPreviewCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Executing...")
                     } else {
-                        Text(if (isDestructive) "Confirm Deletion" else "Confirm & Execute")
+                        val buttonText = if (hasFailedItems) {
+                            "Retry Failed Action(s)"
+                        } else if (isDestructive) {
+                            "Confirm Deletion"
+                        } else {
+                            "Confirm & Execute"
+                        }
+                        Text(buttonText)
                     }
                 }
             }
