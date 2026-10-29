@@ -1,13 +1,11 @@
 package com.example.ui.viewmodel
 
 import android.app.Application
-import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.model.PaymentMethod
+import com.example.data.model.RecurrenceInterval
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionType
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -16,9 +14,12 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowLooper
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
@@ -38,6 +39,12 @@ class AiActionValidationTest {
         ShadowLooper.idleMainLooper()
     }
 
+    private fun invokeProcessAgenticAction(rawText: String) {
+        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
+        processMethod.isAccessible = true
+        processMethod.invoke(aiViewModel, rawText)
+    }
+
     @Before
     fun setUp() {
         val app = ApplicationProvider.getApplicationContext<Application>()
@@ -50,7 +57,6 @@ class AiActionValidationTest {
     @Test
     fun testBlankTargetRejectedWithValidationError() {
         val initialCount = financeViewModel.allTransactions.value.size
-        // Add a dummy transaction
         financeViewModel.addTransaction(
             title = "Groceries",
             amount = 50.0,
@@ -62,15 +68,12 @@ class AiActionValidationTest {
         )
         flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Groceries" } }
 
-        // Model attempts to send UPDATE_TRANSACTION with blank targetQuery
         val rawAiResponse = """
             I can update that for you.
             ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "", "newAmount": 60.0}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         val pendingGroup = aiViewModel.pendingActionGroup.value
         assertNotNull("Pending group should be created", pendingGroup)
@@ -80,8 +83,6 @@ class AiActionValidationTest {
 
     @Test
     fun testAmbiguousQueryMatchesRejectedWithValidationError() {
-        val initialCount = financeViewModel.allTransactions.value.size
-        // Add two transactions with matching title "Coffee"
         financeViewModel.addTransaction(
             title = "Starbucks Coffee",
             amount = 5.0,
@@ -104,20 +105,17 @@ class AiActionValidationTest {
             financeViewModel.allTransactions.value.count { it.title.contains("Coffee") } >= 2
         }
 
-        // Model attempts to delete "Coffee" without specifying unique target
         val rawAiResponse = """
             Deleting Coffee.
             ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "Coffee"}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         val pendingGroup = aiViewModel.pendingActionGroup.value
         assertNotNull("Pending group should be created", pendingGroup)
-        assertNotNull("Validation error must be present for ambiguous query: ${pendingGroup?.validationError}", pendingGroup?.validationError)
-        assertTrue("Error should mention ambiguous query: ${pendingGroup?.validationError}", pendingGroup?.validationError?.contains("Ambiguous") == true)
+        assertNotNull("Validation error must be present for ambiguous query", pendingGroup?.validationError)
+        assertTrue("Error should mention ambiguous query", pendingGroup?.validationError?.contains("Ambiguous") == true)
     }
 
     @Test
@@ -127,9 +125,7 @@ class AiActionValidationTest {
             ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Lunch", "amount": -15.0}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         val pendingGroup = aiViewModel.pendingActionGroup.value
         assertNotNull(pendingGroup)
@@ -138,8 +134,160 @@ class AiActionValidationTest {
     }
 
     @Test
+    fun testInvalidDatesAndMonthOnlyDates() {
+        // Malformed explicit date
+        val rawInvalidDateResponse = """
+            Logging expense with bad date.
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0, "date": "not-a-valid-date"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawInvalidDateResponse)
+        val badDateGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(badDateGroup)
+        assertNotNull("Validation error must be present for malformed date", badDateGroup?.validationError)
+        assertTrue(badDateGroup?.validationError?.contains("Invalid date format") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Valid month-only date "2026-08" -> should parse to 2026-08-01 12:00:00
+        val rawMonthOnlyResponse = """
+            Logging expense for August 2026.
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Rent Deposit", "amount": 500.0, "type": "EXPENSE", "category": "HOUSING", "date": "2026-08"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawMonthOnlyResponse)
+        val monthGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(monthGroup)
+        assertNull("Month-only date should be accepted without validation error", monthGroup?.validationError)
+
+        val logData = monthGroup?.actionItems?.first()?.data as ProposedActionData.LogTransactionData
+        val cal = Calendar.getInstance().apply { timeInMillis = logData.timestamp }
+        assertEquals(2026, cal.get(Calendar.YEAR))
+        assertEquals(Calendar.AUGUST, cal.get(Calendar.MONTH))
+        assertEquals(1, cal.get(Calendar.DAY_OF_MONTH))
+    }
+
+    @Test
+    fun testInvalidCategoryPaymentMethodAndInterval() {
+        // Unknown Category
+        val rawBadCategory = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Crypto", "amount": 100.0, "category": "CRYPTOCURRENCY"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawBadCategory)
+        val badCatGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(badCatGroup?.validationError)
+        assertTrue(badCatGroup?.validationError?.contains("Unknown category") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Incompatible Category (SALARY for EXPENSE transaction)
+        val rawIncompatibleCategory = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Incompatible", "amount": 100.0, "type": "EXPENSE", "category": "SALARY"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawIncompatibleCategory)
+        val incompGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(incompGroup?.validationError)
+        assertTrue(incompGroup?.validationError?.contains("not valid for Expense") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Unknown Payment Method
+        val rawBadPm = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Gold", "amount": 100.0, "paymentMethod": "GOLD_COINS"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawBadPm)
+        val badPmGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(badPmGroup?.validationError)
+        assertTrue(badPmGroup?.validationError?.contains("Unknown payment method") == true)
+
+        aiViewModel.cancelPendingAction()
+
+        // Unknown Recurrence Interval
+        val rawBadInterval = """
+            ACTION_JSON: {"action": "LOG_RECURRING", "title": "Gym", "amount": 30.0, "interval": "BIWEEKLY"}
+        """.trimIndent()
+        invokeProcessAgenticAction(rawBadInterval)
+        val badIntervalGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(badIntervalGroup?.validationError)
+        assertTrue(badIntervalGroup?.validationError?.contains("Unknown recurrence interval") == true)
+    }
+
+    @Test
+    fun testMissingOptionalUpdateFieldsPreserveOriginalValues() {
+        val origTime = System.currentTimeMillis() - 86400000L
+        financeViewModel.addTransaction(
+            title = "Original Title",
+            amount = 100.0,
+            type = TransactionType.EXPENSE,
+            category = TransactionCategory.GROCERIES,
+            timestamp = origTime,
+            note = "Original Note",
+            paymentMethod = PaymentMethod.CREDIT_CARD
+        )
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Original Title" } }
+
+        // Update ONLY newAmount
+        val rawUpdateResponse = """
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Original Title", "newAmount": 150.0}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawUpdateResponse)
+        val updateGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(updateGroup)
+        assertNull(updateGroup?.validationError)
+
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.amount == 150.0 } }
+
+        val updatedTx = financeViewModel.allTransactions.value.first { it.amount == 150.0 }
+        assertEquals("Original Title", updatedTx.title)
+        assertEquals(TransactionCategory.GROCERIES, updatedTx.category)
+        assertEquals(PaymentMethod.CREDIT_CARD, updatedTx.paymentMethod)
+        assertEquals(origTime, updatedTx.timestamp)
+        assertEquals("Original Note", updatedTx.note)
+    }
+
+    @Test
+    fun testProfileCurrencyPersistence() {
+        val rawProfileResponse = """
+            ACTION_JSON: {"action": "UPDATE_PROFILE", "name": "Siddharth", "currencySymbol": "$"}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawProfileResponse)
+        val profileGroup = aiViewModel.pendingActionGroup.value
+        assertNotNull(profileGroup)
+        assertNull(profileGroup?.validationError)
+
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines { financeViewModel.userProfile.value.name == "Siddharth" }
+
+        val updatedProfile = financeViewModel.userProfile.value
+        assertEquals("Siddharth", updatedProfile.name)
+        assertEquals("$", updatedProfile.currencySymbol)
+    }
+
+    @Test
+    fun testNoMutationsOnValidationError() {
+        val initialTxCount = financeViewModel.allTransactions.value.size
+
+        val rawBadAction = """
+            ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Bad Tx", "amount": -50.0}
+        """.trimIndent()
+
+        invokeProcessAgenticAction(rawBadAction)
+        val group = aiViewModel.pendingActionGroup.value
+        assertNotNull(group)
+        assertNotNull(group?.validationError)
+
+        // Attempting to confirm with a validation error must not mutate data
+        aiViewModel.confirmAndExecutePendingAction()
+        flushCoroutines()
+
+        assertEquals(initialTxCount, financeViewModel.allTransactions.value.size)
+    }
+
+    @Test
     fun testDeleteAllRequiresExplicitConfirmation() {
-        val initialCount = financeViewModel.allTransactions.value.size
         financeViewModel.addTransaction(
             title = "Test TX 1",
             amount = 10.0,
@@ -156,13 +304,11 @@ class AiActionValidationTest {
             ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL"}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         val pendingGroup = aiViewModel.pendingActionGroup.value
         assertNotNull(pendingGroup)
-        assertNull("Valid delete all should not have validation error if transactions exist: ${pendingGroup?.validationError}", pendingGroup?.validationError)
+        assertNull("Valid delete all should not have validation error if transactions exist", pendingGroup?.validationError)
         assertTrue("isDestructive must be true", pendingGroup?.isDestructive == true)
         assertTrue("requiresExplicitDeleteAllConfirmation must be true", pendingGroup?.requiresExplicitDeleteAllConfirmation == true)
     }
@@ -176,19 +322,15 @@ class AiActionValidationTest {
             ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "August Salary", "amount": 3000.0, "type": "INCOME", "category": "SALARY", "paymentMethod": "NET_BANKING"}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         val pendingGroupBefore = aiViewModel.pendingActionGroup.value
         assertNotNull(pendingGroupBefore)
         assertNull(pendingGroupBefore?.validationError)
 
-        // Explicitly confirm action
         aiViewModel.confirmAndExecutePendingAction()
         flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "August Salary" } }
 
-        // After confirmation, pending group should be cleared and 1 transaction added
         assertNull("Pending group should be cleared after execution", aiViewModel.pendingActionGroup.value)
         assertEquals(initialCount + 1, financeViewModel.allTransactions.value.size)
         val addedTx = financeViewModel.allTransactions.value.first { it.title == "August Salary" }
@@ -205,13 +347,10 @@ class AiActionValidationTest {
             ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Dinner", "amount": 25.0}
         """.trimIndent()
 
-        val processMethod = AiAdvisorViewModel::class.java.getDeclaredMethod("processAgenticAction", String::class.java)
-        processMethod.isAccessible = true
-        processMethod.invoke(aiViewModel, rawAiResponse)
+        invokeProcessAgenticAction(rawAiResponse)
 
         assertNotNull(aiViewModel.pendingActionGroup.value)
 
-        // User cancels pending action
         aiViewModel.cancelPendingAction()
 
         assertNull(aiViewModel.pendingActionGroup.value)

@@ -36,6 +36,7 @@ import com.example.util.JsonPortabilityManager
 import com.example.util.JsonValidationResult
 import com.example.util.PaisaJsonBackup
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +47,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -1009,20 +1011,30 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Bulk Delete Operations =================
 
+  suspend fun deleteTransactionsByIdsSuspend(ids: List<Long>): Int = withContext(Dispatchers.IO) {
+    val count = repository.deleteTransactionsByIds(ids)
+    syncCurrentStateToDrive()
+    count
+  }
+
   fun deleteTransactionsByIds(ids: List<Long>, onComplete: (Int) -> Unit = {}) {
     viewModelScope.launch {
-      val count = repository.deleteTransactionsByIds(ids)
-      syncCurrentStateToDrive()
+      val count = deleteTransactionsByIdsSuspend(ids)
       onComplete(count)
     }
   }
 
+  suspend fun deleteTransactionsForMonthSuspend(cal: Calendar): Int = withContext(Dispatchers.IO) {
+    val start = DateUtils.getStartOfMonth(cal)
+    val end = DateUtils.getEndOfMonth(cal)
+    val count = repository.deleteTransactionsBetween(start, end)
+    syncCurrentStateToDrive()
+    count
+  }
+
   fun deleteTransactionsForMonth(cal: Calendar, onComplete: (Int) -> Unit = {}) {
     viewModelScope.launch {
-      val start = DateUtils.getStartOfMonth(cal)
-      val end = DateUtils.getEndOfMonth(cal)
-      val count = repository.deleteTransactionsBetween(start, end)
-      syncCurrentStateToDrive()
+      val count = deleteTransactionsForMonthSuspend(cal)
       onComplete(count)
     }
   }
@@ -1053,17 +1065,54 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     syncCurrentStateToDrive()
   }
 
-  fun updateUserProfile(name: String? = null) {
+  suspend fun updateUserProfileSuspend(name: String? = null, currencySymbol: String? = null) {
     val current = _userProfile.value
     val updated = current.copy(
-      name = if (!name.isNullOrBlank()) name.trim() else current.name
+      name = if (!name.isNullOrBlank()) name.trim() else current.name,
+      customCurrencySymbol = if (!currencySymbol.isNullOrBlank()) currencySymbol.trim() else current.customCurrencySymbol
     )
     _userProfile.value = updated
     repository.saveUserProfile(updated)
     syncCurrentStateToDrive()
   }
 
+  fun updateUserProfile(name: String? = null, currencySymbol: String? = null) {
+    viewModelScope.launch {
+      updateUserProfileSuspend(name, currencySymbol)
+    }
+  }
+
   // ================= Transaction Operations =================
+
+  suspend fun addTransactionSuspend(
+    title: String,
+    amount: Double,
+    type: TransactionType,
+    category: TransactionCategory,
+    timestamp: Long,
+    note: String,
+    paymentMethod: PaymentMethod,
+    isRecurring: Boolean = false,
+    recurringRuleId: Long? = null
+  ): Long = withContext(Dispatchers.IO) {
+    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || timestamp <= 0L) {
+      throw IllegalArgumentException("Invalid transaction parameters")
+    }
+    val item = TransactionItem(
+      title = title.trim(),
+      amount = amount,
+      type = type,
+      category = category,
+      timestamp = timestamp,
+      note = note.trim(),
+      paymentMethod = paymentMethod,
+      isRecurring = isRecurring,
+      recurringRuleId = recurringRuleId
+    )
+    val id = repository.insertTransaction(item)
+    syncCurrentStateToDrive()
+    id
+  }
 
   fun addTransaction(
     title: String,
@@ -1076,83 +1125,139 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     isRecurring: Boolean = false,
     recurringRuleId: Long? = null
   ) {
-    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || timestamp <= 0L) return
     viewModelScope.launch {
-      val item = TransactionItem(
-        title = title.trim(),
-        amount = amount,
-        type = type,
-        category = category,
-        timestamp = timestamp,
-        note = note.trim(),
-        paymentMethod = paymentMethod,
-        isRecurring = isRecurring,
-        recurringRuleId = recurringRuleId
-      )
-      repository.insertTransaction(item)
-      syncCurrentStateToDrive()
+      try {
+        addTransactionSuspend(title, amount, type, category, timestamp, note, paymentMethod, isRecurring, recurringRuleId)
+      } catch (_: Exception) {}
     }
   }
 
-  fun updateTransaction(item: TransactionItem) {
-    if (item.title.isBlank() || !item.amount.isFinite() || item.amount <= 0.0 || item.timestamp <= 0L) return
-    viewModelScope.launch {
-      repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
-      syncCurrentStateToDrive()
+  suspend fun updateTransactionSuspend(item: TransactionItem) = withContext(Dispatchers.IO) {
+    if (item.title.isBlank() || !item.amount.isFinite() || item.amount <= 0.0 || item.timestamp <= 0L) {
+      throw IllegalArgumentException("Invalid transaction parameters")
     }
+    repository.updateTransaction(item.copy(updatedAt = System.currentTimeMillis()))
+    syncCurrentStateToDrive()
+  }
+
+  fun updateTransaction(item: TransactionItem) {
+    viewModelScope.launch {
+      try {
+        updateTransactionSuspend(item)
+      } catch (_: Exception) {}
+    }
+  }
+
+  suspend fun deleteTransactionSuspend(item: TransactionItem) = withContext(Dispatchers.IO) {
+    repository.deleteTransaction(item)
+    syncCurrentStateToDrive()
   }
 
   fun deleteTransaction(item: TransactionItem) {
     viewModelScope.launch {
-      repository.deleteTransaction(item)
-      syncCurrentStateToDrive()
+      deleteTransactionSuspend(item)
     }
+  }
+
+  suspend fun deleteTransactionByIdSuspend(id: Long) = withContext(Dispatchers.IO) {
+    repository.deleteTransactionById(id)
+    syncCurrentStateToDrive()
   }
 
   fun deleteTransactionById(id: Long) {
     viewModelScope.launch {
-      repository.deleteTransactionById(id)
-      syncCurrentStateToDrive()
+      deleteTransactionByIdSuspend(id)
     }
   }
 
   // ================= Budget Operations =================
 
-  fun saveMonthlyBudget(
+  suspend fun saveMonthlyBudgetSuspend(
     monthKey: String,
     totalBudget: Double,
-    categoryBudgets: Map<TransactionCategory, Double>
-  ) {
+    categoryBudgets: Map<TransactionCategory, Double> = emptyMap()
+  ): Long = withContext(Dispatchers.IO) {
     val validMonth = try {
       YearMonth.parse(monthKey)
       true
     } catch (_: Exception) {
       false
     }
-    if (!validMonth || !totalBudget.isFinite() || totalBudget < 0.0 ||
-      categoryBudgets.values.any { !it.isFinite() || it < 0.0 }) return
-    viewModelScope.launch {
-      val existing = allBudgets.value.find { it.monthKey == monthKey }
-      val budget = BudgetModel(
-        id = existing?.id ?: 0,
-        monthKey = monthKey,
-        totalBudget = totalBudget,
-        categoryBudgets = categoryBudgets,
-        updatedAt = System.currentTimeMillis()
-      )
-      repository.saveBudget(budget)
-      syncCurrentStateToDrive()
+    if (!validMonth || !totalBudget.isFinite() || totalBudget <= 0.0 ||
+      categoryBudgets.values.any { !it.isFinite() || it < 0.0 }) {
+      throw IllegalArgumentException("Invalid budget parameters")
     }
+    val existing = allBudgets.value.find { it.monthKey == monthKey }
+    val budget = BudgetModel(
+      id = existing?.id ?: 0,
+      monthKey = monthKey,
+      totalBudget = totalBudget,
+      categoryBudgets = categoryBudgets,
+      updatedAt = System.currentTimeMillis()
+    )
+    val id = repository.saveBudget(budget)
+    syncCurrentStateToDrive()
+    id
+  }
+
+  fun saveMonthlyBudget(
+    monthKey: String,
+    totalBudget: Double,
+    categoryBudgets: Map<TransactionCategory, Double> = emptyMap()
+  ) {
+    viewModelScope.launch {
+      try {
+        saveMonthlyBudgetSuspend(monthKey, totalBudget, categoryBudgets)
+      } catch (_: Exception) {}
+    }
+  }
+
+  suspend fun deleteBudgetSuspend(monthKey: String) = withContext(Dispatchers.IO) {
+    repository.deleteBudgetForMonth(monthKey)
+    syncCurrentStateToDrive()
   }
 
   fun deleteBudget(monthKey: String) {
     viewModelScope.launch {
-      repository.deleteBudgetForMonth(monthKey)
-      syncCurrentStateToDrive()
+      deleteBudgetSuspend(monthKey)
     }
   }
 
   // ================= Recurring Rule Operations =================
+
+  suspend fun addRecurringRuleSuspend(
+    title: String,
+    amount: Double,
+    type: TransactionType,
+    category: TransactionCategory,
+    interval: RecurrenceInterval,
+    startDate: Long,
+    endDate: Long?,
+    paymentMethod: PaymentMethod,
+    note: String
+  ): Long = withContext(Dispatchers.IO) {
+    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || startDate <= 0L ||
+      (endDate != null && endDate < startDate)) {
+      throw IllegalArgumentException("Invalid recurring rule parameters")
+    }
+    val rule = RecurringRule(
+      title = title.trim(),
+      amount = amount,
+      type = type,
+      category = category,
+      interval = interval,
+      startDate = startDate,
+      endDate = endDate,
+      lastGeneratedDate = 0,
+      paymentMethod = paymentMethod,
+      note = note.trim(),
+      isActive = true
+    )
+    val id = repository.insertRecurringRule(rule)
+    repository.processDueRecurringRules()
+    syncCurrentStateToDrive()
+    id
+  }
 
   fun addRecurringRule(
     title: String,
@@ -1165,35 +1270,28 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     paymentMethod: PaymentMethod,
     note: String
   ) {
-    if (title.isBlank() || !amount.isFinite() || amount <= 0.0 || startDate <= 0L ||
-      (endDate != null && endDate < startDate)) return
     viewModelScope.launch {
-      val rule = RecurringRule(
-        title = title.trim(),
-        amount = amount,
-        type = type,
-        category = category,
-        interval = interval,
-        startDate = startDate,
-        endDate = endDate,
-        lastGeneratedDate = 0,
-        paymentMethod = paymentMethod,
-        note = note.trim(),
-        isActive = true
-      )
-      repository.insertRecurringRule(rule)
-      repository.processDueRecurringRules()
-      syncCurrentStateToDrive()
+      try {
+        addRecurringRuleSuspend(title, amount, type, category, interval, startDate, endDate, paymentMethod, note)
+      } catch (_: Exception) {}
     }
   }
 
-  fun updateRecurringRule(rule: RecurringRule) {
+  suspend fun updateRecurringRuleSuspend(rule: RecurringRule) = withContext(Dispatchers.IO) {
     if (rule.title.isBlank() || !rule.amount.isFinite() || rule.amount <= 0.0 ||
-      rule.startDate <= 0L || (rule.endDate != null && rule.endDate < rule.startDate)) return
+      rule.startDate <= 0L || (rule.endDate != null && rule.endDate < rule.startDate)) {
+      throw IllegalArgumentException("Invalid recurring rule parameters")
+    }
+    repository.updateRecurringRule(rule)
+    repository.processDueRecurringRules()
+    syncCurrentStateToDrive()
+  }
+
+  fun updateRecurringRule(rule: RecurringRule) {
     viewModelScope.launch {
-      repository.updateRecurringRule(rule)
-      repository.processDueRecurringRules()
-      syncCurrentStateToDrive()
+      try {
+        updateRecurringRuleSuspend(rule)
+      } catch (_: Exception) {}
     }
   }
 
@@ -1207,10 +1305,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  suspend fun deleteRecurringRuleSuspend(id: Long) = withContext(Dispatchers.IO) {
+    repository.deleteRecurringRule(id)
+    syncCurrentStateToDrive()
+  }
+
   fun deleteRecurringRule(id: Long) {
     viewModelScope.launch {
-      repository.deleteRecurringRule(id)
-      syncCurrentStateToDrive()
+      deleteRecurringRuleSuspend(id)
     }
   }
 

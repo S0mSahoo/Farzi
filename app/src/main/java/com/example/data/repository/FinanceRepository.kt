@@ -394,13 +394,15 @@ class FinanceRepository(private val context: Context) {
     val photoUrl = prefs.getString("user_photo_url", null)
     val googleId = prefs.getString("user_google_id", null)
     val completed = prefs.getBoolean("has_completed_onboarding", false)
+    val customCurrencySymbol = prefs.getString("user_currency_symbol", null)
 
     return UserProfile(
       name = name,
       email = email,
       photoUrl = photoUrl,
       googleId = googleId,
-      hasCompletedOnboarding = completed
+      hasCompletedOnboarding = completed,
+      customCurrencySymbol = customCurrencySymbol
     )
   }
 
@@ -411,6 +413,7 @@ class FinanceRepository(private val context: Context) {
       .putString("user_photo_url", profile.photoUrl)
       .putString("user_google_id", profile.googleId)
       .putBoolean("has_completed_onboarding", profile.hasCompletedOnboarding)
+      .putString("user_currency_symbol", profile.customCurrencySymbol)
       .apply()
   }
 
@@ -423,6 +426,7 @@ class FinanceRepository(private val context: Context) {
       .remove("user_photo_url")
       .remove("user_google_id")
       .remove("has_completed_onboarding")
+      .remove("user_currency_symbol")
       .apply()
   }
 

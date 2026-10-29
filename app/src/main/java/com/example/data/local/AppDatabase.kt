@@ -275,7 +275,7 @@ private fun importLegacyTransactionsIfNeeded(context: Context, target: SupportSQ
 
       target.execSQL(
         "INSERT OR REPLACE INTO $markerTable (name, completedAt) VALUES (?, ?)",
-        arrayOf(markerName, System.currentTimeMillis())
+        arrayOf<Any>(markerName, System.currentTimeMillis())
       )
       target.setTransactionSuccessful()
       importedSuccessfully = true

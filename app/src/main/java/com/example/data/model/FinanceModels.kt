@@ -165,10 +165,11 @@ data class UserProfile(
   val email: String = "",
   val photoUrl: String? = null,
   val googleId: String? = null,
-  val hasCompletedOnboarding: Boolean = false
+  val hasCompletedOnboarding: Boolean = false,
+  val customCurrencySymbol: String? = null
 ) {
   val currencySymbol: String
-    get() = try {
+    get() = if (!customCurrencySymbol.isNullOrBlank()) customCurrencySymbol else try {
       Currency.getInstance(Locale.getDefault())?.getSymbol(Locale.getDefault()) ?: "₹"
     } catch (e: Exception) {
       "₹"

@@ -23,6 +23,7 @@ import kotlinx.coroutines.withTimeout
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -111,12 +112,21 @@ sealed interface ProposedActionData {
     ) : ProposedActionData
 }
 
+enum class ActionExecutionStatus {
+    PENDING,
+    SUCCESS,
+    FAILED
+}
+
 data class ProposedActionItem(
+    val id: String = java.util.UUID.randomUUID().toString(),
     val actionType: String,
     val title: String,
     val detailSummary: String,
     val isDestructive: Boolean,
-    val data: ProposedActionData
+    val data: ProposedActionData,
+    var status: ActionExecutionStatus = ActionExecutionStatus.PENDING,
+    var errorMessage: String? = null
 )
 
 data class PendingActionGroup(
@@ -461,12 +471,16 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 }
                 val typeStr = json.optString("type", "EXPENSE")
                 val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
-                val categoryStr = json.optString("category", if (type == TransactionType.INCOME) "OTHER_INCOME" else "OTHER_EXPENSE")
-                val category = parseCategory(categoryStr, type)
-                val paymentMethodStr = json.optString("paymentMethod", "UPI")
-                val paymentMethod = parsePaymentMethod(paymentMethodStr)
-                val dateStr = json.optString("date", "")
-                val timestamp = parseDateToTimestamp(dateStr)
+
+                val catResult = parseCategory(if (json.has("category")) json.optString("category") else null, type)
+                val category = catResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val pmResult = parsePaymentMethod(if (json.has("paymentMethod")) json.optString("paymentMethod") else null)
+                val paymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val dateResult = parseDateToTimestamp(if (json.has("date")) json.optString("date") else null)
+                val timestamp = dateResult.getOrElse { return ActionParseResult(error = it.message) }
+
                 val note = json.optString("note", "Logged via Paisa AI").trim()
                 val monthLabel = DateUtils.getMonthLabel(timestamp)
 
@@ -495,6 +509,13 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     return ActionParseResult(error = "Update target cannot be blank. Please specify a transaction title or date.")
                 }
 
+                if (targetDate.isNotBlank()) {
+                    val dateCheck = parseDateToTimestamp(targetDate)
+                    if (dateCheck.isFailure) {
+                        return ActionParseResult(error = "Invalid target date format '$targetDate'.")
+                    }
+                }
+
                 val allTxs = financeViewModel?.allTransactions?.value ?: emptyList()
                 val matches = allTxs.filter { tx ->
                     val queryMatch = targetQuery.isBlank() || tx.title.contains(targetQuery, ignoreCase = true) || tx.note.contains(targetQuery, ignoreCase = true)
@@ -517,12 +538,16 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 }
                 val newTypeStr = if (json.has("newType")) json.optString("newType") else targetTx.type.name
                 val newType = if (newTypeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
-                val newCategoryStr = if (json.has("newCategory")) json.optString("newCategory") else targetTx.category.name
-                val newCategory = parseCategory(newCategoryStr, newType)
-                val newPaymentMethodStr = if (json.has("newPaymentMethod")) json.optString("newPaymentMethod") else targetTx.paymentMethod.name
-                val newPaymentMethod = parsePaymentMethod(newPaymentMethodStr)
-                val newDateStr = if (json.has("newDate")) json.optString("newDate") else ""
-                val newTimestamp = if (newDateStr.isNotBlank()) parseDateToTimestamp(newDateStr) else targetTx.timestamp
+
+                val catResult = if (json.has("newCategory")) parseCategory(json.optString("newCategory"), newType) else Result.success(targetTx.category)
+                val newCategory = catResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val pmResult = if (json.has("newPaymentMethod")) parsePaymentMethod(json.optString("newPaymentMethod")) else Result.success(targetTx.paymentMethod)
+                val newPaymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val dateResult = if (json.has("newDate")) parseDateToTimestamp(json.optString("newDate"), isUpdate = true, originalTimestamp = targetTx.timestamp) else Result.success(targetTx.timestamp)
+                val newTimestamp = dateResult.getOrElse { return ActionParseResult(error = it.message) }
+
                 val newNote = if (json.has("newNote")) json.optString("newNote").trim() else targetTx.note
 
                 val data = ProposedActionData.UpdateTransactionData(
@@ -551,6 +576,13 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
                 if (targetQuery.isBlank() && targetDate.isBlank()) {
                     return ActionParseResult(error = "Delete target cannot be blank. Please specify a transaction title or date.")
+                }
+
+                if (targetDate.isNotBlank()) {
+                    val dateCheck = parseDateToTimestamp(targetDate)
+                    if (dateCheck.isFailure) {
+                        return ActionParseResult(error = "Invalid target date format '$targetDate'.")
+                    }
                 }
 
                 val allTxs = financeViewModel?.allTransactions?.value ?: emptyList()
@@ -593,6 +625,11 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
             }
             "SET_BUDGET", "SAVE_BUDGET" -> {
                 val monthKey = json.optString("monthKey", DateUtils.getMonthKey(System.currentTimeMillis())).trim()
+                try {
+                    java.time.YearMonth.parse(monthKey)
+                } catch (_: Exception) {
+                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected YYYY-MM.")
+                }
                 val totalBudget = json.optDouble("totalBudget", 0.0)
                 if (totalBudget <= 0.0 || !totalBudget.isFinite()) {
                     return ActionParseResult(error = "Monthly budget amount must be greater than zero.")
@@ -608,9 +645,14 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 ActionParseResult(item = item)
             }
             "DELETE_BUDGET" -> {
-                val monthKey = json.optString("monthKey", DateUtils.getMonthKey(System.currentTimeMillis())).trim()
+                val monthKey = json.optString("monthKey", "").trim()
                 if (monthKey.isBlank()) {
                     return ActionParseResult(error = "Month key for budget deletion cannot be blank.")
+                }
+                try {
+                    java.time.YearMonth.parse(monthKey)
+                } catch (_: Exception) {
+                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected YYYY-MM.")
                 }
                 val allBudgets = financeViewModel?.allBudgets?.value ?: emptyList()
                 val existing = allBudgets.find { it.monthKey == monthKey }
@@ -634,12 +676,15 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 }
                 val typeStr = json.optString("type", "EXPENSE")
                 val type = if (typeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
-                val categoryStr = json.optString("category", "SUBSCRIPTIONS")
-                val category = parseCategory(categoryStr, type)
-                val intervalStr = json.optString("interval", "MONTHLY")
-                val interval = parseInterval(intervalStr)
-                val paymentMethodStr = json.optString("paymentMethod", "UPI")
-                val paymentMethod = parsePaymentMethod(paymentMethodStr)
+
+                val catResult = parseCategory(if (json.has("category")) json.optString("category") else null, type)
+                val category = catResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val intervalResult = parseInterval(if (json.has("interval")) json.optString("interval") else null)
+                val interval = intervalResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val pmResult = parsePaymentMethod(if (json.has("paymentMethod")) json.optString("paymentMethod") else null)
+                val paymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
 
                 val data = ProposedActionData.LogRecurringData(
                     title = title,
@@ -683,12 +728,16 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 }
                 val newTypeStr = if (json.has("newType")) json.optString("newType") else targetRule.type.name
                 val newType = if (newTypeStr.equals("INCOME", ignoreCase = true)) TransactionType.INCOME else TransactionType.EXPENSE
-                val newCategoryStr = if (json.has("newCategory")) json.optString("newCategory") else targetRule.category.name
-                val newCategory = parseCategory(newCategoryStr, newType)
-                val newIntervalStr = if (json.has("newInterval")) json.optString("newInterval") else targetRule.interval.name
-                val newInterval = parseInterval(newIntervalStr)
-                val newPaymentMethodStr = if (json.has("newPaymentMethod")) json.optString("newPaymentMethod") else targetRule.paymentMethod.name
-                val newPaymentMethod = parsePaymentMethod(newPaymentMethodStr)
+
+                val catResult = if (json.has("newCategory")) parseCategory(json.optString("newCategory"), newType) else Result.success(targetRule.category)
+                val newCategory = catResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val intervalResult = if (json.has("newInterval")) parseInterval(json.optString("newInterval")) else Result.success(targetRule.interval)
+                val newInterval = intervalResult.getOrElse { return ActionParseResult(error = it.message) }
+
+                val pmResult = if (json.has("newPaymentMethod")) parsePaymentMethod(json.optString("newPaymentMethod")) else Result.success(targetRule.paymentMethod)
+                val newPaymentMethod = pmResult.getOrElse { return ActionParseResult(error = it.message) }
+
                 val isActive = if (json.has("isActive")) json.optBoolean("isActive", targetRule.isActive) else targetRule.isActive
 
                 val data = ProposedActionData.UpdateRecurringData(
@@ -738,8 +787,17 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 ActionParseResult(item = item)
             }
             "UPDATE_PROFILE" -> {
-                val name = if (json.has("name")) json.optString("name").trim() else null
-                val symbol = if (json.has("currencySymbol")) json.optString("currencySymbol").trim() else null
+                val name = if (json.has("name")) json.optString("name").trim().ifBlank { null } else null
+                val symbol = if (json.has("currencySymbol")) json.optString("currencySymbol").trim().ifBlank { null } else null
+
+                if (name == null && symbol == null) {
+                    return ActionParseResult(error = "Profile update must specify name or currency symbol.")
+                }
+
+                if (symbol != null && (symbol.length > 5 || symbol.isBlank())) {
+                    return ActionParseResult(error = "Invalid currency symbol '$symbol'. Must be 1 to 5 characters.")
+                }
+
                 val data = ProposedActionData.UpdateProfileData(name = name, currencySymbol = symbol)
                 val item = ProposedActionItem(
                     actionType = "Update Profile",
@@ -760,27 +818,58 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         if (_isProcessingAction.value) return
 
         _isProcessingAction.value = true
-        val confirmations = mutableListOf<String>()
 
-        try {
-            for (item in group.actionItems) {
-                val conf = executeActionData(item.data)
-                if (conf.isNotBlank()) confirmations.add(conf)
+        viewModelScope.launch {
+            val confirmations = mutableListOf<String>()
+            val errors = mutableListOf<String>()
+
+            try {
+                for (item in group.actionItems) {
+                    if (item.status == ActionExecutionStatus.SUCCESS) {
+                        confirmations.add("• (Already completed) ${item.title}")
+                        continue
+                    }
+                    try {
+                        val conf = executeActionData(item.data)
+                        item.status = ActionExecutionStatus.SUCCESS
+                        item.errorMessage = null
+                        if (conf.isNotBlank()) confirmations.add(conf)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to execute action ${item.title}", e)
+                        item.status = ActionExecutionStatus.FAILED
+                        item.errorMessage = e.localizedMessage ?: "Execution failed"
+                        errors.add("• Failed: ${item.title} (${e.localizedMessage ?: "Database error"})")
+                        break // Stop executing subsequent actions in this batch
+                    }
+                }
+
+                val allSuccess = group.actionItems.all { it.status == ActionExecutionStatus.SUCCESS }
+
+                if (allSuccess) {
+                    val finalMsg = if (confirmations.isNotEmpty()) {
+                        "✅ **Action(s) Executed Successfully**:\n" + confirmations.joinToString("\n")
+                    } else {
+                        "✅ Action executed."
+                    }
+                    _messages.value = _messages.value + ChatMessage("model", finalMsg)
+                    _pendingActionGroup.value = null
+                } else {
+                    val partialMsg = buildString {
+                        append("⚠️ **Action Batch Incomplete**:\n")
+                        if (confirmations.isNotEmpty()) {
+                            append("\nSucceeded:\n").append(confirmations.joinToString("\n")).append("\n")
+                        }
+                        if (errors.isNotEmpty()) {
+                            append("\nFailed:\n").append(errors.joinToString("\n")).append("\n")
+                        }
+                        append("\nPlease retry the failed action(s) or cancel.")
+                    }
+                    _messages.value = _messages.value + ChatMessage("model", partialMsg)
+                    _pendingActionGroup.value = group.copy()
+                }
+            } finally {
+                _isProcessingAction.value = false
             }
-
-            val finalMsg = if (confirmations.isNotEmpty()) {
-                "✅ **Action Executed Successfully**:\n" + confirmations.joinToString("\n")
-            } else {
-                "✅ Action executed."
-            }
-
-            _messages.value = _messages.value + ChatMessage("model", finalMsg)
-            _pendingActionGroup.value = null
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to execute confirmed action", e)
-            _messages.value = _messages.value + ChatMessage("model", "❌ Action failed: ${e.localizedMessage}")
-        } finally {
-            _isProcessingAction.value = false
         }
     }
 
@@ -788,11 +877,12 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         _pendingActionGroup.value = null
     }
 
-    private fun executeActionData(data: ProposedActionData): String {
+    private suspend fun executeActionData(data: ProposedActionData): String {
+        val vm = financeViewModel ?: throw IllegalStateException("FinanceViewModel is not attached.")
         val currency = getCurrencySymbol()
         return when (data) {
             is ProposedActionData.LogTransactionData -> {
-                financeViewModel?.addTransaction(
+                vm.addTransactionSuspend(
                     title = data.title,
                     amount = data.amount,
                     type = data.type,
@@ -814,16 +904,16 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     timestamp = data.newTimestamp,
                     note = data.newNote
                 )
-                financeViewModel?.updateTransaction(updated)
+                vm.updateTransactionSuspend(updated)
                 "• Updated transaction **${data.targetTransaction.title}** → **${updated.title}** ($currency${String.format(Locale.US, "%.2f", updated.amount)})."
             }
             is ProposedActionData.DeleteTransactionsData -> {
                 val ids = data.transactionsToDelete.map { it.id }
-                financeViewModel?.deleteTransactionsByIds(ids)
-                "• Deleted ${data.transactionsToDelete.size} transaction(s): ${data.scopeDescription}."
+                val count = vm.deleteTransactionsByIdsSuspend(ids)
+                "• Deleted $count transaction(s): ${data.scopeDescription}."
             }
             is ProposedActionData.SetBudgetData -> {
-                financeViewModel?.saveMonthlyBudget(
+                vm.saveMonthlyBudgetSuspend(
                     monthKey = data.monthKey,
                     totalBudget = data.totalBudget,
                     categoryBudgets = emptyMap()
@@ -831,11 +921,11 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 "• Set budget for month **${data.monthKey}** to **$currency${String.format(Locale.US, "%.2f", data.totalBudget)}**."
             }
             is ProposedActionData.DeleteBudgetData -> {
-                financeViewModel?.deleteBudget(data.monthKey)
+                vm.deleteBudgetSuspend(data.monthKey)
                 "• Deleted monthly budget for **${data.monthKey}**."
             }
             is ProposedActionData.LogRecurringData -> {
-                financeViewModel?.addRecurringRule(
+                vm.addRecurringRuleSuspend(
                     title = data.title,
                     amount = data.amount,
                     type = data.type,
@@ -858,72 +948,108 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     paymentMethod = data.newPaymentMethod,
                     isActive = data.isActive
                 )
-                financeViewModel?.updateRecurringRule(updated)
+                vm.updateRecurringRuleSuspend(updated)
                 "• Updated recurring rule **${data.targetRule.title}** → **${updated.title}** ($currency${String.format(Locale.US, "%.2f", updated.amount)})."
             }
             is ProposedActionData.DeleteRecurringData -> {
-                financeViewModel?.deleteRecurringRule(data.targetRule.id)
+                vm.deleteRecurringRuleSuspend(data.targetRule.id)
                 "• Deleted recurring rule **${data.targetRule.title}**."
             }
             is ProposedActionData.UpdateProfileData -> {
-                financeViewModel?.updateUserProfile(data.name)
+                vm.updateUserProfileSuspend(name = data.name, currencySymbol = data.currencySymbol)
                 "• Updated user profile settings."
             }
         }
     }
 
-    private fun parseDateToTimestamp(dateStr: String?): Long {
-        if (dateStr.isNullOrBlank()) return System.currentTimeMillis()
+    private fun parseDateToTimestamp(
+        dateStr: String?,
+        isUpdate: Boolean = false,
+        originalTimestamp: Long? = null
+    ): Result<Long> {
+        if (dateStr.isNullOrBlank()) {
+            return if (isUpdate) {
+                Result.success(originalTimestamp ?: System.currentTimeMillis())
+            } else {
+                Result.success(System.currentTimeMillis())
+            }
+        }
         val clean = dateStr.trim()
         val formats = listOf(
-            SimpleDateFormat("yyyy-MM-dd", Locale.US),
-            SimpleDateFormat("yyyy-MM", Locale.US),
-            SimpleDateFormat("yyyy/MM/dd", Locale.US),
-            SimpleDateFormat("yyyy/MM", Locale.US),
-            SimpleDateFormat("MMMM yyyy", Locale.US),
-            SimpleDateFormat("MMM yyyy", Locale.US),
-            SimpleDateFormat("MMMM, yyyy", Locale.US)
+            "yyyy-MM-dd" to false,
+            "yyyy-MM" to true,
+            "yyyy/MM/dd" to false,
+            "yyyy/MM" to true,
+            "MMMM yyyy" to true,
+            "MMM yyyy" to true,
+            "MMMM, yyyy" to true
         )
-        for (fmt in formats) {
-            try {
-                val parsed = fmt.parse(clean)
-                if (parsed != null) return parsed.time
-            } catch (_: Exception) {}
+
+        for ((pattern, isMonthOnly) in formats) {
+            val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
+            val pos = java.text.ParsePosition(0)
+            val parsed = sdf.parse(clean, pos)
+            if (parsed != null && pos.index == clean.length) {
+                return if (isMonthOnly) {
+                    val cal = Calendar.getInstance().apply {
+                        time = parsed
+                        set(Calendar.DAY_OF_MONTH, 1)
+                        set(Calendar.HOUR_OF_DAY, 12)
+                        set(Calendar.MINUTE, 0)
+                        set(Calendar.SECOND, 0)
+                        set(Calendar.MILLISECOND, 0)
+                    }
+                    Result.success(cal.timeInMillis)
+                } else {
+                    Result.success(parsed.time)
+                }
+            }
         }
-        return System.currentTimeMillis()
+        return Result.failure(IllegalArgumentException("Invalid date format '$dateStr'. Please use YYYY-MM-DD or YYYY-MM."))
     }
 
-    private fun parseCategory(str: String, type: TransactionType): TransactionCategory {
-        val clean = str.trim().uppercase()
-        return try {
-            TransactionCategory.valueOf(clean)
-        } catch (_: Exception) {
-            TransactionCategory.values().find {
-                it.name.equals(clean, ignoreCase = true) ||
-                it.displayName.equals(clean, ignoreCase = true)
-            } ?: if (type == TransactionType.INCOME) TransactionCategory.OTHER_INCOME else TransactionCategory.OTHER_EXPENSE
+    private fun parseCategory(str: String?, type: TransactionType): Result<TransactionCategory> {
+        if (str.isNullOrBlank()) {
+            val defaultCat = if (type == TransactionType.INCOME) TransactionCategory.OTHER_INCOME else TransactionCategory.OTHER_EXPENSE
+            return Result.success(defaultCat)
         }
+        val clean = str.trim()
+        val found = TransactionCategory.values().find {
+            it.name.equals(clean, ignoreCase = true) ||
+            it.displayName.equals(clean, ignoreCase = true)
+        } ?: return Result.failure(IllegalArgumentException("Unknown category '$str'."))
+
+        if (found.defaultType != type) {
+            return Result.failure(IllegalArgumentException("Category '${found.displayName}' is not valid for ${type.displayName} transactions."))
+        }
+        return Result.success(found)
     }
 
-    private fun parsePaymentMethod(str: String): PaymentMethod {
-        val clean = str.trim().uppercase()
-        return try {
-            PaymentMethod.valueOf(clean)
-        } catch (_: Exception) {
-            PaymentMethod.values().find {
-                it.name.equals(clean, ignoreCase = true) ||
-                it.displayName.contains(clean, ignoreCase = true)
-            } ?: PaymentMethod.UPI
+    private fun parsePaymentMethod(str: String?): Result<PaymentMethod> {
+        if (str.isNullOrBlank()) {
+            return Result.success(PaymentMethod.UPI)
         }
+        val clean = str.trim()
+        val found = PaymentMethod.values().find {
+            it.name.equals(clean, ignoreCase = true) ||
+            it.displayName.equals(clean, ignoreCase = true) ||
+            it.displayName.startsWith(clean, ignoreCase = true)
+        } ?: return Result.failure(IllegalArgumentException("Unknown payment method '$str'."))
+
+        return Result.success(found)
     }
 
-    private fun parseInterval(str: String): RecurrenceInterval {
-        val clean = str.trim().uppercase()
-        return try {
-            RecurrenceInterval.valueOf(clean)
-        } catch (_: Exception) {
-            RecurrenceInterval.MONTHLY
+    private fun parseInterval(str: String?): Result<RecurrenceInterval> {
+        if (str.isNullOrBlank()) {
+            return Result.success(RecurrenceInterval.MONTHLY)
         }
+        val clean = str.trim()
+        val found = RecurrenceInterval.values().find {
+            it.name.equals(clean, ignoreCase = true) ||
+            it.displayName.equals(clean, ignoreCase = true)
+        } ?: return Result.failure(IllegalArgumentException("Unknown recurrence interval '$str'."))
+
+        return Result.success(found)
     }
 
     fun retryLastMessage() {
