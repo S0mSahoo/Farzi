@@ -367,25 +367,52 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = emptyList()
   )
 
-  // Finance Insights Flow
-  val financeInsights: StateFlow<List<FinanceInsight>> = combine(
+  // Monthly Finance Insights Flow
+  val monthlyInsights: StateFlow<List<FinanceInsight>> = combine(
     allTransactions,
     allBudgets,
     allRecurringRules,
-    _universalCalendar
-  ) { transactions, budgets, rules, cal ->
+    _universalCalendar,
+    userProfile
+  ) { transactions, budgets, rules, cal, profile ->
     val monthKey = DateUtils.getMonthKey(cal)
     FinanceInsightEngine.generateMonthlyInsights(
       monthKey = monthKey,
       transactions = transactions,
       budgets = budgets,
-      recurringRules = rules
+      recurringRules = rules,
+      currencySymbol = profile.currencySymbol
     )
   }.stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
   )
+
+  // Yearly Finance Insights Flow
+  val yearlyInsights: StateFlow<List<FinanceInsight>> = combine(
+    allTransactions,
+    allBudgets,
+    allRecurringRules,
+    _universalCalendar,
+    userProfile
+  ) { transactions, budgets, rules, cal, profile ->
+    val year = cal.get(Calendar.YEAR)
+    FinanceInsightEngine.generateYearlyInsights(
+      year = year,
+      transactions = transactions,
+      budgets = budgets,
+      recurringRules = rules,
+      currencySymbol = profile.currencySymbol
+    )
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.Eagerly,
+    initialValue = emptyList()
+  )
+
+  // Backwards-compatible alias for monthly insights
+  val financeInsights: StateFlow<List<FinanceInsight>> get() = monthlyInsights
 
   // Theme & App Lock States
   private val _themeMode = MutableStateFlow(repository.getThemeMode())

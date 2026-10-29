@@ -7,6 +7,7 @@ import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.components.DateUtils
+import com.example.ui.components.IndianCurrencyFormatter
 import java.util.Calendar
 import java.util.Locale
 
@@ -16,7 +17,8 @@ object FinanceInsightEngine {
     monthKey: String,
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
-    recurringRules: List<RecurringRule>
+    recurringRules: List<RecurringRule>,
+    currencySymbol: String = "₹"
   ): List<FinanceInsight> {
     val insights = mutableListOf<FinanceInsight>()
 
@@ -47,7 +49,7 @@ object FinanceInsightEngine {
       .sumOf { it.amount }
 
     // 1. Cash Flow & Savings Rate
-    generateCashFlowInsight(monthKey, totalIncome, totalExpense)?.let { insights.add(it) }
+    generateCashFlowInsight(monthKey, totalIncome, totalExpense, currencySymbol)?.let { insights.add(it) }
 
     // 2. Period Comparison (vs Previous Month)
     val prevMonthKey = getPreviousMonthKey(monthKey)
@@ -59,31 +61,39 @@ object FinanceInsightEngine {
         .filter { it.type == TransactionType.EXPENSE }
         .sumOf { it.amount }
 
-      generatePeriodComparisonInsight(monthKey, totalExpense, prevTotalExpense, prevMonthKey)?.let {
+      generatePeriodComparisonInsight(monthKey, totalExpense, prevTotalExpense, prevMonthKey, currencySymbol)?.let {
         insights.add(it)
       }
     }
 
     // 3. Top Spending Categories & Concentration (>30%)
-    generateTopCategoryInsight(monthKey, monthTransactions, totalExpense)?.let { insights.add(it) }
+    generateTopCategoryInsight(monthKey, monthTransactions, totalExpense, currencySymbol)?.let { insights.add(it) }
 
     // 4. Budget Utilization
     val monthBudget = budgets.find { it.monthKey == monthKey }
     if (monthBudget != null && monthBudget.totalBudget > 0.0) {
-      generateBudgetInsight(monthKey, monthBudget, totalExpense)?.let { insights.add(it) }
+      generateBudgetInsight(monthKey, monthBudget, totalExpense, currencySymbol)?.let { insights.add(it) }
     }
 
     // 5. Active Recurring Commitments
-    generateRecurringInsight(monthKey, recurringRules)?.let { insights.add(it) }
+    generateRecurringInsight(monthKey, recurringRules, currencySymbol)?.let { insights.add(it) }
 
-    return insights
+    val severityOrder = mapOf(
+      InsightSeverity.CRITICAL to 0,
+      InsightSeverity.WARNING to 1,
+      InsightSeverity.SUCCESS to 2,
+      InsightSeverity.INFO to 3,
+      InsightSeverity.NEUTRAL to 4
+    )
+    return insights.sortedBy { severityOrder[it.severity] ?: 5 }
   }
 
   fun generateYearlyInsights(
     year: Int,
     transactions: List<TransactionItem>,
     budgets: List<BudgetModel>,
-    recurringRules: List<RecurringRule>
+    recurringRules: List<RecurringRule>,
+    currencySymbol: String = "₹"
   ): List<FinanceInsight> {
     val insights = mutableListOf<FinanceInsight>()
 
@@ -108,7 +118,7 @@ object FinanceInsightEngine {
     val totalIncome = yearTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
     val totalExpense = yearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
 
-    generateCashFlowInsight(year.toString(), totalIncome, totalExpense)?.let { insights.add(it) }
+    generateCashFlowInsight(year.toString(), totalIncome, totalExpense, currencySymbol)?.let { insights.add(it) }
 
     // Year-over-Year comparison
     val prevYear = year - 1
@@ -118,20 +128,28 @@ object FinanceInsightEngine {
     }
     if (prevYearTransactions.isNotEmpty()) {
       val prevYearExpense = prevYearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      generatePeriodComparisonInsight(year.toString(), totalExpense, prevYearExpense, prevYear.toString())?.let {
+      generatePeriodComparisonInsight(year.toString(), totalExpense, prevYearExpense, prevYear.toString(), currencySymbol)?.let {
         insights.add(it)
       }
     }
 
-    generateTopCategoryInsight(year.toString(), yearTransactions, totalExpense)?.let { insights.add(it) }
+    generateTopCategoryInsight(year.toString(), yearTransactions, totalExpense, currencySymbol)?.let { insights.add(it) }
 
-    return insights
+    val severityOrder = mapOf(
+      InsightSeverity.CRITICAL to 0,
+      InsightSeverity.WARNING to 1,
+      InsightSeverity.SUCCESS to 2,
+      InsightSeverity.INFO to 3,
+      InsightSeverity.NEUTRAL to 4
+    )
+    return insights.sortedBy { severityOrder[it.severity] ?: 5 }
   }
 
   private fun generateCashFlowInsight(
     periodLabel: String,
     totalIncome: Double,
-    totalExpense: Double
+    totalExpense: Double,
+    currencySymbol: String
   ): FinanceInsight? {
     val netCashFlow = totalIncome - totalExpense
 
@@ -146,9 +164,9 @@ object FinanceInsightEngine {
       val title = if (netCashFlow >= 0.0) "Positive Cash Flow" else "Net Deficit"
       val formattedRate = String.format(Locale.US, "%.1f", savingsRate)
       val description = if (netCashFlow >= 0.0) {
-        "Savings rate is $formattedRate% with net savings of ${formatAmount(netCashFlow)}."
+        "Savings rate is $formattedRate% with net savings of ${formatAmount(netCashFlow, currencySymbol)}."
       } else {
-        "Spending exceeds income by ${formatAmount(-netCashFlow)} (savings rate: $formattedRate%)."
+        "Spending exceeds income by ${formatAmount(-netCashFlow, currencySymbol)} (savings rate: $formattedRate%)."
       }
 
       FinanceInsight(
@@ -165,7 +183,7 @@ object FinanceInsightEngine {
         id = "cash_flow_$periodLabel",
         type = InsightType.CASH_FLOW,
         title = "No Income Recorded",
-        description = "Total spending for $periodLabel is ${formatAmount(totalExpense)} with no recorded income.",
+        description = "Total spending for $periodLabel is ${formatAmount(totalExpense, currencySymbol)} with no recorded income.",
         severity = InsightSeverity.INFO,
         amount = -totalExpense,
         percentage = null
@@ -179,7 +197,8 @@ object FinanceInsightEngine {
     currentPeriod: String,
     currentExpense: Double,
     prevExpense: Double,
-    prevPeriod: String
+    prevPeriod: String,
+    currencySymbol: String
   ): FinanceInsight? {
     if (prevExpense > 0.0) {
       val diff = currentExpense - prevExpense
@@ -190,7 +209,7 @@ object FinanceInsightEngine {
         percentage > 15.0 -> Triple(
           InsightSeverity.WARNING,
           "Spending Increased",
-          "Spending is up $formattedPct% compared to $prevPeriod (+${formatAmount(diff)})."
+          "Spending is up $formattedPct% compared to $prevPeriod (+${formatAmount(diff, currencySymbol)})."
         )
         percentage > 0.0 -> Triple(
           InsightSeverity.INFO,
@@ -200,7 +219,7 @@ object FinanceInsightEngine {
         percentage < 0.0 -> Triple(
           InsightSeverity.SUCCESS,
           "Spending Decreased",
-          "Spending dropped by $formattedPct% compared to $prevPeriod (-${formatAmount(-diff)})."
+          "Spending dropped by $formattedPct% compared to $prevPeriod (-${formatAmount(-diff, currencySymbol)})."
         )
         else -> Triple(
           InsightSeverity.INFO,
@@ -223,7 +242,7 @@ object FinanceInsightEngine {
         id = "period_comp_$currentPeriod",
         type = InsightType.PERIOD_COMPARISON,
         title = "New Spending Period",
-        description = "Total spending for $currentPeriod is ${formatAmount(currentExpense)} (no recorded spending in $prevPeriod).",
+        description = "Total spending for $currentPeriod is ${formatAmount(currentExpense, currencySymbol)} (no recorded spending in $prevPeriod).",
         severity = InsightSeverity.INFO,
         amount = currentExpense,
         percentage = null
@@ -235,7 +254,8 @@ object FinanceInsightEngine {
   private fun generateTopCategoryInsight(
     periodLabel: String,
     transactions: List<TransactionItem>,
-    totalExpense: Double
+    totalExpense: Double,
+    currencySymbol: String
   ): FinanceInsight? {
     if (totalExpense <= 0.0) return null
 
@@ -260,7 +280,7 @@ object FinanceInsightEngine {
       id = "top_cat_$periodLabel",
       type = InsightType.TOP_CATEGORY,
       title = title,
-      description = "${topCategory.displayName} accounts for $formattedShare% of spending (${formatAmount(topAmount)}).",
+      description = "${topCategory.displayName} accounts for $formattedShare% of spending (${formatAmount(topAmount, currencySymbol)}).",
       severity = severity,
       amount = topAmount,
       percentage = sharePct,
@@ -271,7 +291,8 @@ object FinanceInsightEngine {
   private fun generateBudgetInsight(
     monthKey: String,
     budget: BudgetModel,
-    totalExpense: Double
+    totalExpense: Double,
+    currencySymbol: String
   ): FinanceInsight? {
     if (budget.totalBudget <= 0.0) return null
 
@@ -285,8 +306,8 @@ object FinanceInsightEngine {
     }
 
     val description = when {
-      usagePct >= 100.0 -> "Budget exceeded! Spent ${formatAmount(totalExpense)} of ${formatAmount(budget.totalBudget)} budget ($formattedUsage%)."
-      else -> "Used $formattedUsage% of ${formatAmount(budget.totalBudget)} monthly budget (${formatAmount(totalExpense)} spent)."
+      usagePct >= 100.0 -> "Budget exceeded! Spent ${formatAmount(totalExpense, currencySymbol)} of ${formatAmount(budget.totalBudget, currencySymbol)} budget ($formattedUsage%)."
+      else -> "Used $formattedUsage% of ${formatAmount(budget.totalBudget, currencySymbol)} monthly budget (${formatAmount(totalExpense, currencySymbol)} spent)."
     }
 
     return FinanceInsight(
@@ -303,7 +324,8 @@ object FinanceInsightEngine {
 
   private fun generateRecurringInsight(
     monthKey: String,
-    recurringRules: List<RecurringRule>
+    recurringRules: List<RecurringRule>,
+    currencySymbol: String
   ): FinanceInsight? {
     val activeRules = recurringRules.filter { it.isActive }
     if (activeRules.isEmpty()) return null
@@ -321,7 +343,7 @@ object FinanceInsightEngine {
       id = "recurring_$monthKey",
       type = InsightType.RECURRING_COMMITMENTS,
       title = "Active Recurring Commitments",
-      description = "${activeRules.size} active recurring rules (~${formatAmount(totalMonthlyCommitted)}/month committed).",
+      description = "${activeRules.size} active recurring rules (~${formatAmount(totalMonthlyCommitted, currencySymbol)}/month committed).",
       severity = InsightSeverity.INFO,
       amount = totalMonthlyCommitted,
       percentage = null
@@ -346,7 +368,11 @@ object FinanceInsightEngine {
     }
   }
 
-  private fun formatAmount(amount: Double): String {
-    return String.format(Locale.US, "%.2f", amount)
+  private fun formatAmount(amount: Double, currencySymbol: String): String {
+    return IndianCurrencyFormatter.formatWithSymbol(
+      amount = amount,
+      symbol = currencySymbol,
+      includeDecimalsIfPresent = true
+    )
   }
 }

@@ -70,6 +70,7 @@ import com.example.data.model.TransactionType
 import com.example.ui.components.CategoryDetailSheet
 import com.example.ui.components.CategorySpendingBreakdown
 import com.example.ui.components.DateUtils
+import com.example.ui.components.FinancialInsightsSection
 import com.example.ui.components.IncomeExpenseComparisonBar
 import com.example.ui.components.IndianCurrencyFormatter
 import com.example.ui.components.MonthYearPickerDialog
@@ -110,8 +111,11 @@ fun DashboardScreen(
   val selectedCategoryDetail by viewModel.selectedCategoryDetail.collectAsStateWithLifecycle()
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val allBudgets by viewModel.allBudgets.collectAsStateWithLifecycle()
+  val monthlyInsights by viewModel.monthlyInsights.collectAsStateWithLifecycle()
+  val yearlyInsights by viewModel.yearlyInsights.collectAsStateWithLifecycle()
 
   var isAnnualView by remember { mutableStateOf(false) }
+  val activeInsights = if (isAnnualView) yearlyInsights else monthlyInsights
   var showMonthPicker by remember { mutableStateOf(false) }
   var showYearPicker by remember { mutableStateOf(false) }
 
@@ -500,6 +504,18 @@ fun DashboardScreen(
             currencySymbol = currencySymbol
           )
         }
+      }
+
+      // Financial Insights Section
+      item {
+        val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
+        FinancialInsightsSection(
+          insights = activeInsights,
+          periodLabel = periodLabel,
+          currencySymbol = currencySymbol,
+          onOpenSetBudget = onOpenSetBudget,
+          onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
+        )
       }
 
       // Budget & Category Overview Cards
