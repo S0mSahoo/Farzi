@@ -442,10 +442,14 @@ class AiActionValidationTest {
         assertNull(pendingGroupBefore?.validationError)
 
         aiViewModel.confirmAndExecutePendingAction()
+        
+        // Wait for processing to start AND finish
+        flushCoroutines { aiViewModel.isProcessingAction.value }
+        flushCoroutines { !aiViewModel.isProcessingAction.value }
         flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "August Salary" } }
 
         assertNull("Pending group should be cleared after execution", aiViewModel.pendingActionGroup.value)
-        assertEquals(initialCount + 1, financeViewModel.allTransactions.value.size)
+        assertEquals("Database should have one more transaction", initialCount + 1, financeViewModel.allTransactions.value.size)
         val addedTx = financeViewModel.allTransactions.value.first { it.title == "August Salary" }
         assertEquals(3000.0, addedTx.amount, 0.01)
         assertEquals(TransactionType.INCOME, addedTx.type)

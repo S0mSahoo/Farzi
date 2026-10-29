@@ -46,6 +46,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +62,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -82,8 +84,12 @@ import com.example.ui.viewmodel.ActionExecutionStatus
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
 import com.example.ui.viewmodel.ChatMessage
+import com.example.ui.viewmodel.Source
 import com.example.ui.viewmodel.PendingActionGroup
 import com.example.util.parseMarkdownToAnnotatedString
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -139,7 +145,7 @@ fun AiAdvisorScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         },
-        contentWindowInsets = WindowInsets.safeDrawing
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -266,6 +272,7 @@ fun AiAdvisorScreen(
                 tonalElevation = 6.dp,
                 modifier = Modifier
                     .fillMaxWidth()
+                    .navigationBarsPadding()
                     .imePadding()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
@@ -602,16 +609,76 @@ fun ChatBubble(message: ChatMessage) {
                 .fillMaxWidth(if (isUser) 0.82f else 0.88f)
                 .testTag(if (isUser) "chat_bubble_user" else "chat_bubble_model")
         ) {
-            Text(
-                text = parseMarkdownToAnnotatedString(message.text),
-                color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.padding(12.dp)
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    text = parseMarkdownToAnnotatedString(message.text),
+                    color = if (isUser) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                
+                if (message.sources.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = if (isUser) Color.White.copy(alpha = 0.3f) else MaterialTheme.colorScheme.outlineVariant
+                    )
+                    Text(
+                        text = "Sources:",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isUser) Color.White else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        message.sources.distinctBy { it.url }.forEach { source ->
+                            SourceLink(source = source, isUserBubble = isUser)
+                        }
+                    }
+                }
+            }
         }
 
         if (isUser) {
             Spacer(modifier = Modifier.width(8.dp))
+        }
+    }
+}
+
+@Composable
+fun SourceLink(source: Source, isUserBubble: Boolean) {
+    val context = LocalContext.current
+    Surface(
+        onClick = {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(source.url))
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                // Ignore malformed URLs
+            }
+        },
+        shape = RoundedCornerShape(8.dp),
+        color = if (isUserBubble) Color.White.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surface,
+        border = BorderStroke(0.5.dp, if (isUserBubble) Color.White.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.OpenInNew,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = if (isUserBubble) Color.White else MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = source.title,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isUserBubble) Color.White else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
+            )
         }
     }
 }

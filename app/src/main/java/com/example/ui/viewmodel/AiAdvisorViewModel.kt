@@ -16,6 +16,9 @@ import com.example.ui.components.DateUtils
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.FunctionResponsePart
+import com.google.firebase.ai.type.Candidate
+import com.google.firebase.ai.type.GroundingMetadata
+import com.google.firebase.ai.type.WebGroundingChunk
 import com.google.firebase.ai.type.content
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -45,8 +48,11 @@ sealed interface AiUiState {
 data class ChatMessage(
     val role: String, // "user" or "model"
     val text: String,
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    val sources: List<Source> = emptyList()
 )
+
+data class Source(val title: String, val url: String)
 
 sealed interface ProposedActionData {
     data class LogTransactionData(
@@ -203,6 +209,13 @@ You have access to structured, read-only tools to query the user's live financia
 - `getRecurringCommitments(type)`: Active recurring subscriptions, bills, and estimated monthly commitments.
 - `searchTransactions(query, startDate, endDate, category, type, limit)`: Bounded search across transactions without sensitive private notes.
 
+GOOGLE SEARCH GROUNDING:
+You have access to Google Search for answering questions that genuinely require current external information (e.g., market rates, tax rules, financial product details). 
+1. DO NOT use Google Search to retrieve the user's private financial data. Use the READ-ONLY QUERY TOOLS for that.
+2. Use Google Search only for general knowledge or real-time external facts.
+3. If the user's question can be answered from their local data, prioritize the QUERY TOOLS.
+4. If you use external information, specify that it is from grounded search.
+
 RULES FOR DATA ACCESS & QUERIES:
 1. ALWAYS use the query tools whenever the user asks about their financial figures, trends, category totals, budgets, or recurring commitments. DO NOT guess, fabricate, or hallucinate numbers.
 2. Query ONLY the specific periods, categories, or records needed to answer the user's explicit question. Minimise private data exposure.
@@ -233,7 +246,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
 """.trimIndent())
                 },
                 content("model") {
-                    text("Understood! I am Paisa AI. I will query your financial records strictly via read-only tools to retrieve exact numbers, and propose financial actions via ACTION_JSON: for your explicit confirmation.")
+                    text("Understood! I am Paisa AI. I will query your financial records strictly via read-only tools to retrieve exact numbers, use Google Search for external general information, and propose financial actions via ACTION_JSON: for your explicit confirmation.")
                 }
             )
         )
@@ -329,7 +342,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
 
     private val _messages = MutableStateFlow<List<ChatMessage>>(
         listOf(
-            ChatMessage("model", "Hello! I'm Paisa AI. I can analyze your spending for any month or year, and propose transactions, budgets, or recurring rules for you to confirm!")
+            ChatMessage("model", "Hello! I'm Paisa AI, your agentic financial assistant. 🌟\n\nI can analyze your spending, compare periods, or help you log transactions and set budgets. How can I help you manage your finances today?")
         )
     )
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
@@ -385,7 +398,26 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
                     } else {
                         cleanedText
                     }
-                    _messages.value = _messages.value + ChatMessage("model", finalText)
+
+                    // Extract sources from grounding metadata
+                    val sources = mutableListOf<Source>()
+                    try {
+                        val groundingMetadata = currentResponse.candidates.firstOrNull()?.groundingMetadata
+                        groundingMetadata?.groundingChunks?.forEach { chunk ->
+                            val web = chunk.web
+                            if (web != null) {
+                                val uri = web.uri
+                                val title = web.title
+                                if (!uri.isNullOrBlank() && !title.isNullOrBlank()) {
+                                    sources.add(Source(title, uri))
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error extracting grounding metadata", e)
+                    }
+
+                    _messages.value = _messages.value + ChatMessage("model", finalText, sources = sources)
                     _uiState.value = AiUiState.Success(finalText)
                 } else if (currentResponse.functionCalls.isNotEmpty()) {
                     val fallbackMsg = "I reached the maximum tool query depth for this question. Please try asking a more specific question."

@@ -124,6 +124,7 @@ object FinancialQueryTools {
    * Bundled tool declaration passed to Firebase AI GenerativeModel.
    */
   val allTools: List<Tool> = listOf(
+    Tool.googleSearch(),
     Tool.functionDeclarations(
       listOf(
         getFinancialSummaryDeclaration,
