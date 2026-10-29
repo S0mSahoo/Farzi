@@ -1,21 +1,31 @@
-# Comprehensive UI Consistency, Interaction, and State Fix Plan
+# Implementation Plan: Phase 6 - Adding Google Search Grounding to Paisa AI
 
-## Phase 1 — Finish & Verify System-Bar Behavior (`MainActivity.kt`)
-- Verify status-bar and navigation-bar icon contrast logic using `WindowCompat.getInsetsController()` in `SideEffect`.
-- Ensure light mode shows dark icons and dark/AMOLED mode shows light icons, updating dynamically on theme changes.
+## 1. Objective
+Enable selective Google Search grounding for the Gemini advisor to answer questions requiring external, up-to-date information, while strictly preserving privacy for local financial data queries.
 
-## Phase 2 — Fix Rectangular Ripple and Press-Highlight Defects (`AddEditRecurringSheet.kt`)
-- Refactor recurrence interval selector buttons, category chips, and start-date selector to use shape-aware `Surface(onClick = ..., shape = ...)` instead of `modifier = Modifier.clickable(...)` without proper clipping. This guarantees shape-bound press ripples.
+## 2. Implementation Steps
 
-## Phase 3 — Complete Transitions Across Screens
-- Add smooth, restrained transitions (`AnimatedContent` / `Crossfade`) for period toggles (`DashboardScreen`, `AnalyticsScreen`), tab switches (`RecurringScreen`), and type switches (`CategoriesScreen`).
+### Model & Tool Configuration
+- **Modify `AiAdvisorViewModel.kt`**: Update `Firebase.ai.generativeModel` initialization to include `com.google.firebase.ai.type.Tool.googleSearch()` in the `tools` list alongside the existing financial query tools.
 
-## Phase 4 — Unify Card Depth (`SettingsScreen.kt`, `AnalyticsScreen.kt`)
-- Replace direct zero-elevation Material 3 `Card` instances in `SettingsScreen.kt` and `AnalyticsScreen.kt` with `PremiumCard` to ensure consistent depth, borders, and visual hierarchy across Light and AMOLED Dark modes.
+### Handling Grounding Metadata
+- **Update Inference Loop**: Modify the `AiAdvisorViewModel` to inspect the response for grounding metadata (citations).
+- **Metadata Extraction**: Parse `response.candidates[0].groundingMetadata` (or equivalent SDK structure) to extract `groundingChunks` (source title, URI).
+- **Display UI**: Ensure extracted sources are passed to the chat UI and rendered as clear, clickable links.
 
-## Phase 5 — Correct Recurring Form State & Semantics (`AddEditRecurringSheet.kt`)
-- Refactor `AddEditRecurringSheet` type switching to update category state directly in the user event handler rather than relying on `LaunchedEffect` during/after composition.
-- Add proper accessibility selection semantics (`semantics { role = Role.RadioButton / Tab / ToggleButton }` or `selected = ...`) where needed.
+### Privacy Safeguards
+- **Selective Grounding**: Ensure the instruction prompt explicitly differentiates between financial query tools and external search.
+- **Data Protection**: Explicitly instruct the model to prefer financial tools for user data and Google Search only for general external knowledge. Verify that local financial data is NOT shared with Google Search.
 
-## Phase 6 — Testing & Build Verification
-- Run `gradle :app:testDebugUnitTest` and `gradle :app:assembleDebug` to verify build integrity.
+### Testing & Validation
+- **Unit Testing**: Add unit tests in a new test class (e.g., `GroundingMetadataTest.kt`) to simulate `groundingMetadata` responses, including:
+  - Valid source mapping (title/URL).
+  - Missing metadata scenarios.
+  - Duplicate/malformed sources.
+- **Manual Verification**: Verify in the debug emulator that:
+  - Grounded queries return sources.
+  - Personal finance queries do not trigger external searches.
+
+## 3. Assumptions & Risks
+- **SDK Capability**: Assumes `Tool.googleSearch()` is available in the currently installed Firebase AI SDK version.
+- **UI Constraints**: Requires a safe way to present external web links within the Android chat UI.

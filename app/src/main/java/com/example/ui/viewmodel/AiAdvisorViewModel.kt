@@ -7,11 +7,15 @@ import com.example.data.model.PaymentMethod
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringRule
 import com.example.data.model.TransactionCategory
+import com.example.data.ai.DefaultFinancialToolExecutor
+import com.example.data.ai.FinancialQueryTools
+import com.example.data.ai.FinancialToolExecutor
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.components.DateUtils
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.ai.type.FunctionResponsePart
 import com.google.firebase.ai.type.content
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
@@ -20,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.JsonObject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -152,8 +157,25 @@ class AiAdvisorViewModel : ViewModel() {
     private val _isProcessingAction = MutableStateFlow(false)
     val isProcessingAction: StateFlow<Boolean> = _isProcessingAction.asStateFlow()
 
+    var toolExecutor: FinancialToolExecutor = DefaultFinancialToolExecutor(
+        getTransactions = { financeViewModel?.allTransactions?.value ?: emptyList() },
+        getBudgets = { financeViewModel?.allBudgets?.value ?: emptyList() },
+        getRecurringRules = { financeViewModel?.allRecurringRules?.value ?: emptyList() },
+        getCurrencySymbol = { getCurrencySymbol() }
+    )
+
     fun bindFinanceViewModel(viewModel: FinanceViewModel) {
         this.financeViewModel = viewModel
+        this.toolExecutor = DefaultFinancialToolExecutor(
+            getTransactions = { viewModel.allTransactions.value },
+            getBudgets = { viewModel.allBudgets.value },
+            getRecurringRules = { viewModel.allRecurringRules.value },
+            getCurrencySymbol = { getCurrencySymbol() }
+        )
+    }
+
+    fun resetChat() {
+        activeChat = null
     }
 
     private fun getCurrencySymbol(): String {
@@ -162,81 +184,56 @@ class AiAdvisorViewModel : ViewModel() {
 
     private fun obtainChat(): com.google.firebase.ai.Chat {
         activeChat?.let { return it }
-        val currentMonthKey = DateUtils.getMonthKey(System.currentTimeMillis())
-        val currentMonthLabel = DateUtils.getMonthLabel(System.currentTimeMillis())
-        val currentYear = SimpleDateFormat("yyyy", Locale.US).format(Date())
 
         val newChat = Firebase.ai.generativeModel(
-            modelName = "gemini-3.5-flash-lite"
+            modelName = "gemini-3.8-flash",
+            tools = FinancialQueryTools.allTools
         ).startChat(
             history = listOf(
                 content("user") {
                     text("""
-SYSTEM DIRECTIVE: You are Paisa AI, the complete AGENTIC personal financial assistant in Paisa Pro.
-You have full access to the user's LIVE FINANCIAL DATABASE SNAPSHOT provided with each user query.
-You MUST use the exact numbers, transactions, category totals, budgets, and recurring rules from the snapshot to answer queries.
+SYSTEM DIRECTIVE: You are Paisa AI, the intelligent personal financial advisor in Paisa Pro.
 
-Current Date / Month: $currentMonthLabel (Month Key: $currentMonthKey, Year: $currentYear).
+READ-ONLY QUERY TOOLS:
+You have access to structured, read-only tools to query the user's live financial data:
+- `getFinancialSummary(periodType, period)`: Retrieve income, expense, savings rate, and insights for a month ('YYYY-MM') or year ('YYYY').
+- `comparePeriods(periodType, period1, period2)`: Compare totals, percentage differences, and cash flows between two months or years.
+- `getCategorySpending(startDate, endDate, category, type)`: Category breakdown and spending totals for any date range.
+- `getBudgetStatus(monthKey)`: Budget limit, expense, remaining funds, and utilization percentage for a month ('YYYY-MM').
+- `getRecurringCommitments(type)`: Active recurring subscriptions, bills, and estimated monthly commitments.
+- `searchTransactions(query, startDate, endDate, category, type, limit)`: Bounded search across transactions without sensitive private notes.
 
-When asked for spending analysis, financial summaries, or queries about specific months/years (e.g. "August 2026", "current month", "year 2026", "this year"):
-1. Identify the requested month(s) or year in the snapshot.
-2. If multiple months or a year are requested, perform the analysis for EACH period found in the snapshot, then provide an overall summary.
-3. For each period, calculate and present Total Income, Total Expense, Net Savings, Savings Rate, Top Spending Categories with amounts/percentages, and Budget utilization.
-4. If no transactions exist for the requested period in the snapshot, You MUST state clearly: "I see no financial records for [Period] in your database." Do NOT hallucinate or provide generic summaries if data is missing.
-5. Provide high-value, personalized financial analysis and actionable tips based directly on the actual calculated numbers for the requested time range.
+RULES FOR DATA ACCESS & QUERIES:
+1. ALWAYS use the query tools whenever the user asks about their financial figures, trends, category totals, budgets, or recurring commitments. DO NOT guess, fabricate, or hallucinate numbers.
+2. Query ONLY the specific periods, categories, or records needed to answer the user's explicit question. Minimise private data exposure.
+3. Keep responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 
-When asked to take single OR multiple actions (e.g. "log my salary of 3000 for August 2026", "log expenses for Jan-Mar", "delete my last Starbucks transaction", "update my Netflix recurring rule amount to $18", "delete budget for January"):
-1. Give a brief, crisp text answer confirming the action proposal.
-2. Append an `ACTION_JSON:` block containing a single action object OR an array of action objects.
+ACTION PROPOSALS & MUTATION SAFETY:
+The query tools are strictly read-only and CANNOT mutate records. If the user asks you to log, modify, or delete a transaction, budget, or recurring rule:
+1. Provide a brief text response describing the proposed change.
+2. Append an `ACTION_JSON:` block containing the proposal for explicit user confirmation.
+3. The app's preview flow will require user review before any mutation occurs.
 
 Supported Action Schemas:
-
-1. Log Transaction (supports custom `date` in "YYYY-MM-DD" or "YYYY-MM"):
-ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Groceries", "amount": 45.0, "type": "EXPENSE", "category": "GROCERIES", "paymentMethod": "UPI", "date": "2026-08-15", "note": "Weekly veggies"}
-
-Multiple Transactions Array Example:
-ACTION_JSON: [
-  {"action": "LOG_TRANSACTION", "title": "Salary", "amount": 3000.0, "type": "INCOME", "category": "SALARY", "paymentMethod": "NET_BANKING", "date": "2026-08-01"},
-  {"action": "LOG_TRANSACTION", "title": "Salary", "amount": 3000.0, "type": "INCOME", "category": "SALARY", "paymentMethod": "NET_BANKING", "date": "2026-09-01"}
-]
-
-2. Modify / Update Existing Transaction:
-ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "2026-08-15", "newTitle": "Fresh Groceries", "newAmount": 50.0, "newCategory": "GROCERIES", "newPaymentMethod": "CREDIT_CARD"}
-
-3. Delete Transaction(s):
-ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "2026-08-15"}
-(Use "targetQuery": "ALL" and "targetDate": "YYYY-MM" to delete all transactions for a specific month)
-
-4. Set Monthly Budget:
-ACTION_JSON: {"action": "SET_BUDGET", "monthKey": "2026-08", "totalBudget": 1500.0}
-
-5. Delete Monthly Budget:
-ACTION_JSON: {"action": "DELETE_BUDGET", "monthKey": "2026-08"}
-
-6. Create Recurring Rule:
+ACTION_JSON: {"action": "LOG_TRANSACTION", "title": "Groceries", "amount": 45.0, "type": "EXPENSE", "category": "GROCERIES", "paymentMethod": "UPI", "date": "YYYY-MM-DD"}
+ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "YYYY-MM-DD", "newAmount": 50.0}
+ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "YYYY-MM-DD"}
+ACTION_JSON: {"action": "SET_BUDGET", "monthKey": "YYYY-MM", "totalBudget": 1500.0}
+ACTION_JSON: {"action": "DELETE_BUDGET", "monthKey": "YYYY-MM"}
 ACTION_JSON: {"action": "LOG_RECURRING", "title": "Netflix", "amount": 15.0, "type": "EXPENSE", "category": "SUBSCRIPTIONS", "interval": "MONTHLY", "paymentMethod": "CREDIT_CARD"}
-
-7. Modify / Toggle Recurring Rule:
-ACTION_JSON: {"action": "UPDATE_RECURRING", "targetQuery": "Netflix", "newAmount": 18.0, "isActive": true}
-
-8. Delete Recurring Rule:
+ACTION_JSON: {"action": "UPDATE_RECURRING", "targetQuery": "Netflix", "newAmount": 18.0}
 ACTION_JSON: {"action": "DELETE_RECURRING", "targetQuery": "Netflix"}
-
-9. Update User Profile:
 ACTION_JSON: {"action": "UPDATE_PROFILE", "name": "John", "currencySymbol": "$"}
 
 Categories:
 EXPENSE: FOOD_DINING, GROCERIES, TRANSPORTATION, HOUSING, UTILITIES, SHOPPING, ENTERTAINMENT, HEALTHCARE, EDUCATION, TRAVEL, FITNESS, PERSONAL_CARE, SUBSCRIPTIONS, OTHER_EXPENSE.
 INCOME: SALARY, FREELANCE, BUSINESS, INVESTMENTS, BONUS, GIFT, RENTAL_INCOME, OTHER_INCOME.
-
 Payment Methods: UPI, CASH, CREDIT_CARD, DEBIT_CARD, NET_BANKING, WALLET, OTHER.
 Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
-
-Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
 """.trimIndent())
                 },
                 content("model") {
-                    text("Understood! I am Paisa AI. I will provide strict, data-driven financial analysis using ONLY your provided snapshot data, and I will propose safe financial actions for your confirmation. I will explicitly state when data for a requested period is missing.")
+                    text("Understood! I am Paisa AI. I will query your financial records strictly via read-only tools to retrieve exact numbers, and propose financial actions via ACTION_JSON: for your explicit confirmation.")
                 }
             )
         )
@@ -343,27 +340,44 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
         _messages.value = _messages.value + userMsg
         _uiState.value = AiUiState.Loading
 
-        val snapshot = buildFinancialDatabaseSnapshot()
-        val fullPromptWithSnapshot = """
-            |[LIVE FINANCIAL DATABASE SNAPSHOT]:
-            |$snapshot
-            |
-            |[USER QUESTION / REQUEST]:
-            |$prompt
-        """.trimMargin()
+        val currentMonthKey = DateUtils.getMonthKey(System.currentTimeMillis())
+        val currentMonthLabel = DateUtils.getMonthLabel(System.currentTimeMillis())
+        val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+        val currentYear = SimpleDateFormat("yyyy", Locale.US).format(Date())
+
+        // Privacy-preserving context: current temporal anchors without dumping entire database
+        val contextualPrompt = "[Current Context: Today is $todayDate ($currentMonthLabel), Month Key: $currentMonthKey, Year: $currentYear]\n$prompt"
 
         viewModelScope.launch {
-            val accumulated = StringBuilder()
             try {
                 val currentChat = obtainChat()
-                withTimeout(60_000L) {
-                    currentChat.sendMessageStream(fullPromptWithSnapshot).collect { chunk ->
-                        val chunkText = chunk.text.orEmpty()
-                        accumulated.append(chunkText)
-                        _uiState.value = AiUiState.Streaming(accumulated.toString())
+                var currentResponse = withTimeout(60_000L) {
+                    currentChat.sendMessage(contextualPrompt)
+                }
+
+                var rounds = 0
+                val maxToolRounds = 5
+                while (currentResponse.functionCalls.isNotEmpty() && rounds < maxToolRounds) {
+                    rounds++
+                    val functionCalls = currentResponse.functionCalls
+                    val responseParts = mutableListOf<FunctionResponsePart>()
+                    for (call in functionCalls) {
+                        val mapArgs = call.args.mapValues { jsonElementToAny(it.value) }
+                        val toolResultJson = toolExecutor.executeTool(call.name, mapArgs)
+                        val kotlinxObj = kotlinx.serialization.json.Json.parseToJsonElement(toolResultJson.toString()) as kotlinx.serialization.json.JsonObject
+                        responseParts.add(
+                            FunctionResponsePart(call.name, kotlinxObj, call.id)
+                        )
+                    }
+
+                    currentResponse = withTimeout(60_000L) {
+                        currentChat.sendMessage(
+                            com.google.firebase.ai.type.Content("function", responseParts)
+                        )
                     }
                 }
-                val rawAnswer = accumulated.toString()
+
+                val rawAnswer = currentResponse.text.orEmpty()
                 if (rawAnswer.isNotBlank()) {
                     val (cleanedText, actionNotice) = processAgenticAction(rawAnswer)
                     val finalText = if (actionNotice.isNotBlank()) {
@@ -373,6 +387,10 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                     }
                     _messages.value = _messages.value + ChatMessage("model", finalText)
                     _uiState.value = AiUiState.Success(finalText)
+                } else if (currentResponse.functionCalls.isNotEmpty()) {
+                    val fallbackMsg = "I reached the maximum tool query depth for this question. Please try asking a more specific question."
+                    _messages.value = _messages.value + ChatMessage("model", fallbackMsg)
+                    _uiState.value = AiUiState.Success(fallbackMsg)
                 } else {
                     _uiState.value = AiUiState.Error("AI returned an empty response.")
                 }
@@ -387,6 +405,33 @@ Keep all responses SHORT, CRISP, CLEAR, and DIRECTLY ACTIONABLE.
                 _uiState.value = AiUiState.Error(e.localizedMessage ?: "Failed to get AI response. Please try again.")
             }
         }
+    }
+
+    private fun jsonElementToAny(element: kotlinx.serialization.json.JsonElement?): Any? {
+        return when (element) {
+            is kotlinx.serialization.json.JsonPrimitive -> {
+                if (element.isString) {
+                    element.content
+                } else {
+                    val content = element.content
+                    content.toIntOrNull() ?: content.toLongOrNull() ?: content.toDoubleOrNull() ?: content.toBooleanStrictOrNull() ?: content
+                }
+            }
+            is kotlinx.serialization.json.JsonObject -> element.mapValues { jsonElementToAny(it.value) }
+            is kotlinx.serialization.json.JsonArray -> element.map { jsonElementToAny(it) }
+            else -> null
+        }
+    }
+
+    private fun jsonObjectToMap(json: JSONObject): Map<String, Any?> {
+        val map = mutableMapOf<String, Any?>()
+        val keys = json.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val value = json.opt(key)
+            map[key] = if (value == JSONObject.NULL) null else value
+        }
+        return map
     }
 
     private fun processAgenticAction(rawText: String): Pair<String, String> {

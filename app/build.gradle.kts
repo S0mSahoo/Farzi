@@ -55,7 +55,12 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+      isReturnDefaultValues = true
+    }
+  }
   dependenciesInfo {
     includeInApk = false
     includeInBundle = true
@@ -94,6 +99,7 @@ dependencies {
   implementation(libs.coil.compose)
   implementation(libs.firebase.firestore)
   implementation("com.google.firebase:firebase-ai")
+  implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
   // Uncomment ALL FOUR of the following dependencies together to use Firebase Auth and Google
   // Sign-In via Credential Manager:
