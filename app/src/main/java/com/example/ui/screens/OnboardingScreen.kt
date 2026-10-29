@@ -35,7 +35,7 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.Shield
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -91,6 +91,7 @@ fun OnboardingScreen(
     }
   }
 
+  @Suppress("DEPRECATION")
   val googleSignInLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.StartActivityForResult()
   ) { result ->
@@ -222,7 +223,7 @@ fun OnboardingScreen(
           ) {
             OnboardingTabButton(
               title = "Track",
-              icon = Icons.Default.TrendingUp,
+              icon = Icons.AutoMirrored.Filled.TrendingUp,
               isSelected = currentPage == 0,
               onClick = { currentPage = 0 },
               modifier = Modifier.weight(1f)

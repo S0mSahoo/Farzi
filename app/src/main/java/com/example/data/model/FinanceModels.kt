@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Subscriptions
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Work
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
@@ -109,7 +109,7 @@ enum class TransactionCategory(
       SALARY -> Icons.Default.Work
       FREELANCE -> Icons.Default.LaptopMac
       BUSINESS -> Icons.Default.AccountBalance
-      INVESTMENTS -> Icons.Default.TrendingUp
+      INVESTMENTS -> Icons.AutoMirrored.Filled.TrendingUp
       BONUS -> Icons.Default.CardGiftcard
       GIFT -> Icons.Default.CardGiftcard
       RENTAL_INCOME -> Icons.Default.AccountBalanceWallet

@@ -37,7 +37,7 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -315,7 +315,7 @@ fun DashboardScreen(
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
               ) {
                 Icon(
-                  imageVector = Icons.Default.TrendingUp,
+                  imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                   contentDescription = null,
                   tint = MaterialTheme.colorScheme.primary,
                   modifier = Modifier.padding(12.dp).size(22.dp)

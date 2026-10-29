@@ -33,7 +33,7 @@ import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
@@ -459,7 +459,7 @@ fun PremiumEmptyState(
     ) {
       Box(contentAlignment = Alignment.Center) {
         Icon(
-          Icons.Default.ReceiptLong,
+          Icons.AutoMirrored.Filled.ReceiptLong,
           contentDescription = null,
           tint = MaterialTheme.colorScheme.primary,
           modifier = Modifier.size(25.dp)

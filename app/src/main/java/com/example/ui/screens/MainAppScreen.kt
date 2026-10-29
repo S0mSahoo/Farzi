@@ -26,12 +26,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -75,7 +75,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,7 +102,7 @@ import com.example.ui.viewmodel.FinanceViewModel
 
 sealed class AppDestination(val index: Int, val label: String, val icon: ImageVector) {
   object Dashboard : AppDestination(0, "Home", Icons.Default.Dashboard)
-  object Transactions : AppDestination(1, "Transactions", Icons.Default.ReceiptLong)
+  object Transactions : AppDestination(1, "Transactions", Icons.AutoMirrored.Filled.ReceiptLong)
   object Calendar : AppDestination(2, "Calendar", Icons.Default.CalendarMonth)
   object Budgets : AppDestination(3, "Budgets", Icons.Default.AccountBalanceWallet)
   object Recurring : AppDestination(4, "Recurring", Icons.Default.Repeat)
@@ -572,7 +572,7 @@ fun MainAppScreen(
                     navigationIcon = {
                       if (isSettingsOpen) {
                         IconButton(onClick = { isSettingsOpen = false }) {
-                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
@@ -739,7 +739,7 @@ fun MainAppScreen(
                     navigationIcon = {
                       if (isSettingsOpen) {
                         IconButton(onClick = { isSettingsOpen = false }) {
-                          Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                          Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                         }
                       }
                     },
@@ -866,7 +866,7 @@ fun MainAppScreen(
                           }
                         }
                       ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                       }
                     }
                   },

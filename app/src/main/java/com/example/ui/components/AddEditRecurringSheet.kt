@@ -30,7 +30,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Notes
+import androidx.compose.material.icons.automirrored.filled.Notes
 import androidx.compose.material.icons.filled.Title
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -489,7 +489,7 @@ fun AddEditRecurringSheet(
         onValueChange = { noteText = it },
         placeholder = { Text("Add any auto-generation note") },
         leadingIcon = {
-          Icon(Icons.Default.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+          Icon(Icons.AutoMirrored.Filled.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
         },
         maxLines = 2,
         shape = RoundedCornerShape(24.dp),
