@@ -296,65 +296,65 @@ fun TransactionsScreen(
       }
 
       item {
-        AnimatedContent(
-          targetState = Pair(selectedDayOfMonth, searchQuery),
-          transitionSpec = { PaisaMotion.DefaultContentTransform },
-          label = "transactions_summary_transition"
-        ) { _ ->
-          PremiumCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-            Column(
-              modifier = Modifier.fillMaxWidth().padding(18.dp),
-              verticalArrangement = Arrangement.spacedBy(12.dp)
+        PremiumCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+          Column(
+            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-              ) {
+              AnimatedContent(
+                targetState = selectedDayOfMonth,
+                transitionSpec = { PaisaMotion.DefaultContentTransform },
+                label = "transactions_summary_heading_transition"
+              ) { day ->
                 Text(
-                  text = if (selectedDayOfMonth != null) "SUMMARY FOR DAY $selectedDayOfMonth" else "NET CASH FLOW IN VIEW",
+                  text = if (day != null) "SUMMARY FOR DAY $day" else "NET CASH FLOW IN VIEW",
                   style = MaterialTheme.typography.labelMedium,
                   color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                   fontWeight = FontWeight.Bold,
                   letterSpacing = 1.2.sp
                 )
-                Surface(
-                  shape = CircleShape,
-                  color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                ) {
-                  Text(
-                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                  )
-                }
               }
-
-              Text(
-                IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
-              )
-
-              Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
+              Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
               ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Surface(shape = CircleShape, color = com.example.ui.theme.IncomeGreen.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                  Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  Surface(shape = CircleShape, color = com.example.ui.theme.ExpenseRed.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                  Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
-                }
+                Text(
+                  text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+              }
+            }
+
+            Text(
+              IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
+              style = MaterialTheme.typography.headlineMedium,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onPrimaryContainer,
+              maxLines = 1,
+              softWrap = false,
+              overflow = TextOverflow.Ellipsis
+            )
+
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(16.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(shape = CircleShape, color = com.example.ui.theme.IncomeGreen.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
+                Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+              }
+              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Surface(shape = CircleShape, color = com.example.ui.theme.ExpenseRed.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
+                Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
               }
             }
           }

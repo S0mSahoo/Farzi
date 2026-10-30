@@ -3,7 +3,6 @@ package com.example.ui.util
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,18 +40,4 @@ object PaisaMotion {
     val ExitTransition: ExitTransition = fadeOut(
         animationSpec = tween(ExitFadeDurationMillis, easing = MotionEasing)
     )
-
-    /**
-     * Create a custom content transform with optional size transform behavior.
-     */
-    fun contentTransform(
-        clip: Boolean = true,
-        sizeTransform: SizeTransform? = null
-    ): ContentTransform = (fadeIn(
-        animationSpec = tween(EnterFadeDurationMillis, easing = MotionEasing)
-    ) togetherWith fadeOut(
-        animationSpec = tween(ExitFadeDurationMillis, easing = MotionEasing)
-    )).apply {
-        targetContentZIndex = 0f
-    }
 }

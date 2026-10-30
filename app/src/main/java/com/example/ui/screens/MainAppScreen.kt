@@ -1084,61 +1084,55 @@ private fun MainScreenContent(
         onOpenExportModal = onOpenExportModal
       )
     } else {
-      Crossfade(
-        targetState = selectedTab,
-        animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
-        label = "paisa_primary_navigation"
-      ) { destination ->
-        when (destination) {
-          0 -> DashboardScreen(
-            viewModel = viewModel,
-            onOpenAddTransaction = onOpenAddTransaction,
-            onEditTransaction = onEditTransaction,
-            onOpenSetBudget = {
-              onOpenSetBudget(
-                DateUtils.getMonthKey(dashboardCalendar),
-                DateUtils.getMonthLabel(dashboardCalendar)
-              )
-            },
-            onOpenAllTransactions = { onNavigateTab(1) }
-          )
-          1 -> TransactionsScreen(
-            viewModel = viewModel,
-            onEditTransaction = onEditTransaction
-          )
-          2 -> CalendarScreen(
-            viewModel = viewModel,
-            onAddTransactionForDate = onAddTransactionForDate,
-            onEditTransaction = onEditTransaction
-          )
-          3 -> BudgetScreen(
-            viewModel = viewModel,
-            onOpenSetBudget = {
-              onOpenSetBudget(
-                DateUtils.getMonthKey(budgetCalendar),
-                DateUtils.getMonthLabel(budgetCalendar)
-              )
-            }
-          )
-          4 -> RecurringScreen(
-            viewModel = viewModel,
-            onOpenAddRecurringRule = onOpenAddRecurringRule,
-            onEditRecurringRule = onEditRecurringRule
-          )
-          5 -> CategoriesScreen(viewModel = viewModel)
-          else -> DashboardScreen(
-            viewModel = viewModel,
-            onOpenAddTransaction = onOpenAddTransaction,
-            onEditTransaction = onEditTransaction,
-            onOpenSetBudget = {
-              onOpenSetBudget(
-                DateUtils.getMonthKey(dashboardCalendar),
-                DateUtils.getMonthLabel(dashboardCalendar)
-              )
-            },
-            onOpenAllTransactions = { onNavigateTab(1) }
-          )
-        }
+      when (selectedTab) {
+        0 -> DashboardScreen(
+          viewModel = viewModel,
+          onOpenAddTransaction = onOpenAddTransaction,
+          onEditTransaction = onEditTransaction,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(dashboardCalendar),
+              DateUtils.getMonthLabel(dashboardCalendar)
+            )
+          },
+          onOpenAllTransactions = { onNavigateTab(1) }
+        )
+        1 -> TransactionsScreen(
+          viewModel = viewModel,
+          onEditTransaction = onEditTransaction
+        )
+        2 -> CalendarScreen(
+          viewModel = viewModel,
+          onAddTransactionForDate = onAddTransactionForDate,
+          onEditTransaction = onEditTransaction
+        )
+        3 -> BudgetScreen(
+          viewModel = viewModel,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(budgetCalendar),
+              DateUtils.getMonthLabel(budgetCalendar)
+            )
+          }
+        )
+        4 -> RecurringScreen(
+          viewModel = viewModel,
+          onOpenAddRecurringRule = onOpenAddRecurringRule,
+          onEditRecurringRule = onEditRecurringRule
+        )
+        5 -> CategoriesScreen(viewModel = viewModel)
+        else -> DashboardScreen(
+          viewModel = viewModel,
+          onOpenAddTransaction = onOpenAddTransaction,
+          onEditTransaction = onEditTransaction,
+          onOpenSetBudget = {
+            onOpenSetBudget(
+              DateUtils.getMonthKey(dashboardCalendar),
+              DateUtils.getMonthLabel(dashboardCalendar)
+            )
+          },
+          onOpenAllTransactions = { onNavigateTab(1) }
+        )
       }
     }
   }

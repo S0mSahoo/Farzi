@@ -107,9 +107,6 @@ fun CalendarScreen(
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
   val currencySymbol = userProfile.currencySymbol
   val selectedDayKey = DateUtils.getDayKey(selectedDayMillis)
-  val dayIncome = selectedDayTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-  val dayExpense = selectedDayTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-  val dayNet = dayIncome - dayExpense
 
   val initialPage = remember {
     getPageForMonth(
@@ -331,6 +328,24 @@ fun CalendarScreen(
           label = "calendar_day_detail_transition"
         ) { dayMillis ->
           val isLight = !com.example.ui.theme.isAppInDarkTheme()
+          val dayTransactions = remember(dayMillis, allTransactions) {
+            val startOfDay = DateUtils.getStartOfDay(dayMillis)
+            val endOfDay = DateUtils.getEndOfDay(dayMillis)
+            allTransactions.filter { it.timestamp in startOfDay..endOfDay }
+          }
+          val (detailIncome, detailExpense, detailNet) = remember(dayTransactions) {
+            var inc = 0.0
+            var exp = 0.0
+            for (tx in dayTransactions) {
+              if (tx.type == TransactionType.INCOME) {
+                inc += tx.amount
+              } else if (tx.type == TransactionType.EXPENSE) {
+                exp += tx.amount
+              }
+            }
+            Triple(inc, exp, inc - exp)
+          }
+
           Surface(
             shape = RoundedCornerShape(28.dp),
             color = Color.Transparent,
@@ -350,10 +365,6 @@ fun CalendarScreen(
           ) {
             val textColor = if (isLight) Color(0xFF2E1065) else Color.White
             val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-            val detailIncome = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) && it.type == TransactionType.INCOME }.sumOf { it.amount }
-            val detailExpense = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-            val detailNet = detailIncome - detailExpense
-            val detailTransactions = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) }
 
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
               Row(
@@ -364,7 +375,7 @@ fun CalendarScreen(
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                   Text(DateUtils.getDisplayDate(dayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
                   Text(
-                    if (detailTransactions.isEmpty()) "No recorded activity" else "${detailTransactions.size} ${if (detailTransactions.size == 1) "transaction" else "transactions"}",
+                    if (dayTransactions.isEmpty()) "No recorded activity" else "${dayTransactions.size} ${if (dayTransactions.size == 1) "transaction" else "transactions"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = subTextColor
                   )
