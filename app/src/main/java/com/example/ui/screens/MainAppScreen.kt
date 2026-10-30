@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -98,6 +99,7 @@ import com.example.ui.theme.ExpenseRed
 import com.example.ui.util.AppNavigationType
 import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.util.calculateAdaptiveInfo
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.FinanceViewModel
 
 sealed class AppDestination(val index: Int, val label: String, val icon: ImageVector) {
@@ -1072,6 +1074,7 @@ private fun MainScreenContent(
 ) {
   Crossfade(
     targetState = isSettingsOpen,
+    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
     label = "settings_navigation_crossfade"
   ) { settingsOpen ->
     if (settingsOpen) {
@@ -1083,6 +1086,7 @@ private fun MainScreenContent(
     } else {
       Crossfade(
         targetState = selectedTab,
+        animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
         label = "paisa_primary_navigation"
       ) { destination ->
         when (destination) {

@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -69,6 +70,7 @@ import com.example.ui.components.PremiumTextButton
 import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -293,61 +295,66 @@ fun TransactionsScreen(
         }
       }
 
-      // Financial Summary Header Card for active view
       item {
-        PremiumCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
-          Column(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-          ) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
+        AnimatedContent(
+          targetState = Pair(selectedDayOfMonth, searchQuery),
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
+          label = "transactions_summary_transition"
+        ) { _ ->
+          PremiumCard(containerColor = MaterialTheme.colorScheme.primaryContainer) {
+            Column(
+              modifier = Modifier.fillMaxWidth().padding(18.dp),
+              verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-              Text(
-                text = if (selectedDayOfMonth != null) "SUMMARY FOR DAY $selectedDayOfMonth" else "NET CASH FLOW IN VIEW",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp
-              )
-              Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
               ) {
                 Text(
-                  text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
-                  style = MaterialTheme.typography.labelSmall,
+                  text = if (selectedDayOfMonth != null) "SUMMARY FOR DAY $selectedDayOfMonth" else "NET CASH FLOW IN VIEW",
+                  style = MaterialTheme.typography.labelMedium,
+                  color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                   fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                  letterSpacing = 1.2.sp
                 )
+                Surface(
+                  shape = CircleShape,
+                  color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                ) {
+                  Text(
+                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                  )
+                }
               }
-            }
 
-            Text(
-              IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
-              style = MaterialTheme.typography.headlineMedium,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onPrimaryContainer,
-              maxLines = 1,
-              softWrap = false,
-              overflow = TextOverflow.Ellipsis
-            )
+              Text(
+                IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+              )
 
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(16.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(shape = CircleShape, color = IncomeGreen.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = IncomeGreen, fontWeight = FontWeight.Bold)
-              }
-              Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Surface(shape = CircleShape, color = ExpenseRed.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = ExpenseRed, fontWeight = FontWeight.Bold)
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                  Surface(shape = CircleShape, color = com.example.ui.theme.IncomeGreen.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
+                  Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                  Surface(shape = CircleShape, color = com.example.ui.theme.ExpenseRed.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
+                  Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+                }
               }
             }
           }

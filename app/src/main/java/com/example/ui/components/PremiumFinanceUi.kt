@@ -1,5 +1,7 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
@@ -77,6 +79,7 @@ import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import com.example.ui.util.PaisaMotion
 
 private val DeepVioletInk = Color(0xFF2E1065)
 private val LimeGlow = Color(0xFFC084FC)
@@ -238,19 +241,25 @@ fun PremiumMonthNavigator(
       androidx.compose.material3.IconButton(onClick = onPrevious, modifier = Modifier.size(36.dp)) {
         Icon(Icons.Default.ChevronLeft, contentDescription = "Previous month", modifier = Modifier.size(20.dp))
       }
-      Text(
-        text = label,
-        modifier = Modifier
-          .clip(RoundedCornerShape(12.dp))
-          .clickable(onClick = onPick)
-          .padding(horizontal = 10.dp, vertical = 8.dp),
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.Bold,
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Ellipsis,
-        color = MaterialTheme.colorScheme.onSurface
-      )
+      AnimatedContent(
+        targetState = label,
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "month_navigator_label"
+      ) { targetLabel ->
+        Text(
+          text = targetLabel,
+          modifier = Modifier
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onPick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+          style = MaterialTheme.typography.labelLarge,
+          fontWeight = FontWeight.Bold,
+          maxLines = 1,
+          softWrap = false,
+          overflow = TextOverflow.Ellipsis,
+          color = MaterialTheme.colorScheme.onSurface
+        )
+      }
       androidx.compose.material3.IconButton(onClick = onNext, modifier = Modifier.size(36.dp)) {
         Icon(Icons.Default.ChevronRight, contentDescription = "Next month", modifier = Modifier.size(20.dp))
       }
@@ -904,11 +913,22 @@ fun PremiumSegmentedToggle(
         val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
         val itemShape = RoundedCornerShape(14.dp)
 
+        val backgroundColor by animateColorAsState(
+          targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+          animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
+          label = "toggle_bg"
+        )
+        val contentColor by animateColorAsState(
+          targetValue = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+          animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
+          label = "toggle_text"
+        )
+
         Box(
           modifier = Modifier
             .clip(itemShape)
             .background(
-              color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+              color = backgroundColor,
               shape = itemShape
             )
             .selectable(
@@ -924,15 +944,14 @@ fun PremiumSegmentedToggle(
             .graphicsLayer {
               scaleX = scale
               scaleY = scale
-            }
-            .animateContentSize(),
+            },
           contentAlignment = Alignment.Center
         ) {
           Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-            color = if (selected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = contentColor,
             modifier = Modifier.padding(horizontal = 18.dp, vertical = 9.dp)
           )
         }

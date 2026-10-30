@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -68,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AppBrandLogo
 import com.example.ui.theme.ExpenseRed
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.FinanceViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
@@ -250,12 +252,12 @@ fun OnboardingScreen(
           targetState = currentPage,
           transitionSpec = {
             if (targetState > initialState) {
-              (slideInHorizontally { width -> width } + fadeIn()).togetherWith(
-                slideOutHorizontally { width -> -width } + fadeOut()
+              (slideInHorizontally(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis)) { width -> width } + fadeIn(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis))).togetherWith(
+                slideOutHorizontally(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis)) { width -> -width } + fadeOut(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis))
               )
             } else {
-              (slideInHorizontally { width -> -width } + fadeIn()).togetherWith(
-                slideOutHorizontally { width -> width } + fadeOut()
+              (slideInHorizontally(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis)) { width -> -width } + fadeIn(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis))).togetherWith(
+                slideOutHorizontally(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis)) { width -> width } + fadeOut(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis))
               )
             }
           },
@@ -442,11 +444,23 @@ private fun OnboardingTabButton(
 ) {
   val activeColor = MaterialTheme.colorScheme.primary
   val activeContent = MaterialTheme.colorScheme.onPrimary
+  val inactiveContent = MaterialTheme.colorScheme.onSurfaceVariant
+
+  val bgColor by androidx.compose.animation.animateColorAsState(
+    targetValue = if (isSelected) activeColor else Color.Transparent,
+    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
+    label = "tab_bg_color"
+  )
+  val contentColor by androidx.compose.animation.animateColorAsState(
+    targetValue = if (isSelected) activeContent else inactiveContent,
+    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
+    label = "tab_content_color"
+  )
 
   Box(
     modifier = modifier
       .clip(CircleShape)
-      .background(if (isSelected) activeColor else Color.Transparent)
+      .background(bgColor)
       .clickable(onClick = onClick)
       .padding(vertical = 7.dp, horizontal = 8.dp),
     contentAlignment = Alignment.Center
@@ -458,7 +472,7 @@ private fun OnboardingTabButton(
       Icon(
         imageVector = icon,
         contentDescription = null,
-        tint = if (isSelected) activeContent else MaterialTheme.colorScheme.onSurfaceVariant,
+        tint = contentColor,
         modifier = Modifier.size(13.dp)
       )
       Text(
@@ -466,7 +480,7 @@ private fun OnboardingTabButton(
         style = MaterialTheme.typography.labelSmall,
         fontSize = 10.sp,
         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-        color = if (isSelected) activeContent else MaterialTheme.colorScheme.onSurfaceVariant,
+        color = contentColor,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
       )

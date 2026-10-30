@@ -80,6 +80,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.ActionExecutionStatus
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
@@ -162,10 +163,22 @@ fun AiAdvisorScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item { Spacer(modifier = Modifier.height(8.dp)) }
+                
+                if (messages.isEmpty()) {
+                    item {
+                        ChatBubble(
+                            message = ChatMessage(
+                                role = "model",
+                                text = "Hello! I'm Paisa AI, your agentic financial assistant. 🌟\n\nI can analyze your spending, compare periods, or help you log transactions and set budgets. How can I help you manage your finances today?"
+                            )
+                        )
+                    }
+                }
+
                 itemsIndexed(messages, key = { index, msg -> "${msg.timestamp}_$index" }) { _, message ->
                     AnimatedVisibility(
                         visible = true,
-                        enter = fadeIn(animationSpec = tween(250)) + slideInVertically(
+                        enter = fadeIn(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis)) + slideInVertically(
                             initialOffsetY = { it / 3 },
                             animationSpec = spring(stiffness = Spring.StiffnessMediumLow)
                         )

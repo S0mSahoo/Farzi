@@ -90,6 +90,7 @@ import com.example.ui.components.YearPickerDialog
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
+import com.example.ui.util.PaisaMotion
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -268,7 +269,7 @@ fun DashboardScreen(
             ) {
               AnimatedContent(
                 targetState = isAnnualView,
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+                transitionSpec = { PaisaMotion.DefaultContentTransform },
                 label = "dashboard_hero_summary_transition",
                 modifier = Modifier.weight(1f)
               ) { annual ->
@@ -325,7 +326,7 @@ fun DashboardScreen(
 
             AnimatedContent(
               targetState = isAnnualView,
-              transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) },
+              transitionSpec = { PaisaMotion.DefaultContentTransform },
               label = "dashboard_hero_chart_transition"
             ) { annual ->
               if (!annual) {
@@ -408,7 +409,7 @@ fun DashboardScreen(
 
             AnimatedContent(
               targetState = isAnnualView,
-              transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
+              transitionSpec = { PaisaMotion.DefaultContentTransform },
               label = "dashboard_hero_totals_transition"
             ) { annual ->
               val displayIncome = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
@@ -493,7 +494,7 @@ fun DashboardScreen(
       item {
         AnimatedContent(
           targetState = isAnnualView,
-          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
           label = "dashboard_comparison_bar_transition"
         ) { annual ->
           val income = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome

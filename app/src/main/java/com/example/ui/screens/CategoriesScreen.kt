@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.ui.unit.sp
+import com.example.ui.util.PaisaMotion
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -138,18 +140,19 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         )
       }
       item {
-        Row(
-          modifier = Modifier.selectableGroup(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          FilterChip(selected = selectedType == TransactionType.EXPENSE, onClick = { selectedType = TransactionType.EXPENSE }, label = { Text("Spending") })
-          FilterChip(selected = selectedType == TransactionType.INCOME, onClick = { selectedType = TransactionType.INCOME }, label = { Text("Income") })
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          com.example.ui.components.PremiumSegmentedToggle(
+            options = listOf("Spending", "Income"),
+            selectedIndex = if (selectedType == TransactionType.EXPENSE) 0 else 1,
+            onSelect = { selectedType = if (it == 0) TransactionType.EXPENSE else TransactionType.INCOME },
+            modifier = Modifier.testTag("categories_type_toggle")
+          )
         }
       }
       item(key = "categories_hero_card") {
         AnimatedContent(
           targetState = selectedType,
-          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
           label = "categories_type_transition"
         ) { type ->
           val isExpense = type == TransactionType.EXPENSE
@@ -198,32 +201,58 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
         }
       }
 
-      item(key = "categories_section_heading") {
-        PremiumSectionHeading(
-          title = if (selectedType == TransactionType.EXPENSE) "Your spending mix" else "Income sources",
-          subtitle = "Tap a category to see the underlying transactions."
-        )
-      }
-
-      if (populated.isEmpty()) {
-        item(key = "empty_categories_${selectedType.name}") {
-          PremiumCard {
-            PremiumEmptyState(
-              title = "Nothing in these categories yet",
-              body = "When you record ${if (selectedType == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
-            )
+      item(key = "categories_dynamic_content") {
+        AnimatedContent(
+          targetState = selectedType,
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
+          label = "categories_list_transition"
+        ) { type ->
+          val typePopulated = remember(allTransactions, selectedCalendar, type) {
+            val monthTransactions = allTransactions.filter {
+              it.timestamp in start..end && it.type == type
+            }
+            TransactionCategory.values()
+              .filter { it.defaultType == type }
+              .map { category ->
+                val matching = monthTransactions.filter { it.category == category }
+                val amount = matching.sumOf { it.amount }
+                CategorySpending(
+                  category = category,
+                  amount = amount,
+                  percentage = if (monthTransactions.sumOf { it.amount } > 0.0) {
+                    (amount / monthTransactions.sumOf { it.amount }).toFloat()
+                  } else 0f,
+                  count = matching.size,
+                  color = category.color
+                )
+              }
+              .sortedByDescending { it.amount }
+              .filter { it.amount > 0.0 }
           }
-        }
-      } else {
-        items(
-          items = populated,
-          key = { item -> "category_${item.category.name}_${selectedType.name}" }
-        ) { item ->
-          CategoryPremiumRow(
-            item = item,
-            currencySymbol = currencySymbol,
-            onClick = { viewModel.selectCategoryForDetail(item.category) }
-          )
+
+          Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
+            PremiumSectionHeading(
+              title = if (type == TransactionType.EXPENSE) "Your spending mix" else "Income sources",
+              subtitle = "Tap a category to see the underlying transactions."
+            )
+
+            if (typePopulated.isEmpty()) {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "Nothing in these categories yet",
+                  body = "When you record ${if (type == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
+                )
+              }
+            } else {
+              typePopulated.forEach { item ->
+                CategoryPremiumRow(
+                  item = item,
+                  currencySymbol = currencySymbol,
+                  onClick = { viewModel.selectCategoryForDetail(item.category) }
+                )
+              }
+            }
+          }
         }
       }
 

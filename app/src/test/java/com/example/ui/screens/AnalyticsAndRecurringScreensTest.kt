@@ -53,16 +53,7 @@ class AnalyticsAndRecurringScreensTest {
 
     // Assert main screen and controls are displayed
     composeTestRule
-      .onNodeWithTag("analytics_screen")
-      .assertIsDisplayed()
-
-    composeTestRule
-      .onNodeWithTag("analytics_chip_monthly")
-      .assertIsDisplayed()
-      .assertIsSelected()
-
-    composeTestRule
-      .onNodeWithTag("analytics_chip_yearly")
+      .onNodeWithTag("analytics_period_toggle")
       .assertIsDisplayed()
 
     // Monthly hero should be visible
@@ -72,14 +63,10 @@ class AnalyticsAndRecurringScreensTest {
 
     // Toggle to yearly view
     composeTestRule
-      .onNodeWithTag("analytics_chip_yearly")
+      .onNodeWithText("Yearly")
       .performClick()
 
     composeTestRule.waitForIdle()
-
-    composeTestRule
-      .onNodeWithTag("analytics_chip_yearly")
-      .assertIsSelected()
 
     composeTestRule
       .onNodeWithText("YEARLY OVERVIEW")
@@ -87,14 +74,10 @@ class AnalyticsAndRecurringScreensTest {
 
     // Toggle back to monthly view
     composeTestRule
-      .onNodeWithTag("analytics_chip_monthly")
+      .onNodeWithText("Monthly")
       .performClick()
 
     composeTestRule.waitForIdle()
-
-    composeTestRule
-      .onNodeWithTag("analytics_chip_monthly")
-      .assertIsSelected()
 
     composeTestRule
       .onNodeWithText("NET CASH FLOW")
@@ -115,41 +98,36 @@ class AnalyticsAndRecurringScreensTest {
     }
     composeTestRule.waitForIdle()
 
-    // Assert recurring screen and tabs are displayed
+    // Assert recurring screen and toggle are displayed
     composeTestRule
       .onNodeWithTag("recurring_screen")
       .assertIsDisplayed()
 
     composeTestRule
-      .onNodeWithTag("recurring_tab_upcoming")
-      .assertIsDisplayed()
-      .assertIsSelected()
-
-    composeTestRule
-      .onNodeWithTag("recurring_tab_rules")
+      .onNodeWithTag("recurring_period_toggle")
       .assertIsDisplayed()
 
-    // Switch to Rules tab
+    // Toggle to Rules
     composeTestRule
-      .onNodeWithTag("recurring_tab_rules")
+      .onNodeWithText("Rules · 0")
       .performClick()
 
     composeTestRule.waitForIdle()
 
     composeTestRule
-      .onNodeWithTag("recurring_tab_rules")
-      .assertIsSelected()
+      .onNodeWithText("Your recurring rules")
+      .assertIsDisplayed()
 
-    // Switch back to Upcoming tab
+    // Toggle back to Upcoming bills
     composeTestRule
-      .onNodeWithTag("recurring_tab_upcoming")
+      .onNodeWithText("Upcoming bills")
       .performClick()
 
     composeTestRule.waitForIdle()
 
     composeTestRule
-      .onNodeWithTag("recurring_tab_upcoming")
-      .assertIsSelected()
+      .onNodeWithText("Payment schedule")
+      .assertIsDisplayed()
   }
 
   @Test

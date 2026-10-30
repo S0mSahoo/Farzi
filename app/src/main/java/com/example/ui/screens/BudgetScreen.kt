@@ -67,6 +67,7 @@ import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 
@@ -158,7 +159,7 @@ fun BudgetScreen(
       item {
         AnimatedContent(
           targetState = (currentBudget != null && currentBudget.totalBudget > 0.0),
-          transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
           label = "budget_hero_transition"
         ) { hasBudget ->
           if (!hasBudget) {

@@ -1,4 +1,6 @@
 package com.example.ui.screens
+ 
+import androidx.compose.animation.AnimatedContent
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -71,6 +73,7 @@ import com.example.ui.components.PremiumPageHeader
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.LocalAdaptiveInfo
+import com.example.ui.util.PaisaMotion
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 import kotlinx.coroutines.launch
@@ -322,56 +325,67 @@ fun CalendarScreen(
       }
 
       item {
-        val isLight = !com.example.ui.theme.isAppInDarkTheme()
-        Surface(
-          shape = RoundedCornerShape(28.dp),
-          color = Color.Transparent,
-          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-          modifier = Modifier
-            .fillMaxWidth()
-            .background(
-              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                colors = if (isLight) {
-                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                } else {
-                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+        AnimatedContent(
+          targetState = selectedDayMillis,
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
+          label = "calendar_day_detail_transition"
+        ) { dayMillis ->
+          val isLight = !com.example.ui.theme.isAppInDarkTheme()
+          Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                  colors = if (isLight) {
+                    listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                  } else {
+                    listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                  }
+                ),
+                shape = RoundedCornerShape(28.dp)
+              )
+          ) {
+            val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+            val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
+            val detailIncome = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) && it.type == TransactionType.INCOME }.sumOf { it.amount }
+            val detailExpense = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) && it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+            val detailNet = detailIncome - detailExpense
+            val detailTransactions = allTransactions.filter { it.timestamp in DateUtils.getStartOfDay(dayMillis)..DateUtils.getEndOfDay(dayMillis) }
+
+            Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+              ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                  Text(DateUtils.getDisplayDate(dayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
+                  Text(
+                    if (detailTransactions.isEmpty()) "No recorded activity" else "${detailTransactions.size} ${if (detailTransactions.size == 1) "transaction" else "transactions"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subTextColor
+                  )
                 }
-              ),
-              shape = RoundedCornerShape(28.dp)
-            )
-        ) {
-          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
-          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-          Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.Top
-            ) {
-              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(DateUtils.getDisplayDate(selectedDayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
-                Text(
-                  if (selectedDayTransactions.isEmpty()) "No recorded activity" else "${selectedDayTransactions.size} ${if (selectedDayTransactions.size == 1) "transaction" else "transactions"}",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = subTextColor
-                )
+                PremiumIconButton(onClick = { onAddTransactionForDate(dayMillis) }) {
+                  Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
+                }
               }
-              PremiumIconButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
-                Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
-              }
-            }
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                Text(IndianCurrencyFormatter.formatCompact(dayIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
-              }
-              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                Text(IndianCurrencyFormatter.formatCompact(dayExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
-              }
-              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                Text(IndianCurrencyFormatter.formatCompact(dayNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
+              Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
+                }
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                  Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+                  Text(IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
+                }
               }
             }
           }
