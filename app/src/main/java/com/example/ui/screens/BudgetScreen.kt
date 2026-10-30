@@ -341,7 +341,7 @@ private fun BudgetHeroCard(
       ) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
           Text("MONTHLY SPENDING LIMIT", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-          Text(IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol), style = MaterialTheme.typography.headlineMedium, color = textColor, fontWeight = FontWeight.Bold)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol), style = MaterialTheme.typography.headlineMedium, color = textColor, fontWeight = FontWeight.Bold)
         }
         Row {
           PremiumIconButton(onClick = onEdit) {
@@ -360,8 +360,8 @@ private fun BudgetHeroCard(
           height = 10.dp
         )
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-          Text("${(used * 100).toInt()}% used", style = MaterialTheme.typography.labelMedium, color = subTextColor)
-          Text(
+          com.example.ui.util.AnimatedFinancialText("${(used * 100).toInt()}% used", style = MaterialTheme.typography.labelMedium, color = subTextColor)
+          com.example.ui.util.AnimatedFinancialText(
             text = if (remaining >= 0) "${IndianCurrencyFormatter.formatWithSymbol(remaining, currencySymbol)} remaining"
               else "${IndianCurrencyFormatter.formatWithSymbol(kotlin.math.abs(remaining), currencySymbol)} over",
             style = MaterialTheme.typography.labelMedium,
@@ -373,7 +373,7 @@ private fun BudgetHeroCard(
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Spent", style = MaterialTheme.typography.labelMedium, color = subTextColor)
-          Text(IndianCurrencyFormatter.formatCompact(spent, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(spent, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = textColor)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Daily guide", style = MaterialTheme.typography.labelMedium, color = subTextColor)
@@ -384,7 +384,7 @@ private fun BudgetHeroCard(
           val days = selectedCalendar.getActualMaximum(Calendar.DAY_OF_MONTH)
           val remainingDays = (days - dayInPlan + 1).coerceAtLeast(1)
           val daily = (limit - spent).coerceAtLeast(0.0) / remainingDays
-          Text(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = IncomeGreen)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(daily, currencySymbol), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = IncomeGreen)
         }
       }
     }
@@ -412,15 +412,15 @@ private fun CategoryLimitCard(
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
           Text(category.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-          Text(
+          com.example.ui.util.AnimatedFinancialText(
             if (over) "Above your limit" else "${IndianCurrencyFormatter.formatWithSymbol((limit - spent).coerceAtLeast(0.0), currencySymbol)} left",
             style = MaterialTheme.typography.bodySmall,
             color = if (over) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
           )
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-          Text(IndianCurrencyFormatter.formatWithSymbol(spent, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (over) ExpenseRed else MaterialTheme.colorScheme.onSurface)
-          Text("of ${IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(spent, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (over) ExpenseRed else MaterialTheme.colorScheme.onSurface)
+          com.example.ui.util.AnimatedFinancialText("of ${IndianCurrencyFormatter.formatWithSymbol(limit, currencySymbol)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
       com.example.ui.components.PremiumProgressTrack(
@@ -429,9 +429,9 @@ private fun CategoryLimitCard(
         height = 7.dp
       )
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text("${(fraction * 100).toInt()}% used", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        com.example.ui.util.AnimatedFinancialText("${(fraction * 100).toInt()}% used", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (over) {
-          Text("${(fraction * 100).toInt() - 100}% over", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ExpenseRed)
+          com.example.ui.util.AnimatedFinancialText("${(fraction * 100).toInt() - 100}% over", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ExpenseRed)
         }
       }
     }

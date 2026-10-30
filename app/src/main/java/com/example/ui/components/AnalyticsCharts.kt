@@ -27,6 +27,11 @@ import com.example.data.model.CategorySpending
 import com.example.data.model.TransactionCategory
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
+import com.example.ui.util.AnimatedFinancialText
+import com.example.ui.util.PaisaMotion
 import kotlin.math.roundToInt
 
 /**
@@ -41,7 +46,12 @@ fun BudgetProgressBar(
     currencySymbol: String
 ) {
     val hasBudget = budgetLimit > 0.0
-    val progress = if (hasBudget) (budgetUsed / budgetLimit).toFloat().coerceIn(0f, 1f) else 0f
+    val rawProgress = if (hasBudget) (budgetUsed / budgetLimit).toFloat().coerceIn(0f, 1f) else 0f
+    val animatedProgress by animateFloatAsState(
+        targetValue = rawProgress,
+        animationSpec = tween(PaisaMotion.EnterFadeDurationMillis, easing = PaisaMotion.MotionEasing),
+        label = "budget_progress"
+    )
     val remaining = budgetLimit - budgetUsed
     val isOverBudget = hasBudget && remaining < 0.0
 
@@ -57,7 +67,7 @@ fun BudgetProgressBar(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
+                AnimatedFinancialText(
                     text = IndianCurrencyFormatter.formatWithSymbol(budgetUsed, currencySymbol),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -70,7 +80,7 @@ fun BudgetProgressBar(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Text(
+                AnimatedFinancialText(
                     text = IndianCurrencyFormatter.formatWithSymbol(budgetLimit, currencySymbol),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -80,14 +90,14 @@ fun BudgetProgressBar(
         }
 
         LinearProgressIndicator(
-            progress = { progress },
+            progress = { animatedProgress },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape),
             color = when {
                 isOverBudget -> ExpenseRed
-                progress >= 0.85f -> MaterialTheme.colorScheme.tertiary
+                rawProgress >= 0.85f -> MaterialTheme.colorScheme.tertiary
                 else -> IncomeGreen
             },
             trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -98,13 +108,13 @@ fun BudgetProgressBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+            AnimatedFinancialText(
                 text = if (hasBudget) "${(budgetUsed / budgetLimit * 100.0).roundToInt()}% used" else "No budget set",
                 style = MaterialTheme.typography.labelMedium,
                 color = if (isOverBudget) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (hasBudget) {
-                Text(
+                AnimatedFinancialText(
                     text = if (isOverBudget) {
                         "Over by ${IndianCurrencyFormatter.formatWithSymbol(-remaining, currencySymbol)}"
                     } else {
@@ -142,6 +152,11 @@ fun CategorySpendingBreakdown(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         categories.sortedByDescending { it.amount }.forEach { item ->
             val percent = (item.percentage * 100f).roundToInt().coerceIn(0, 100)
+            val animatedProgress by animateFloatAsState(
+                targetValue = item.percentage.coerceIn(0f, 1f),
+                animationSpec = tween(PaisaMotion.EnterFadeDurationMillis, easing = PaisaMotion.MotionEasing),
+                label = "category_progress_${item.category.name}"
+            )
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
@@ -184,14 +199,14 @@ fun CategorySpendingBreakdown(
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
-                            Text(
+                            AnimatedFinancialText(
                                 text = "${item.count} ${if (item.count == 1) "transaction" else "transactions"} · $percent%",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        Text(
+                        AnimatedFinancialText(
                             text = IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
@@ -200,7 +215,7 @@ fun CategorySpendingBreakdown(
                     }
 
                     LinearProgressIndicator(
-                        progress = { item.percentage.coerceIn(0f, 1f) },
+                        progress = { animatedProgress },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(5.dp)
@@ -225,8 +240,19 @@ fun IncomeExpenseComparisonBar(
     currencySymbol: String
 ) {
     val maxValue = maxOf(income, expense, 1.0)
-    val incomeProgress = (income / maxValue).toFloat().coerceIn(0f, 1f)
-    val expenseProgress = (expense / maxValue).toFloat().coerceIn(0f, 1f)
+    val targetIncomeProgress = (income / maxValue).toFloat().coerceIn(0f, 1f)
+    val targetExpenseProgress = (expense / maxValue).toFloat().coerceIn(0f, 1f)
+
+    val animatedIncomeProgress by animateFloatAsState(
+        targetValue = targetIncomeProgress,
+        animationSpec = tween(PaisaMotion.EnterFadeDurationMillis, easing = PaisaMotion.MotionEasing),
+        label = "income_progress"
+    )
+    val animatedExpenseProgress by animateFloatAsState(
+        targetValue = targetExpenseProgress,
+        animationSpec = tween(PaisaMotion.EnterFadeDurationMillis, easing = PaisaMotion.MotionEasing),
+        label = "expense_progress"
+    )
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -236,15 +262,15 @@ fun IncomeExpenseComparisonBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Income", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    IndianCurrencyFormatter.formatWithSymbol(income, currencySymbol),
+                AnimatedFinancialText(
+                    text = IndianCurrencyFormatter.formatWithSymbol(income, currencySymbol),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = IncomeGreen
                 )
             }
             LinearProgressIndicator(
-                progress = { incomeProgress },
+                progress = { animatedIncomeProgress },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                 color = IncomeGreen,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
@@ -258,15 +284,15 @@ fun IncomeExpenseComparisonBar(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Expenses", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    IndianCurrencyFormatter.formatWithSymbol(expense, currencySymbol),
+                AnimatedFinancialText(
+                    text = IndianCurrencyFormatter.formatWithSymbol(expense, currencySymbol),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     color = ExpenseRed
                 )
             }
             LinearProgressIndicator(
-                progress = { expenseProgress },
+                progress = { animatedExpenseProgress },
                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                 color = ExpenseRed,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant

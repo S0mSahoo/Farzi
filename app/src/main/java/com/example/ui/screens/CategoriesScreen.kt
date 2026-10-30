@@ -184,8 +184,8 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
             ) {
               Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(if (isExpense) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                Text(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
-                Text("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
+                com.example.ui.util.AnimatedFinancialText("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
               }
               Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
                 Text(
@@ -236,20 +236,30 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
               subtitle = "Tap a category to see the underlying transactions."
             )
 
-            if (typePopulated.isEmpty()) {
-              PremiumCard {
-                PremiumEmptyState(
-                  title = "Nothing in these categories yet",
-                  body = "When you record ${if (type == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
-                )
-              }
-            } else {
-              typePopulated.forEach { item ->
-                CategoryPremiumRow(
-                  item = item,
-                  currencySymbol = currencySymbol,
-                  onClick = { viewModel.selectCategoryForDetail(item.category) }
-                )
+            AnimatedContent(
+              targetState = typePopulated.isEmpty(),
+              transitionSpec = { PaisaMotion.DefaultContentTransform },
+              label = "categories_empty_or_list"
+            ) { isEmpty ->
+              if (isEmpty) {
+                PremiumCard {
+                  PremiumEmptyState(
+                    title = "Nothing in these categories yet",
+                    body = "When you record ${if (type == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
+                  )
+                }
+              } else {
+                Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
+                  typePopulated.forEach { item ->
+                    androidx.compose.runtime.key(item.category) {
+                      CategoryPremiumRow(
+                        item = item,
+                        currencySymbol = currencySymbol,
+                        onClick = { viewModel.selectCategoryForDetail(item.category) }
+                      )
+                    }
+                  }
+                }
               }
             }
           }
@@ -282,11 +292,11 @@ private fun CategoryPremiumRow(
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
           Text(item.category.displayName, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-          Text("${item.count} ${if (item.count == 1) "entry" else "entries"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          com.example.ui.util.AnimatedFinancialText("${item.count} ${if (item.count == 1) "entry" else "entries"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-          Text(IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-          Text("${(item.percentage * 100).toInt()}% of total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+          com.example.ui.util.AnimatedFinancialText("${(item.percentage * 100).toInt()}% of total", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
       }
       com.example.ui.components.PremiumProgressTrack(

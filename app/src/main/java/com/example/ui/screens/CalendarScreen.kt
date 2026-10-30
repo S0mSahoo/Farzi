@@ -374,7 +374,7 @@ fun CalendarScreen(
               ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                   Text(DateUtils.getDisplayDate(dayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
-                  Text(
+                  com.example.ui.util.AnimatedFinancialText(
                     if (dayTransactions.isEmpty()) "No recorded activity" else "${dayTransactions.size} ${if (dayTransactions.size == 1) "transaction" else "transactions"}",
                     style = MaterialTheme.typography.bodySmall,
                     color = subTextColor
@@ -387,15 +387,15 @@ fun CalendarScreen(
               Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                  Text(IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
+                  com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                  Text(IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
+                  com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                   Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                  Text(IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
+                  com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
                 }
               }
             }
@@ -404,10 +404,16 @@ fun CalendarScreen(
       }
 
       item {
-        com.example.ui.components.PremiumSectionHeading(
-          title = "Day activity",
-          subtitle = if (selectedDayTransactions.isEmpty()) "Nothing recorded on this date." else "Select an entry to see or edit its details."
-        )
+        AnimatedContent(
+          targetState = selectedDayTransactions.isEmpty(),
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
+          label = "calendar_activity_heading"
+        ) { isEmpty ->
+          com.example.ui.components.PremiumSectionHeading(
+            title = "Day activity",
+            subtitle = if (isEmpty) "Nothing recorded on this date." else "Select an entry to see or edit its details."
+          )
+        }
       }
 
       if (selectedDayTransactions.isEmpty()) {

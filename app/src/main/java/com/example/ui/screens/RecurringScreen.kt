@@ -197,8 +197,8 @@ fun RecurringScreen(
           ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
               Text("BILLS STILL TO PAY", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-              Text(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = textColor, fontWeight = FontWeight.Bold)
-              Text("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = textColor, fontWeight = FontWeight.Bold)
+              com.example.ui.util.AnimatedFinancialText("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = subTextColor)
             }
             Surface(shape = RoundedCornerShape(17.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
               Icon(Icons.Default.Repeat, contentDescription = null, tint = textColor, modifier = Modifier.padding(13.dp).size(24.dp))
@@ -280,7 +280,8 @@ fun RecurringScreen(
                   occurrence = item.occurrence,
                   currencySymbol = currencySymbol,
                   onMarkPaid = { viewModel.markRecurringPaymentPaid(item.occurrence) },
-                  onSkip = { occurrenceToCancel = item.occurrence }
+                  onSkip = { occurrenceToCancel = item.occurrence },
+                  modifier = Modifier.animateItem()
                 )
               }
             }
@@ -313,7 +314,8 @@ fun RecurringScreen(
               currencySymbol = currencySymbol,
               onEdit = { onEditRecurringRule(rule) },
               onDelete = { ruleToDelete = rule },
-              onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) }
+              onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) },
+              modifier = Modifier.animateItem()
             )
           }
         }
@@ -333,7 +335,8 @@ private fun OccurrencePremiumCard(
   occurrence: RecurringOccurrence,
   currencySymbol: String,
   onMarkPaid: () -> Unit,
-  onSkip: () -> Unit
+  onSkip: () -> Unit,
+  modifier: Modifier = Modifier
 ) {
   val isOverdue = occurrence.status == OccurrenceStatus.OVERDUE
   val isDue = occurrence.status == OccurrenceStatus.DUE_TODAY
@@ -342,7 +345,7 @@ private fun OccurrencePremiumCard(
     isDue -> Color(0xFFB87918)
     else -> MaterialTheme.colorScheme.primary
   }
-  PremiumCard {
+  PremiumCard(modifier = modifier) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
         Surface(shape = RoundedCornerShape(13.dp), color = occurrence.rule.category.color.copy(alpha = 0.13f)) {
@@ -353,7 +356,7 @@ private fun OccurrencePremiumCard(
           Text("${occurrence.rule.category.displayName} · ${occurrence.rule.interval.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-          Text(IndianCurrencyFormatter.formatWithSymbol(occurrence.rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(occurrence.rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
           Surface(shape = CircleShape, color = statusColor.copy(alpha = 0.12f)) {
             Text(occurrence.status.displayName, modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp), style = MaterialTheme.typography.labelSmall, color = statusColor, fontWeight = FontWeight.Bold)
           }
@@ -389,9 +392,10 @@ private fun RecurringRulePremiumCard(
   currencySymbol: String,
   onEdit: () -> Unit,
   onDelete: () -> Unit,
-  onToggle: (Boolean) -> Unit
+  onToggle: (Boolean) -> Unit,
+  modifier: Modifier = Modifier
 ) {
-  PremiumCard {
+  PremiumCard(modifier = modifier) {
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
       Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
         Surface(shape = RoundedCornerShape(13.dp), color = rule.category.color.copy(alpha = 0.13f)) {
@@ -402,7 +406,7 @@ private fun RecurringRulePremiumCard(
           Text("${rule.category.displayName} · ${rule.interval.displayName}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
-          Text(IndianCurrencyFormatter.formatWithSymbol(rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
+          com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(rule.amount, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
           Text(if (rule.type == TransactionType.INCOME) "Income" else "Expense", style = MaterialTheme.typography.labelSmall, color = if (rule.type == TransactionType.INCOME) IncomeGreen else ExpenseRed)
         }
       }

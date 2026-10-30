@@ -67,6 +67,7 @@ import com.example.data.insight.FinanceInsight
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.AnimatedFinancialText
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 
@@ -255,26 +256,36 @@ private fun MonthlyAnalyticsContent(
     val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
     Column(modifier = Modifier.padding(21.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
       Text("NET CASH FLOW", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-      Text(
-        IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
+      AnimatedFinancialText(
+        text = IndianCurrencyFormatter.formatWithSymbol(monthlySummary.savings, currencySymbol, includeSign = true),
         style = MaterialTheme.typography.headlineMedium,
         fontWeight = FontWeight.Bold,
         color = textColor
       )
-      Text(
-        if (monthlySummary.totalIncome > 0) "${String.format(java.util.Locale.getDefault(), "%.1f", monthlySummary.savingsRate)}% of recorded income retained"
-        else "Add income to see your savings rate.",
+      AnimatedFinancialText(
+        text = if (monthlySummary.totalIncome > 0) "${String.format(java.util.Locale.getDefault(), "%.1f", monthlySummary.savingsRate)}% of recorded income retained"
+          else "Add income to see your savings rate.",
         style = MaterialTheme.typography.bodySmall,
         color = subTextColor
       )
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Income", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-          Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+          AnimatedFinancialText(
+            text = IndianCurrencyFormatter.formatCompact(monthlySummary.totalIncome, currencySymbol),
+            style = MaterialTheme.typography.titleMedium,
+            color = com.example.ui.theme.IncomeGreen,
+            fontWeight = FontWeight.Bold
+          )
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Expenses", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-          Text(IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+          AnimatedFinancialText(
+            text = IndianCurrencyFormatter.formatCompact(monthlySummary.totalExpense, currencySymbol),
+            style = MaterialTheme.typography.titleMedium,
+            color = com.example.ui.theme.ExpenseRed,
+            fontWeight = FontWeight.Bold
+          )
         }
       }
       com.example.ui.components.PremiumTrendChart(
@@ -350,11 +361,11 @@ private fun MonthlyAnalyticsContent(
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
               Text(item.category.displayName, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-              Text("${item.count} ${if (item.count == 1) "transaction" else "transactions"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              AnimatedFinancialText("${item.count} ${if (item.count == 1) "transaction" else "transactions"}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-              Text(IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-              Text("${(item.percentage * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+              AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+              AnimatedFinancialText("${(item.percentage * 100).toInt()}%", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
           }
           com.example.ui.components.PremiumProgressTrack(
@@ -402,8 +413,8 @@ private fun YearlyAnalyticsContent(
   ) {
     Column(modifier = Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
       Text("YEARLY OVERVIEW", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-      Text(
-        IndianCurrencyFormatter.formatWithSymbol(yearlySummary.savings, currencySymbol, includeSign = true),
+      AnimatedFinancialText(
+        text = IndianCurrencyFormatter.formatWithSymbol(yearlySummary.savings, currencySymbol, includeSign = true),
         style = MaterialTheme.typography.headlineMedium,
         color = textColor,
         fontWeight = FontWeight.Bold
@@ -412,16 +423,16 @@ private fun YearlyAnalyticsContent(
       Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Income", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-          Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+          AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(yearlySummary.totalIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
         }
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
           Text("Expenses", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-          Text(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+          AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(yearlySummary.totalExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
         }
       }
-      Text(
-        if (yearlySummary.totalIncome > 0.0) "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", yearlySummary.savingsRate)}%"
-        else "Record income and expenses to build your yearly overview.",
+      AnimatedFinancialText(
+        text = if (yearlySummary.totalIncome > 0.0) "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", yearlySummary.savingsRate)}%"
+          else "Record income and expenses to build your yearly overview.",
         style = MaterialTheme.typography.bodySmall,
         color = subTextColor
       )
@@ -446,21 +457,21 @@ private fun YearlyAnalyticsContent(
       Column(modifier = Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
           Text(month.monthLabel, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-          Text(IndianCurrencyFormatter.formatWithSymbol(month.savings, currencySymbol, includeSign = true), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (month.savings >= 0) com.example.ui.theme.IncomeGreen else com.example.ui.theme.ExpenseRed)
+          AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(month.savings, currencySymbol, includeSign = true), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = if (month.savings >= 0) com.example.ui.theme.IncomeGreen else com.example.ui.theme.ExpenseRed)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Text("In", style = MaterialTheme.typography.labelSmall, color = com.example.ui.theme.IncomeGreen)
           Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
             Box(Modifier.fillMaxWidth((month.totalIncome / largest).toFloat().coerceIn(0f, 1f)).height(7.dp).clip(CircleShape).background(com.example.ui.theme.IncomeGreen))
           }
-          Text(IndianCurrencyFormatter.formatCompact(month.totalIncome, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+          AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(month.totalIncome, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           Text("Out", style = MaterialTheme.typography.labelSmall, color = com.example.ui.theme.ExpenseRed)
           Box(Modifier.weight(1f).height(7.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)) {
             Box(Modifier.fillMaxWidth((month.totalExpense / largest).toFloat().coerceIn(0f, 1f)).height(7.dp).clip(CircleShape).background(com.example.ui.theme.ExpenseRed))
           }
-          Text(IndianCurrencyFormatter.formatCompact(month.totalExpense, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+          AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(month.totalExpense, currencySymbol), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
         }
       }
     }
@@ -491,7 +502,7 @@ private fun AnalyticsMetricCard(
         color = tint,
         fontWeight = FontWeight.SemiBold
       )
-      Text(
+      AnimatedFinancialText(
         text = value,
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
@@ -532,13 +543,13 @@ private fun AnnualAnalyticsSummary(
         tint = ExpenseRed,
         modifier = Modifier.fillMaxWidth()
       )
-      Text(
+      AnimatedFinancialText(
         text = "Net savings: ${IndianCurrencyFormatter.formatWithSymbol(summary.savings, currencySymbol, includeSign = true)}",
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = if (summary.savings >= 0) IncomeGreen else ExpenseRed
       )
-      Text(
+      AnimatedFinancialText(
         text = "Savings rate: ${String.format(java.util.Locale.getDefault(), "%.1f", summary.savingsRate)}%",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -323,25 +323,47 @@ fun TransactionsScreen(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
               ) {
-                Text(
-                  text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
-                  style = MaterialTheme.typography.labelSmall,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.primary,
-                  modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                )
+                if (searchQuery.isNotBlank()) {
+                  Text(
+                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                  )
+                } else {
+                  com.example.ui.util.AnimatedFinancialText(
+                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                  )
+                }
               }
             }
 
-            Text(
-              IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
-              style = MaterialTheme.typography.headlineMedium,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onPrimaryContainer,
-              maxLines = 1,
-              softWrap = false,
-              overflow = TextOverflow.Ellipsis
-            )
+            if (searchQuery.isNotBlank()) {
+              Text(
+                IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+              )
+            } else {
+              com.example.ui.util.AnimatedFinancialText(
+                IndianCurrencyFormatter.formatWithSymbol(netInView, currencySymbol, includeSign = true),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+              )
+            }
 
             Row(
               modifier = Modifier.fillMaxWidth(),
@@ -350,11 +372,19 @@ fun TransactionsScreen(
             ) {
               Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Surface(shape = CircleShape, color = com.example.ui.theme.IncomeGreen.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+                if (searchQuery.isNotBlank()) {
+                  Text("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+                } else {
+                  com.example.ui.util.AnimatedFinancialText("Income: ${IndianCurrencyFormatter.formatCompact(totalIncomeInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.IncomeGreen, fontWeight = FontWeight.Bold)
+                }
               }
               Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Surface(shape = CircleShape, color = com.example.ui.theme.ExpenseRed.copy(alpha = 0.18f), modifier = Modifier.size(10.dp)) {}
-                Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+                if (searchQuery.isNotBlank()) {
+                  Text("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+                } else {
+                  com.example.ui.util.AnimatedFinancialText("Spent: ${IndianCurrencyFormatter.formatCompact(totalExpenseInView, currencySymbol)}", style = MaterialTheme.typography.labelMedium, color = com.example.ui.theme.ExpenseRed, fontWeight = FontWeight.Bold)
+                }
               }
             }
           }

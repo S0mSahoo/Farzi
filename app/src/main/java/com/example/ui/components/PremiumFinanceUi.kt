@@ -288,27 +288,39 @@ fun PremiumMetricTile(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.Medium
       )
-      Text(
-        text = value,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        color = when (positive) {
-          true -> IncomeGreen
-          false -> ExpenseRed
-          null -> MaterialTheme.colorScheme.onSurface
-        },
-        maxLines = 1,
-        softWrap = false,
-        overflow = TextOverflow.Ellipsis
-      )
-      if (!caption.isNullOrBlank()) {
+      AnimatedContent(
+        targetState = Pair(value, positive),
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "metric_tile_value"
+      ) { (targetValue, targetPositive) ->
         Text(
-          text = caption,
-          style = MaterialTheme.typography.labelSmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant,
+          text = targetValue,
+          style = MaterialTheme.typography.titleLarge,
+          fontWeight = FontWeight.Bold,
+          color = when (targetPositive) {
+            true -> IncomeGreen
+            false -> ExpenseRed
+            null -> MaterialTheme.colorScheme.onSurface
+          },
           maxLines = 1,
+          softWrap = false,
           overflow = TextOverflow.Ellipsis
         )
+      }
+      if (!caption.isNullOrBlank()) {
+        AnimatedContent(
+          targetState = caption,
+          transitionSpec = { PaisaMotion.DefaultContentTransform },
+          label = "metric_tile_caption"
+        ) { targetCaption ->
+          Text(
+            text = targetCaption,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+          )
+        }
       }
     }
   }
@@ -324,7 +336,7 @@ fun PremiumProgressTrack(
 ) {
   val animatedProgress by animateFloatAsState(
     targetValue = progress.coerceIn(0f, 1f),
-    animationSpec = tween(durationMillis = 520, easing = FastOutSlowInEasing),
+    animationSpec = tween(durationMillis = PaisaMotion.EnterFadeDurationMillis, easing = PaisaMotion.MotionEasing),
     label = "premium-progress"
   )
   Box(
@@ -498,49 +510,56 @@ fun PremiumTrendChart(
   trackColor: Color = Color.White.copy(alpha = 0.15f),
   height: Dp = 84.dp
 ) {
-  Canvas(modifier = modifier.fillMaxWidth().height(height)) {
-    drawLine(
-      color = trackColor,
-      start = Offset(0f, size.height - 1f),
-      end = Offset(size.width, size.height - 1f),
-      strokeWidth = 1.dp.toPx()
-    )
-    val values = points.map { it.expense.toFloat().coerceAtLeast(0f) }
-    if (values.size < 2 || values.maxOrNull() == 0f) return@Canvas
-    val maxValue = values.maxOrNull() ?: 1f
-    val stepX = size.width / (values.size - 1).coerceAtLeast(1)
-    val verticalPadding = 6.dp.toPx()
-    val usableHeight = size.height - verticalPadding * 2
-    val coords = values.mapIndexed { index, value ->
-      Offset(
-        x = index * stepX,
-        y = size.height - verticalPadding - (value / maxValue) * usableHeight
+  AnimatedContent(
+    targetState = points,
+    transitionSpec = { PaisaMotion.DefaultContentTransform },
+    label = "premium_trend_chart_transition",
+    modifier = modifier
+  ) { targetPoints ->
+    Canvas(modifier = Modifier.fillMaxWidth().height(height)) {
+      drawLine(
+        color = trackColor,
+        start = Offset(0f, size.height - 1f),
+        end = Offset(size.width, size.height - 1f),
+        strokeWidth = 1.dp.toPx()
       )
-    }
-    val curve = Path().apply {
-      moveTo(coords.first().x, coords.first().y)
-      for (index in 1 until coords.size) {
-        val previous = coords[index - 1]
-        val current = coords[index]
-        val dx = current.x - previous.x
-        cubicTo(
-          previous.x + dx * 0.42f,
-          previous.y,
-          previous.x + dx * 0.58f,
-          current.y,
-          current.x,
-          current.y
+      val values = targetPoints.map { it.expense.toFloat().coerceAtLeast(0f) }
+      if (values.size < 2 || values.maxOrNull() == 0f) return@Canvas
+      val maxValue = values.maxOrNull() ?: 1f
+      val stepX = size.width / (values.size - 1).coerceAtLeast(1)
+      val verticalPadding = 6.dp.toPx()
+      val usableHeight = size.height - verticalPadding * 2
+      val coords = values.mapIndexed { index, value ->
+        Offset(
+          x = index * stepX,
+          y = size.height - verticalPadding - (value / maxValue) * usableHeight
         )
       }
-    }
-    drawPath(
-      path = curve,
-      color = lineColor,
-      style = Stroke(width = 2.7.dp.toPx(), cap = StrokeCap.Round)
-    )
-    coords.lastOrNull()?.let {
-      drawCircle(color = lineColor, radius = 4.dp.toPx(), center = it)
-      drawCircle(color = DeepVioletInk, radius = 2.dp.toPx(), center = it)
+      val curve = Path().apply {
+        moveTo(coords.first().x, coords.first().y)
+        for (index in 1 until coords.size) {
+          val previous = coords[index - 1]
+          val current = coords[index]
+          val dx = current.x - previous.x
+          cubicTo(
+            previous.x + dx * 0.42f,
+            previous.y,
+            previous.x + dx * 0.58f,
+            current.y,
+            current.x,
+            current.y
+          )
+        }
+      }
+      drawPath(
+        path = curve,
+        color = lineColor,
+        style = Stroke(width = 2.7.dp.toPx(), cap = StrokeCap.Round)
+      )
+      coords.lastOrNull()?.let {
+        drawCircle(color = lineColor, radius = 4.dp.toPx(), center = it)
+        drawCircle(color = DeepVioletInk, radius = 2.dp.toPx(), center = it)
+      }
     }
   }
 }
@@ -558,24 +577,6 @@ fun PremiumYearlyComparisonChart(
   val monthShortNames = remember {
     listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
   }
-  val dataPoints = remember(monthlyBreakdown) {
-    if (monthlyBreakdown.size == 12) {
-      monthlyBreakdown
-    } else {
-      (0..11).map { idx ->
-        monthlyBreakdown.getOrNull(idx) ?: MonthlyFinancialSummary(
-          monthKey = String.format(java.util.Locale.getDefault(), "%02d", idx + 1),
-          monthLabel = monthShortNames[idx]
-        )
-      }
-    }
-  }
-
-  val incomeValues = remember(dataPoints) { dataPoints.map { it.totalIncome.toFloat().coerceAtLeast(0f) } }
-  val expenseValues = remember(dataPoints) { dataPoints.map { it.totalExpense.toFloat().coerceAtLeast(0f) } }
-  val maxVal = remember(incomeValues, expenseValues) {
-    maxOf(incomeValues.maxOrNull() ?: 0f, expenseValues.maxOrNull() ?: 0f)
-  }
 
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -586,6 +587,31 @@ fun PremiumYearlyComparisonChart(
         .fillMaxWidth()
         .height(height)
     ) {
+      AnimatedContent(
+        targetState = monthlyBreakdown,
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "yearly_chart_canvas_transition"
+      ) { currentBreakdown ->
+        val dataPoints = remember(currentBreakdown) {
+          if (currentBreakdown.size == 12) {
+            currentBreakdown
+          } else {
+            (0..11).map { idx ->
+              currentBreakdown.getOrNull(idx) ?: MonthlyFinancialSummary(
+                monthKey = String.format(java.util.Locale.getDefault(), "%02d", idx + 1),
+                monthLabel = monthShortNames[idx]
+              )
+            }
+          }
+        }
+
+        val incomeValues = remember(dataPoints) { dataPoints.map { it.totalIncome.toFloat().coerceAtLeast(0f) } }
+        val expenseValues = remember(dataPoints) { dataPoints.map { it.totalExpense.toFloat().coerceAtLeast(0f) } }
+        val maxVal = remember(incomeValues, expenseValues) {
+          maxOf(incomeValues.maxOrNull() ?: 0f, expenseValues.maxOrNull() ?: 0f)
+        }
+
+        Box(modifier = Modifier.fillMaxSize()) {
       Canvas(modifier = Modifier.fillMaxSize()) {
         val w = size.width
         val h = size.height
@@ -681,6 +707,8 @@ fun PremiumYearlyComparisonChart(
         }
       }
     }
+  }
+}
 
     // 12 Month Labels row
     Row(

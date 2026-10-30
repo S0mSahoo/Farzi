@@ -267,19 +267,21 @@ fun DashboardScreen(
               horizontalArrangement = Arrangement.SpaceBetween,
               verticalAlignment = Alignment.Top
             ) {
+              val netSummaryState = DashboardHeroNetState(
+                isAnnual = isAnnualView,
+                savings = displaySavings,
+                totalIncome = displayIncome,
+                savingsRate = displayRate
+              )
               AnimatedContent(
-                targetState = isAnnualView,
+                targetState = netSummaryState,
                 transitionSpec = { PaisaMotion.DefaultContentTransform },
                 label = "dashboard_hero_summary_transition",
                 modifier = Modifier.weight(1f)
-              ) { annual ->
-                val displaySavings = if (annual) yearlySummary.savings else monthlySummary.savings
-                val displayIncome = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
-                val displayRate = if (annual) yearlySummary.savingsRate else monthlySummary.savingsRate
-
+              ) { state ->
                 Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                   Text(
-                    text = if (annual) "ANNUAL NET SAVINGS" else "NET CASH FLOW",
+                    text = if (state.isAnnual) "ANNUAL NET SAVINGS" else "NET CASH FLOW",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                     fontWeight = FontWeight.Bold,
@@ -287,7 +289,7 @@ fun DashboardScreen(
                   )
                   Text(
                     text = IndianCurrencyFormatter.formatWithSymbol(
-                      displaySavings,
+                      state.savings,
                       currencySymbol,
                       includeSign = true
                     ),
@@ -299,10 +301,10 @@ fun DashboardScreen(
                     overflow = TextOverflow.Ellipsis
                   )
                   Text(
-                    text = if (displayIncome > 0.0 && displayRate < 0.0) {
-                      "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(displayRate).coerceAtMost(999.0))}%"
-                    } else if (displayIncome > 0.0) {
-                      "${String.format(java.util.Locale.getDefault(), "%.1f", displayRate.coerceAtMost(999.0))}% of recorded income retained"
+                    text = if (state.totalIncome > 0.0 && state.savingsRate < 0.0) {
+                      "Spending exceeded recorded income by ${String.format(java.util.Locale.getDefault(), "%.1f", kotlin.math.abs(state.savingsRate).coerceAtMost(999.0))}%"
+                    } else if (state.totalIncome > 0.0) {
+                      "${String.format(java.util.Locale.getDefault(), "%.1f", state.savingsRate.coerceAtMost(999.0))}% of recorded income retained"
                     } else {
                       "Income and spending, in one clear picture"
                     },
@@ -324,82 +326,90 @@ fun DashboardScreen(
               }
             }
 
+            val chartState = if (isAnnualView) {
+              DashboardHeroChartState.Yearly(yearlySummary.monthlyBreakdown)
+            } else {
+              DashboardHeroChartState.Monthly(dailyTrend)
+            }
             AnimatedContent(
-              targetState = isAnnualView,
+              targetState = chartState,
               transitionSpec = { PaisaMotion.DefaultContentTransform },
               label = "dashboard_hero_chart_transition"
-            ) { annual ->
-              if (!annual) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                  PremiumTrendChart(
-                    points = dailyTrend,
-                    lineColor = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                    height = if (wide) 104.dp else 76.dp
-                  )
-                  Text(
-                    "Daily spending trend",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                  )
-                }
-              } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                  PremiumYearlyComparisonChart(
-                    monthlyBreakdown = yearlySummary.monthlyBreakdown,
-                    incomeColor = IncomeGreen,
-                    expenseColor = ExpenseRed,
-                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                    labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                    height = if (wide) 104.dp else 76.dp
-                  )
-                  Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                  ) {
+            ) { targetChart ->
+              when (targetChart) {
+                is DashboardHeroChartState.Monthly -> {
+                  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PremiumTrendChart(
+                      points = targetChart.points,
+                      lineColor = MaterialTheme.colorScheme.primary,
+                      trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                      height = if (wide) 104.dp else 76.dp
+                    )
                     Text(
-                      "Monthly income vs expenses",
+                      "Daily spending trend",
                       style = MaterialTheme.typography.labelSmall,
                       color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     )
+                  }
+                }
+                is DashboardHeroChartState.Yearly -> {
+                  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PremiumYearlyComparisonChart(
+                      monthlyBreakdown = targetChart.breakdown,
+                      incomeColor = IncomeGreen,
+                      expenseColor = ExpenseRed,
+                      trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                      labelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                      height = if (wide) 104.dp else 76.dp
+                    )
                     Row(
-                      horizontalArrangement = Arrangement.spacedBy(10.dp),
+                      modifier = Modifier.fillMaxWidth(),
+                      horizontalArrangement = Arrangement.SpaceBetween,
                       verticalAlignment = Alignment.CenterVertically
                     ) {
+                      Text(
+                        "Monthly income vs expenses",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
+                      )
                       Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                       ) {
-                        Box(
-                          modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(IncomeGreen)
-                        )
-                        Text(
-                          text = "Income",
-                          style = MaterialTheme.typography.labelSmall,
-                          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                          fontWeight = FontWeight.SemiBold
-                        )
-                      }
-                      Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                      ) {
-                        Box(
-                          modifier = Modifier
-                            .size(7.dp)
-                            .clip(CircleShape)
-                            .background(ExpenseRed)
-                        )
-                        Text(
-                          text = "Expenses",
-                          style = MaterialTheme.typography.labelSmall,
-                          color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                          fontWeight = FontWeight.SemiBold
-                        )
+                        Row(
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                          Box(
+                            modifier = Modifier
+                              .size(7.dp)
+                              .clip(CircleShape)
+                              .background(IncomeGreen)
+                          )
+                          Text(
+                            text = "Income",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.SemiBold
+                          )
+                        }
+                        Row(
+                          verticalAlignment = Alignment.CenterVertically,
+                          horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                          Box(
+                            modifier = Modifier
+                              .size(7.dp)
+                              .clip(CircleShape)
+                              .background(ExpenseRed)
+                          )
+                          Text(
+                            text = "Expenses",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.SemiBold
+                          )
+                        }
                       }
                     }
                   }
@@ -407,14 +417,16 @@ fun DashboardScreen(
               }
             }
 
+            val totalsState = DashboardHeroTotalsState(
+              isAnnual = isAnnualView,
+              income = displayIncome,
+              expense = displayExpense
+            )
             AnimatedContent(
-              targetState = isAnnualView,
+              targetState = totalsState,
               transitionSpec = { PaisaMotion.DefaultContentTransform },
               label = "dashboard_hero_totals_transition"
-            ) { annual ->
-              val displayIncome = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
-              val displayExpense = if (annual) yearlySummary.totalExpense else monthlySummary.totalExpense
-
+            ) { targetTotals ->
               Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -428,7 +440,7 @@ fun DashboardScreen(
                     Text("Total Income", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
                   }
                   Text(
-                    text = IndianCurrencyFormatter.formatCompact(displayIncome, currencySymbol),
+                    text = IndianCurrencyFormatter.formatCompact(targetTotals.income, currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -446,7 +458,7 @@ fun DashboardScreen(
                     Text("Total Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
                   }
                   Text(
-                    text = IndianCurrencyFormatter.formatCompact(displayExpense, currencySymbol),
+                    text = IndianCurrencyFormatter.formatCompact(targetTotals.expense, currencySymbol),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -492,16 +504,18 @@ fun DashboardScreen(
 
       // Income vs Expense Comparison Bar
       item {
+        val comparisonState = DashboardComparisonBarState(
+          income = if (isAnnualView) yearlySummary.totalIncome else monthlySummary.totalIncome,
+          expense = if (isAnnualView) yearlySummary.totalExpense else monthlySummary.totalExpense
+        )
         AnimatedContent(
-          targetState = isAnnualView,
+          targetState = comparisonState,
           transitionSpec = { PaisaMotion.DefaultContentTransform },
           label = "dashboard_comparison_bar_transition"
-        ) { annual ->
-          val income = if (annual) yearlySummary.totalIncome else monthlySummary.totalIncome
-          val expense = if (annual) yearlySummary.totalExpense else monthlySummary.totalExpense
+        ) { targetComparison ->
           IncomeExpenseComparisonBar(
-            income = income,
-            expense = expense,
+            income = targetComparison.income,
+            expense = targetComparison.expense,
             currencySymbol = currencySymbol
           )
         }
@@ -800,3 +814,26 @@ private fun PremiumCategoryOverview(
     }
   }
 }
+
+private data class DashboardHeroNetState(
+  val isAnnual: Boolean,
+  val savings: Double,
+  val totalIncome: Double,
+  val savingsRate: Double
+)
+
+private data class DashboardHeroTotalsState(
+  val isAnnual: Boolean,
+  val income: Double,
+  val expense: Double
+)
+
+private sealed interface DashboardHeroChartState {
+  data class Monthly(val points: List<com.example.data.model.DailySpendingPoint>) : DashboardHeroChartState
+  data class Yearly(val breakdown: List<com.example.data.model.MonthlyFinancialSummary>) : DashboardHeroChartState
+}
+
+private data class DashboardComparisonBarState(
+  val income: Double,
+  val expense: Double
+)
