@@ -589,7 +589,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val start = DateUtils.getStartOfDay(dayMillis)
     val end = DateUtils.getEndOfDay(dayMillis)
     transactions.filter { it.timestamp in start..end }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
