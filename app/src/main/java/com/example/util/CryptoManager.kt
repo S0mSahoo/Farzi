@@ -181,13 +181,7 @@ object CryptoManager {
     cipher.init(Cipher.ENCRYPT_MODE, key)
     val iv = cipher.iv ?: throw IllegalStateException("Cipher failed to generate an initialization vector.")
     val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-    val committed = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE).edit()
-      .putString(RECOVERY_IV_KEY, Base64.encodeToString(iv, Base64.NO_WRAP))
-      .putString(RECOVERY_VALUE_KEY, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-      .commit()
-    if (!committed) {
-      throw java.io.IOException("Failed to commit recovery passphrase to secure preferences.")
-    }
+    persistRecoveryPassphrase(context, iv, encrypted)
   }
 
   /**
@@ -203,13 +197,36 @@ object CryptoManager {
     cipher.init(Cipher.ENCRYPT_MODE, key)
     val iv = cipher.iv ?: throw IllegalStateException("Cipher failed to generate an initialization vector.")
     val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-    val committed = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE).edit()
+    persistRecoveryPassphrase(context, iv, encrypted)
+  }
+
+  /**
+   * Writes the IV and ciphertext as one preferences transaction. If disk persistence fails,
+   * restore the previous in-memory values and attempt to persist that rollback before returning
+   * an error to the caller.
+   */
+  private fun persistRecoveryPassphrase(context: Context, iv: ByteArray, encrypted: ByteArray) {
+    val prefs = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE)
+    val previousIv = prefs.getString(RECOVERY_IV_KEY, null)
+    val previousValue = prefs.getString(RECOVERY_VALUE_KEY, null)
+    val saved = prefs.edit()
       .putString(RECOVERY_IV_KEY, Base64.encodeToString(iv, Base64.NO_WRAP))
       .putString(RECOVERY_VALUE_KEY, Base64.encodeToString(encrypted, Base64.NO_WRAP))
       .commit()
-    if (!committed) {
-      throw java.io.IOException("Failed to commit recovery passphrase to secure preferences.")
+
+    if (saved) return
+
+    val rollback = prefs.edit().apply {
+      if (previousIv == null) remove(RECOVERY_IV_KEY) else putString(RECOVERY_IV_KEY, previousIv)
+      if (previousValue == null) remove(RECOVERY_VALUE_KEY) else putString(RECOVERY_VALUE_KEY, previousValue)
+    }.commit()
+
+    if (!rollback) {
+      throw IllegalStateException(
+        "Recovery passphrase persistence failed and the previous preferences could not be confirmed. Check device storage and retry before clearing app data."
+      )
     }
+    throw java.io.IOException("Failed to persist the recovery passphrase. The previous saved value was restored.")
   }
 
   /** Returns the locally Keystore-wrapped passphrase, or null if none has been configured. */

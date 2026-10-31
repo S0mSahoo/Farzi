@@ -196,7 +196,7 @@ class AiAdvisorViewModel : ViewModel() {
         activeChat?.let { return it }
 
         val newChat = Firebase.ai.generativeModel(
-            modelName = "gemini-3.5-flash-lite",
+            modelName = "gemini-3.8-flash",
             tools = FinancialQueryTools.allTools
         ).startChat(
             history = listOf(
