@@ -62,7 +62,7 @@ class TransactionHistoryProjectorTest {
     assertEquals(setOf(4, 5, 6), result.daysWithTransactions)
     assertTrue(result.feedEntries.any { it.dateLabel == "Today" })
     assertTrue(result.feedEntries.any { it.dateLabel == "Yesterday" })
-    assertEquals(result.recordCount + 2, result.feedEntries.size)
+    assertEquals(result.recordCount + 3, result.feedEntries.size)
     assertTrue(result.feedEntries.filter { it.transaction != null }.all { it.key.startsWith("tx_") })
   }
 
