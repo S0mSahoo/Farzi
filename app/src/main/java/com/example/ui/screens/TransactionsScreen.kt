@@ -77,6 +77,7 @@ import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -94,7 +95,8 @@ private data class TransactionScreenProjection(
   val recordCount: Int = 0,
   val totalIncome: Double = 0.0,
   val totalExpense: Double = 0.0,
-  val daysWithTransactions: Set<Int> = emptySet()
+  val daysWithTransactions: Set<Int> = emptySet(),
+  val visibleTransactions: List<TransactionItem> = emptyList()
 )
 
 @Composable
@@ -110,6 +112,8 @@ fun TransactionsScreen(
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
 
   val coroutineScope = rememberCoroutineScope()
+  val useTwoPane = LocalAdaptiveInfo.current.useTwoPaneLayout
+  var selectedTransactionId by remember { mutableStateOf<Long?>(null) }
   var selectedDayOfMonth by remember { mutableStateOf<Int?>(null) } // null = All Month
   var showMonthPicker by remember { mutableStateOf(false) }
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
@@ -238,7 +242,8 @@ fun TransactionsScreen(
         recordCount = visibleTransactions.size,
         totalIncome = totalIncome,
         totalExpense = totalExpense,
-        daysWithTransactions = daysWithTransactions
+        daysWithTransactions = daysWithTransactions,
+        visibleTransactions = visibleTransactions
       )
     }
   }
@@ -247,16 +252,83 @@ fun TransactionsScreen(
   val totalExpenseInView = projection.totalExpense
   val netInView = totalIncomeInView - totalExpenseInView
 
+  val selectedTransaction = remember(projection.visibleTransactions, selectedTransactionId) {
+    projection.visibleTransactions.firstOrNull { it.id == selectedTransactionId }
+      ?: projection.visibleTransactions.firstOrNull()
+  }
+
+  val transactionDetailPanel: @Composable () -> Unit = {
+    if (selectedTransaction == null) {
+      PremiumCard {
+        PremiumEmptyState(
+          title = "Select a transaction",
+          body = "Choose a record from the history pane to inspect its category, payment method and notes."
+        )
+      }
+    } else {
+      val transaction = selectedTransaction
+      PremiumCard {
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(20.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+          Text(
+            "TRANSACTION DETAILS",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.1.sp
+          )
+          Text(
+            transaction.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            IndianCurrencyFormatter.formatWithSymbol(transaction.amount, currencySymbol, includeSign = true),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (transaction.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          DetailLine("Type", if (transaction.type == TransactionType.INCOME) "Income" else "Expense")
+          DetailLine("Category", transaction.category.displayName)
+          DetailLine("Date", DateUtils.getDisplayDate(transaction.timestamp))
+          DetailLine("Payment method", transaction.paymentMethod.displayName)
+          if (transaction.note.isNotBlank()) {
+            Text("Note", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(transaction.note, style = MaterialTheme.typography.bodyMedium)
+          }
+          Spacer(Modifier.height(4.dp))
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            PremiumTextButton(
+              onClick = { if (useTwoPane) selectedTransactionId = transaction.id else onEditTransaction(transaction) },
+              modifier = Modifier.weight(1f)
+            ) {
+              Text("Edit transaction")
+            }
+            PremiumTextButton(
+              onClick = { transactionToDelete = transaction },
+              modifier = Modifier.weight(1f)
+            ) {
+              Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = ExpenseRed)
+              Spacer(Modifier.width(5.dp))
+              Text("Delete", color = ExpenseRed)
+            }
+          }
+        }
+      }
+    }
+  }
+
   // Generate days for selected month
   val daysInMonth = remember(selectedCalendar) {
     val cal = selectedCalendar.clone() as Calendar
     cal.getActualMaximum(Calendar.DAY_OF_MONTH)
   }
 
-  Box(
-    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-    contentAlignment = Alignment.TopCenter
-  ) {
+  val transactionListContent: @Composable () -> Unit = {
     LazyColumn(
       modifier = Modifier.widthIn(max = 940.dp).fillMaxSize(),
       contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
@@ -632,4 +704,47 @@ fun TransactionsScreen(
       }
     }
   }
+
+  Box(
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter
+  ) {
+    if (useTwoPane) {
+      Row(
+        modifier = Modifier.fillMaxSize().widthIn(max = 1500.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.Top
+      ) {
+        Box(modifier = Modifier.weight(1.3f).fillMaxHeight()) {
+          transactionListContent()
+        }
+        Column(
+          modifier = Modifier
+            .weight(0.85f)
+            .fillMaxHeight()
+            .padding(end = 20.dp, top = 18.dp, bottom = 18.dp),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          transactionDetailPanel()
+        }
+      }
+    } else {
+      Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        transactionListContent()
+      }
+    }
+  }
 }
+@Composable
+private fun DetailLine(label: String, value: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+  }
+}
+
+
