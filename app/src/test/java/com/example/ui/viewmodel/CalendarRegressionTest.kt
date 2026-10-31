@@ -111,7 +111,7 @@ class CalendarRegressionTest {
     viewModel.selectCalendarDate(jan31Cal.timeInMillis)
 
     // Navigate to Feb 2027 (non-leap year, max 28 days)
-    viewModel.clampCalendarSelectedDayToMonth(2027, Calendar.FEBRUARY)
+    viewModel.setCalendarMonthAndYear(2027, Calendar.FEBRUARY)
     val clampedCal = Calendar.getInstance().apply {
       timeInMillis = viewModel.calendarSelectedDayMillis.value
     }
@@ -121,7 +121,7 @@ class CalendarRegressionTest {
 
     // Navigate to Feb 2028 (leap year, max 29 days)
     viewModel.selectCalendarDate(jan31Cal.timeInMillis)
-    viewModel.clampCalendarSelectedDayToMonth(2028, Calendar.FEBRUARY)
+    viewModel.setCalendarMonthAndYear(2028, Calendar.FEBRUARY)
     val clampedLeapCal = Calendar.getInstance().apply {
       timeInMillis = viewModel.calendarSelectedDayMillis.value
     }
@@ -135,7 +135,7 @@ class CalendarRegressionTest {
       set(Calendar.MILLISECOND, 0)
     }
     viewModel.selectCalendarDate(mar31Cal.timeInMillis)
-    viewModel.clampCalendarSelectedDayToMonth(2027, Calendar.APRIL)
+    viewModel.setCalendarMonthAndYear(2027, Calendar.APRIL)
     val clampedAprCal = Calendar.getInstance().apply {
       timeInMillis = viewModel.calendarSelectedDayMillis.value
     }
@@ -149,7 +149,7 @@ class CalendarRegressionTest {
       set(Calendar.MILLISECOND, 0)
     }
     viewModel.selectCalendarDate(mar15Cal.timeInMillis)
-    viewModel.clampCalendarSelectedDayToMonth(2027, Calendar.APRIL)
+    viewModel.setCalendarMonthAndYear(2027, Calendar.APRIL)
     val clampedMar15Cal = Calendar.getInstance().apply {
       timeInMillis = viewModel.calendarSelectedDayMillis.value
     }
@@ -172,5 +172,63 @@ class CalendarRegressionTest {
     viewModel.previousCalendarMonth()
     assertEquals(2026, viewModel.calendarMonth.value.get(Calendar.YEAR))
     assertEquals(Calendar.DECEMBER, viewModel.calendarMonth.value.get(Calendar.MONTH))
+  }
+
+  @Test
+  fun testJanuary31ToFebruary2027() {
+    val jan31Cal = Calendar.getInstance().apply {
+      set(2027, Calendar.JANUARY, 31, 12, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    viewModel.selectCalendarDate(jan31Cal.timeInMillis)
+    viewModel.setCalendarMonthAndYear(2027, Calendar.FEBRUARY)
+
+    assertEquals(Calendar.FEBRUARY, viewModel.selectedCalendar.value.get(Calendar.MONTH))
+    assertEquals(2027, viewModel.selectedCalendar.value.get(Calendar.YEAR))
+    
+    val selectedCal = Calendar.getInstance().apply {
+      timeInMillis = viewModel.calendarSelectedDayMillis.value
+    }
+    assertEquals(28, selectedCal.get(Calendar.DAY_OF_MONTH))
+    assertEquals(selectedCal.get(Calendar.DAY_OF_MONTH), viewModel.selectedCalendar.value.get(Calendar.DAY_OF_MONTH))
+  }
+
+  @Test
+  fun testMarch31ToApril2027() {
+    val mar31Cal = Calendar.getInstance().apply {
+      set(2027, Calendar.MARCH, 31, 12, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    viewModel.selectCalendarDate(mar31Cal.timeInMillis)
+    viewModel.nextCalendarMonth()
+    
+    assertEquals(Calendar.APRIL, viewModel.selectedCalendar.value.get(Calendar.MONTH))
+    assertEquals(30, viewModel.selectedCalendar.value.get(Calendar.DAY_OF_MONTH))
+  }
+
+  @Test
+  fun testLeapYearFebruary() {
+    val jan31Cal = Calendar.getInstance().apply {
+      set(2028, Calendar.JANUARY, 31, 12, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    viewModel.selectCalendarDate(jan31Cal.timeInMillis)
+    viewModel.nextCalendarMonth()
+    
+    assertEquals(Calendar.FEBRUARY, viewModel.selectedCalendar.value.get(Calendar.MONTH))
+    assertEquals(29, viewModel.selectedCalendar.value.get(Calendar.DAY_OF_MONTH))
+  }
+
+  @Test
+  fun testReverseNavigationMarchToFebruary() {
+    val mar31Cal = Calendar.getInstance().apply {
+      set(2027, Calendar.MARCH, 31, 12, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+    viewModel.selectCalendarDate(mar31Cal.timeInMillis)
+    viewModel.previousCalendarMonth()
+    
+    assertEquals(Calendar.FEBRUARY, viewModel.selectedCalendar.value.get(Calendar.MONTH))
+    assertEquals(28, viewModel.selectedCalendar.value.get(Calendar.DAY_OF_MONTH))
   }
 }

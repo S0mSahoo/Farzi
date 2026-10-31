@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -1072,10 +1073,10 @@ private fun MainScreenContent(
   onEditRecurringRule: (rule: RecurringRule) -> Unit,
   onOpenExportModal: () -> Unit
 ) {
-  Crossfade(
+  AnimatedContent(
     targetState = isSettingsOpen,
-    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
-    label = "settings_navigation_crossfade"
+    transitionSpec = { PaisaMotion.DefaultContentTransform },
+    label = "settings_navigation_transition"
   ) { settingsOpen ->
     if (settingsOpen) {
       BackHandler { onBackFromSettings() }
@@ -1084,55 +1085,61 @@ private fun MainScreenContent(
         onOpenExportModal = onOpenExportModal
       )
     } else {
-      when (selectedTab) {
-        0 -> DashboardScreen(
-          viewModel = viewModel,
-          onOpenAddTransaction = onOpenAddTransaction,
-          onEditTransaction = onEditTransaction,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(dashboardCalendar),
-              DateUtils.getMonthLabel(dashboardCalendar)
-            )
-          },
-          onOpenAllTransactions = { onNavigateTab(1) }
-        )
-        1 -> TransactionsScreen(
-          viewModel = viewModel,
-          onEditTransaction = onEditTransaction
-        )
-        2 -> CalendarScreen(
-          viewModel = viewModel,
-          onAddTransactionForDate = onAddTransactionForDate,
-          onEditTransaction = onEditTransaction
-        )
-        3 -> BudgetScreen(
-          viewModel = viewModel,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(budgetCalendar),
-              DateUtils.getMonthLabel(budgetCalendar)
-            )
-          }
-        )
-        4 -> RecurringScreen(
-          viewModel = viewModel,
-          onOpenAddRecurringRule = onOpenAddRecurringRule,
-          onEditRecurringRule = onEditRecurringRule
-        )
-        5 -> CategoriesScreen(viewModel = viewModel)
-        else -> DashboardScreen(
-          viewModel = viewModel,
-          onOpenAddTransaction = onOpenAddTransaction,
-          onEditTransaction = onEditTransaction,
-          onOpenSetBudget = {
-            onOpenSetBudget(
-              DateUtils.getMonthKey(dashboardCalendar),
-              DateUtils.getMonthLabel(dashboardCalendar)
-            )
-          },
-          onOpenAllTransactions = { onNavigateTab(1) }
-        )
+      AnimatedContent(
+        targetState = selectedTab,
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "paisa_primary_navigation"
+      ) { tab ->
+        when (tab) {
+          0 -> DashboardScreen(
+            viewModel = viewModel,
+            onOpenAddTransaction = onOpenAddTransaction,
+            onEditTransaction = onEditTransaction,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(dashboardCalendar),
+                DateUtils.getMonthLabel(dashboardCalendar)
+              )
+            },
+            onOpenAllTransactions = { onNavigateTab(1) }
+          )
+          1 -> TransactionsScreen(
+            viewModel = viewModel,
+            onEditTransaction = onEditTransaction
+          )
+          2 -> CalendarScreen(
+            viewModel = viewModel,
+            onAddTransactionForDate = onAddTransactionForDate,
+            onEditTransaction = onEditTransaction
+          )
+          3 -> BudgetScreen(
+            viewModel = viewModel,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(budgetCalendar),
+                DateUtils.getMonthLabel(budgetCalendar)
+              )
+            }
+          )
+          4 -> RecurringScreen(
+            viewModel = viewModel,
+            onOpenAddRecurringRule = onOpenAddRecurringRule,
+            onEditRecurringRule = onEditRecurringRule
+          )
+          5 -> CategoriesScreen(viewModel = viewModel)
+          else -> DashboardScreen(
+            viewModel = viewModel,
+            onOpenAddTransaction = onOpenAddTransaction,
+            onEditTransaction = onEditTransaction,
+            onOpenSetBudget = {
+              onOpenSetBudget(
+                DateUtils.getMonthKey(dashboardCalendar),
+                DateUtils.getMonthLabel(dashboardCalendar)
+              )
+            },
+            onOpenAllTransactions = { onNavigateTab(1) }
+          )
+        }
       }
     }
   }

@@ -914,11 +914,14 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Navigation & Period =================
 
-  fun clampCalendarSelectedDayToMonth(targetYear: Int, targetMonth: Int) {
+  // ================= Navigation & Period =================
+
+  private fun updateCalendarPeriod(targetYear: Int, targetMonth: Int) {
     val currentCal = Calendar.getInstance().apply {
       timeInMillis = _calendarSelectedDayMillis.value
     }
-    val currentDay = currentCal.get(Calendar.DAY_OF_MONTH)
+    val originalDay = currentCal.get(Calendar.DAY_OF_MONTH)
+
     val targetCal = Calendar.getInstance().apply {
       set(Calendar.YEAR, targetYear)
       set(Calendar.MONTH, targetMonth)
@@ -928,9 +931,12 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       set(Calendar.SECOND, 0)
       set(Calendar.MILLISECOND, 0)
     }
+
     val maxDays = targetCal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val clampedDay = currentDay.coerceIn(1, maxDays)
+    val clampedDay = originalDay.coerceIn(1, maxDays)
     targetCal.set(Calendar.DAY_OF_MONTH, clampedDay)
+
+    _universalCalendar.value = targetCal.clone() as Calendar
     _calendarSelectedDayMillis.value = targetCal.timeInMillis
   }
 
@@ -938,49 +944,36 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val cal = (_universalCalendar.value.clone() as Calendar).apply {
       add(Calendar.MONTH, -1)
     }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun nextMonth() {
     val cal = (_universalCalendar.value.clone() as Calendar).apply {
       add(Calendar.MONTH, 1)
     }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun previousYear() {
     val cal = (_universalCalendar.value.clone() as Calendar).apply {
       add(Calendar.YEAR, -1)
     }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun nextYear() {
     val cal = (_universalCalendar.value.clone() as Calendar).apply {
       add(Calendar.YEAR, 1)
     }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
   }
 
   fun setYear(year: Int) {
-    val cal = (_universalCalendar.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-    }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(year, _universalCalendar.value.get(Calendar.MONTH))
   }
 
   fun setMonthAndYear(year: Int, month: Int) {
-    val cal = (_universalCalendar.value.clone() as Calendar).apply {
-      set(Calendar.YEAR, year)
-      set(Calendar.MONTH, month)
-    }
-    _universalCalendar.value = cal
-    clampCalendarSelectedDayToMonth(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH))
+    updateCalendarPeriod(year, month)
   }
 
   // --- Screen-Specific Aliases Routing to Universal Period ---
