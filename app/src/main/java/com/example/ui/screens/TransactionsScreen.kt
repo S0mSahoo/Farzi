@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -303,7 +304,7 @@ fun TransactionsScreen(
           Spacer(Modifier.height(4.dp))
           Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             PremiumTextButton(
-              onClick = { if (useTwoPane) selectedTransactionId = transaction.id else onEditTransaction(transaction) },
+              onClick = { onEditTransaction(transaction) },
               modifier = Modifier.weight(1f)
             ) {
               Text("Edit transaction")
@@ -680,7 +681,7 @@ fun TransactionsScreen(
               PremiumTransactionRow(
                 transaction = transaction,
                 currencySymbol = currencySymbol,
-                onClick = { onEditTransaction(transaction) },
+                onClick = { if (useTwoPane) selectedTransactionId = transaction.id else onEditTransaction(transaction) },
                 trailing = {
                   PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
