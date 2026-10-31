@@ -517,11 +517,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val leadDays = (firstDayOfWeek - Calendar.MONDAY + 7) % 7
     val todayKey = DateUtils.getDayKey(Calendar.getInstance())
 
-    // Group transactions by day key for fast O(1) matching
-    val txByDate = HashMap<String, MutableList<TransactionItem>>()
+    // Aggregate each transaction once into a day bucket. UI rendering then performs O(1)
+    // lookups without repeatedly filtering the same day list for income and expenses.
+    data class DayAccumulator(
+      val transactions: MutableList<TransactionItem> = mutableListOf(),
+      var income: Double = 0.0,
+      var expense: Double = 0.0
+    )
+    val byDate = HashMap<String, DayAccumulator>()
     for (tx in transactions) {
-      val key = DateUtils.getDayKey(tx.timestamp)
-      txByDate.getOrPut(key) { mutableListOf() }.add(tx)
+      val bucket = byDate.getOrPut(DateUtils.getDayKey(tx.timestamp)) { DayAccumulator() }
+      bucket.transactions.add(tx)
+      when (tx.type) {
+        TransactionType.INCOME -> bucket.income += tx.amount
+        TransactionType.EXPENSE -> bucket.expense += tx.amount
+      }
     }
 
     val gridDays = ArrayList<CalendarDayData?>(42)
@@ -544,9 +554,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       }
       val dateKey = DateUtils.getDayKey(c)
       val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val dayTx = txByDate[dateKey] ?: emptyList()
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+      val dayBucket = byDate[dateKey]
+      val dayTx = dayBucket?.transactions ?: emptyList()
+      val inc = dayBucket?.income ?: 0.0
+      val exp = dayBucket?.expense ?: 0.0
       gridDays.add(
         CalendarDayData(
           dayOfMonth = day,
