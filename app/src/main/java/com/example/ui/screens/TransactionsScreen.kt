@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,6 +57,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
@@ -84,6 +87,14 @@ private data class TransactionFeedEntry(
   val dateLabel: String? = null,
   val transaction: TransactionItem? = null,
   val entryCount: Int = 0
+)
+
+private data class TransactionScreenProjection(
+  val feedEntries: List<TransactionFeedEntry> = emptyList(),
+  val recordCount: Int = 0,
+  val totalIncome: Double = 0.0,
+  val totalExpense: Double = 0.0,
+  val daysWithTransactions: Set<Int> = emptySet()
 )
 
 @Composable
@@ -155,51 +166,85 @@ fun TransactionsScreen(
     )
   }
 
-  // Filter transactions by selected month & selected day (if day selected)
-  val monthTransactions = remember(transactions, startOfMonth, endOfMonth) {
-    transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-  }
+  // Filter, aggregate and sort transaction history off the main thread.
+  // The same pass creates the daily markers so rendering the month strip is O(days), not
+  // O(days * transactions).
+  val projection by produceState(
+    initialValue = TransactionScreenProjection(),
+    transactions,
+    startOfMonth,
+    endOfMonth,
+    selectedDayOfMonth,
+    selectedCalendar.get(Calendar.YEAR),
+    selectedCalendar.get(Calendar.MONTH)
+  ) {
+    value = withContext(Dispatchers.Default) {
+      val dayCalendar = Calendar.getInstance()
+      val daysWithTransactions = LinkedHashSet<Int>()
+      val visibleTransactions = ArrayList<TransactionItem>()
+      var totalIncome = 0.0
+      var totalExpense = 0.0
 
-  val filteredByDate = remember(monthTransactions, selectedDayOfMonth, selectedCalendar) {
-    if (selectedDayOfMonth == null) {
-      monthTransactions
-    } else {
-      val dayCal = (selectedCalendar.clone() as Calendar).apply {
-        set(Calendar.DAY_OF_MONTH, selectedDayOfMonth!!)
-      }
-      val startOfDay = DateUtils.getStartOfDay(dayCal.timeInMillis)
-      val endOfDay = DateUtils.getEndOfDay(dayCal.timeInMillis)
-      monthTransactions.filter { it.timestamp in startOfDay..endOfDay }
-    }
-  }
+      for (transaction in transactions) {
+        if (transaction.timestamp !in startOfMonth..endOfMonth) continue
+        dayCalendar.timeInMillis = transaction.timestamp
+        val day = dayCalendar.get(Calendar.DAY_OF_MONTH)
+        daysWithTransactions.add(day)
+        if (selectedDayOfMonth != null && selectedDayOfMonth != day) continue
 
-  val sorted = remember(filteredByDate) { filteredByDate.sortedByDescending { it.timestamp } }
-  val grouped = remember(sorted) {
-    val todayKey = DateUtils.getDayKey(Calendar.getInstance())
-    val yesterdayKey = DateUtils.getDayKey(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -1) })
-    sorted.groupBy { tx ->
-      when (DateUtils.getDayKey(tx.timestamp)) {
-        todayKey -> "Today"
-        yesterdayKey -> "Yesterday"
-        else -> DateUtils.getDisplayDate(tx.timestamp)
-      }
-    }
-  }
-
-  // Flatten headers and transactions so LazyColumn virtualizes every transaction row.
-  val feedEntries = remember(grouped) {
-    buildList {
-      grouped.forEach { (dateLabel, dayTransactions) ->
-        add(TransactionFeedEntry("header_$dateLabel", dateLabel = dateLabel, entryCount = dayTransactions.size))
-        dayTransactions.forEach { transaction ->
-          add(TransactionFeedEntry("tx_" + transaction.id + "_" + transaction.timestamp, transaction = transaction))
+        visibleTransactions.add(transaction)
+        when (transaction.type) {
+          TransactionType.INCOME -> totalIncome += transaction.amount
+          TransactionType.EXPENSE -> totalExpense += transaction.amount
         }
       }
+
+      visibleTransactions.sortWith(
+        compareByDescending<TransactionItem> { it.timestamp }.thenByDescending { it.id }
+      )
+      val todayKey = DateUtils.getDayKey(Calendar.getInstance())
+      val yesterdayKey = DateUtils.getDayKey(Calendar.getInstance().apply {
+        add(Calendar.DAY_OF_MONTH, -1)
+      })
+      val grouped = visibleTransactions.groupBy { transaction ->
+        when (DateUtils.getDayKey(transaction.timestamp)) {
+          todayKey -> "Today"
+          yesterdayKey -> "Yesterday"
+          else -> DateUtils.getDisplayDate(transaction.timestamp)
+        }
+      }
+      val entries = buildList {
+        grouped.forEach { (dateLabel, dayTransactions) ->
+          add(
+            TransactionFeedEntry(
+              key = "header_$dateLabel",
+              dateLabel = dateLabel,
+              entryCount = dayTransactions.size
+            )
+          )
+          dayTransactions.forEach { transaction ->
+            add(
+              TransactionFeedEntry(
+                key = "tx_${transaction.id}_${transaction.timestamp}",
+                transaction = transaction
+              )
+            )
+          }
+        }
+      }
+
+      TransactionScreenProjection(
+        feedEntries = entries,
+        recordCount = visibleTransactions.size,
+        totalIncome = totalIncome,
+        totalExpense = totalExpense,
+        daysWithTransactions = daysWithTransactions
+      )
     }
   }
-
-  val totalIncomeInView = remember(sorted) { sorted.filter { it.type == TransactionType.INCOME }.sumOf { it.amount } }
-  val totalExpenseInView = remember(sorted) { sorted.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+  val feedEntries = projection.feedEntries
+  val totalIncomeInView = projection.totalIncome
+  val totalExpenseInView = projection.totalExpense
   val netInView = totalIncomeInView - totalExpenseInView
 
   // Generate days for selected month
@@ -291,7 +336,7 @@ fun TransactionsScreen(
 
                 val dayStart = DateUtils.getStartOfDay(dayCal.timeInMillis)
                 val dayEnd = DateUtils.getEndOfDay(dayCal.timeInMillis)
-                val hasTxOnDay = monthTransactions.any { it.timestamp in dayStart..dayEnd }
+                val hasTxOnDay = day in projection.daysWithTransactions
 
                 Surface(
                   onClick = { selectedDayOfMonth = if (selectedDayOfMonth == day) null else day },
@@ -368,7 +413,7 @@ fun TransactionsScreen(
               ) {
                 if (searchQuery.isNotBlank()) {
                   Text(
-                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    text = "${projection.recordCount} ${if (sorted.size == 1) "record" else "records"}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -517,7 +562,7 @@ fun TransactionsScreen(
         }
       }
 
-      if (sorted.isEmpty()) {
+      if (projection.recordCount == 0) {
         item {
           PremiumCard {
             PremiumEmptyState(
