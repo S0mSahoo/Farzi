@@ -305,6 +305,43 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   /**
+   * Fetches the raw encrypted cloud envelope from Google Drive AppData space if present.
+   * Does not attempt payload decryption or schema validation.
+   * Throws IOException on network/HTTP failures.
+   */
+  suspend fun fetchRawCloudEnvelope(account: GoogleSignInAccount): EncryptedCloudEnvelope? = withContext(Dispatchers.IO) {
+    val accessToken = getAccessToken(account)
+    val existingFileId = findExistingBackupFileId(accessToken) ?: return@withContext null
+
+    val url = "https://www.googleapis.com/drive/v3/files/$existingFileId?alt=media"
+    val request = Request.Builder()
+      .url(url)
+      .header("Authorization", "Bearer $accessToken")
+      .get()
+      .build()
+
+    val response = okHttpClient.newCall(request).execute()
+    val jsonContent = try {
+      if (!response.isSuccessful) {
+        throw IOException("Failed to download cloud records from Google Drive (${response.code})")
+      }
+      val body = response.body
+        ?: throw IOException("Google Drive returned an empty backup response.")
+      readUtf8Bounded(body, MAX_CLOUD_BACKUP_BYTES)
+    } finally {
+      response.close()
+    }
+    if (jsonContent.isBlank()) return@withContext null
+
+    val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
+    try {
+      envelopeAdapter.fromJson(jsonContent)
+    } catch (e: Exception) {
+      null
+    }
+  }
+
+  /**
    * Saves the user's complete financial payload to Google Drive AppData space.
    * Encrypts payload with AES-256-GCM before writing to Google Drive.
    * Returns the timestamp of successful save.

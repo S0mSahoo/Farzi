@@ -298,7 +298,7 @@ fun AiAdvisorScreen(
                     ) {
                         item {
                             AssistChip(
-                                onClick = { viewModel.requestFinancialInsight(financialSummaryContext) },
+                                onClick = { viewModel.requestFinancialInsight() },
                                 enabled = !isControlsDisabled,
                                 label = { Text("📊 Analyze My Spending") },
                                 leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }

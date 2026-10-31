@@ -102,4 +102,84 @@ class FinanceCrudOperationsTest {
       }
     }
   }
+
+  @Test
+  fun testDeleteTransactionSuspendSucceedsAndFailsOnGhost() = runBlocking {
+    val id = viewModel.addTransactionSuspend(
+      title = "Tx To Delete",
+      amount = 20.0,
+      type = TransactionType.EXPENSE,
+      category = TransactionCategory.GROCERIES,
+      timestamp = System.currentTimeMillis(),
+      note = "",
+      paymentMethod = PaymentMethod.CASH
+    )
+    flushCoroutines { viewModel.allTransactions.value.any { it.title == "Tx To Delete" } }
+    val tx = viewModel.allTransactions.value.first { it.title == "Tx To Delete" }
+
+    viewModel.deleteTransactionSuspend(tx)
+    flushCoroutines { viewModel.allTransactions.value.none { it.title == "Tx To Delete" } }
+    assertTrue(viewModel.allTransactions.value.none { it.title == "Tx To Delete" })
+
+    try {
+      viewModel.deleteTransactionSuspend(tx)
+      fail("Deleting ghost transaction should throw IllegalStateException")
+    } catch (e: IllegalStateException) {
+      assertTrue(e.message?.contains("no longer exists") == true)
+    }
+  }
+
+  @Test
+  fun testDeleteBudgetSuspendSucceedsAndFailsOnGhost() = runBlocking {
+    val monthKey = "2026-11"
+    viewModel.saveMonthlyBudgetSuspend(monthKey, 1500.0)
+    flushCoroutines { viewModel.allBudgets.value.any { it.monthKey == monthKey } }
+
+    viewModel.deleteBudgetSuspend(monthKey)
+    flushCoroutines { viewModel.allBudgets.value.none { it.monthKey == monthKey } }
+    assertTrue(viewModel.allBudgets.value.none { it.monthKey == monthKey })
+
+    try {
+      viewModel.deleteBudgetSuspend(monthKey)
+      fail("Deleting ghost budget should throw IllegalStateException")
+    } catch (e: IllegalStateException) {
+      assertTrue(e.message?.contains("no longer exists") == true)
+    }
+  }
+
+  @Test
+  fun testDeleteRecurringRuleSuspendSucceedsAndFailsOnGhost() = runBlocking {
+    val ruleId = viewModel.addRecurringRuleSuspend(
+      title = "Gym Sub",
+      amount = 40.0,
+      type = TransactionType.EXPENSE,
+      category = TransactionCategory.FITNESS,
+      interval = com.example.data.model.RecurrenceInterval.MONTHLY,
+      startDate = System.currentTimeMillis(),
+      endDate = null,
+      paymentMethod = PaymentMethod.CREDIT_CARD,
+      note = ""
+    )
+    flushCoroutines { viewModel.allRecurringRules.value.any { it.id == ruleId } }
+
+    viewModel.deleteRecurringRuleSuspend(ruleId)
+    flushCoroutines { viewModel.allRecurringRules.value.none { it.id == ruleId } }
+    assertTrue(viewModel.allRecurringRules.value.none { it.id == ruleId })
+
+    try {
+      viewModel.deleteRecurringRuleSuspend(ruleId)
+      fail("Deleting ghost rule should throw IllegalStateException")
+    } catch (e: IllegalStateException) {
+      assertTrue(e.message?.contains("no longer exists") == true)
+    }
+  }
+
+  @Test
+  fun testVerifyAndSetRecoveryPassphraseGuestMode() = runBlocking {
+    val result = viewModel.verifyAndSetRecoveryPassphrase("new passphrase for guest mode 2026")
+    assertTrue("Guest mode passphrase setup should succeed. Got error: ${result.exceptionOrNull()?.message}", result.isSuccess)
+
+    val shortResult = viewModel.verifyAndSetRecoveryPassphrase("short")
+    assertTrue("Short passphrase should fail validation. Got success: ${shortResult.isSuccess}", shortResult.isFailure)
+  }
 }

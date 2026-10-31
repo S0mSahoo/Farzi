@@ -196,7 +196,7 @@ class AiAdvisorViewModel : ViewModel() {
         activeChat?.let { return it }
 
         val newChat = Firebase.ai.generativeModel(
-            modelName = "gemini-3.8-flash",
+            modelName = "gemini-3.5-flash-lite",
             tools = FinancialQueryTools.allTools
         ).startChat(
             history = listOf(
@@ -1305,8 +1305,8 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
         }
     }
 
-    fun requestFinancialInsight(financialSummary: String = "") {
-        val prompt = "Analyze my spending and financial records for the current month and my overall history from the snapshot. Provide a clear breakdown of income vs expenses, top spending categories, savings rate, and budget usage. Give me 3 actionable tips based ONLY on my actual numbers."
+    fun requestFinancialInsight() {
+        val prompt = "Please use your query tools to analyze my actual financial records for the current month and recent periods. Retrieve my income, expenses, top spending categories, savings rate, and budget usage. Provide a concise summary of my financial health along with 3 actionable suggestions based on my actual numbers."
         sendMessage(prompt)
     }
 }

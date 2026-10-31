@@ -48,7 +48,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -83,12 +85,17 @@ fun RecurringScreen(
   onOpenAddRecurringRule: () -> Unit,
   onEditRecurringRule: (rule: RecurringRule) -> Unit
 ) {
+  val coroutineScope = rememberCoroutineScope()
   val recurringRules by viewModel.allRecurringRules.collectAsStateWithLifecycle()
   val occurrences by viewModel.allScheduledOccurrences.collectAsStateWithLifecycle()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   var selectedTab by remember { mutableStateOf(0) }
   var ruleToDelete by remember { mutableStateOf<RecurringRule?>(null) }
+  var isDeletingRule by remember { mutableStateOf(false) }
+  var deleteRuleError by remember { mutableStateOf<String?>(null) }
   var occurrenceToCancel by remember { mutableStateOf<RecurringOccurrence?>(null) }
+  var isCancellingOccurrence by remember { mutableStateOf(false) }
+  var cancelOccurrenceError by remember { mutableStateOf<String?>(null) }
   val currencySymbol = userProfile.currencySymbol
 
   if (ruleToDelete != null) {
@@ -97,11 +104,29 @@ fun RecurringScreen(
       message = "Delete “${ruleToDelete?.title}”? Transactions already recorded from this rule will remain.",
       confirmButtonText = "Delete rule",
       confirmButtonColor = ExpenseRed,
+      isLoading = isDeletingRule,
+      errorMessage = deleteRuleError,
       onConfirm = {
-        ruleToDelete?.let { viewModel.deleteRecurringRule(it.id) }
-        ruleToDelete = null
+        val rule = ruleToDelete ?: return@ConfirmationDialog
+        isDeletingRule = true
+        deleteRuleError = null
+        coroutineScope.launch {
+          try {
+            viewModel.deleteRecurringRuleSuspend(rule.id)
+            isDeletingRule = false
+            ruleToDelete = null
+          } catch (e: Exception) {
+            isDeletingRule = false
+            deleteRuleError = e.localizedMessage ?: "Failed to delete recurring rule."
+          }
+        }
       },
-      onDismiss = { ruleToDelete = null }
+      onDismiss = {
+        if (!isDeletingRule) {
+          ruleToDelete = null
+          deleteRuleError = null
+        }
+      }
     )
   }
   if (occurrenceToCancel != null) {
@@ -110,11 +135,29 @@ fun RecurringScreen(
       message = "Skip only the ${occurrenceToCancel?.occurrenceDateKey} occurrence. The recurring rule will remain active for future payments.",
       confirmButtonText = "Skip payment",
       confirmButtonColor = ExpenseRed,
+      isLoading = isCancellingOccurrence,
+      errorMessage = cancelOccurrenceError,
       onConfirm = {
-        occurrenceToCancel?.let { viewModel.cancelRecurringOccurrence(it) }
-        occurrenceToCancel = null
+        val occ = occurrenceToCancel ?: return@ConfirmationDialog
+        isCancellingOccurrence = true
+        cancelOccurrenceError = null
+        coroutineScope.launch {
+          try {
+            viewModel.cancelRecurringOccurrenceSuspend(occ)
+            isCancellingOccurrence = false
+            occurrenceToCancel = null
+          } catch (e: Exception) {
+            isCancellingOccurrence = false
+            cancelOccurrenceError = e.localizedMessage ?: "Failed to skip payment."
+          }
+        }
       },
-      onDismiss = { occurrenceToCancel = null }
+      onDismiss = {
+        if (!isCancellingOccurrence) {
+          occurrenceToCancel = null
+          cancelOccurrenceError = null
+        }
+      }
     )
   }
 

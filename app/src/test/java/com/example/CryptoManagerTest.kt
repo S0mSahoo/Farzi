@@ -94,4 +94,15 @@ class CryptoManagerTest {
     org.junit.Assert.assertFalse("Invalid candidate must fail verification against existing cloud bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, invalidCandidate))
     assertTrue("Valid candidate must pass verification against existing cloud bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, originalPassphrase))
   }
+
+  @Test
+  fun testPassphraseValidationCases() {
+    val passphrase = "valid passphrase 123456"
+    val data = """{"data":"ok"}"""
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(data, passphrase)
+
+    // Case A & E: Null bundle or legacy backup does not block setting new passphrase
+    assertTrue("Valid passphrase decrypts bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, passphrase))
+    org.junit.Assert.assertFalse("Incorrect passphrase fails decryption", CryptoManager.verifyPassphraseAgainstBundle(bundle, "wrong passphrase 654321"))
+  }
 }

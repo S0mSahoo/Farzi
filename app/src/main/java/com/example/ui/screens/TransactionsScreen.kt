@@ -42,6 +42,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
@@ -88,10 +90,13 @@ fun TransactionsScreen(
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
 
+  val coroutineScope = rememberCoroutineScope()
   var selectedDayOfMonth by remember { mutableStateOf<Int?>(null) } // null = All Month
   var showMonthPicker by remember { mutableStateOf(false) }
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
   var showCategoryFilters by remember { mutableStateOf(false) }
+  var isDeletingTransaction by remember { mutableStateOf(false) }
+  var deleteTransactionError by remember { mutableStateOf<String?>(null) }
 
   val currencySymbol = userProfile.currencySymbol
   val startOfMonth = remember(selectedCalendar) { DateUtils.getStartOfMonth(selectedCalendar) }
@@ -104,11 +109,29 @@ fun TransactionsScreen(
       message = "Delete “${transactionToDelete?.title}”? This cannot be undone.",
       confirmButtonText = "Delete",
       confirmButtonColor = ExpenseRed,
+      isLoading = isDeletingTransaction,
+      errorMessage = deleteTransactionError,
       onConfirm = {
-        transactionToDelete?.let { viewModel.deleteTransaction(it) }
-        transactionToDelete = null
+        val item = transactionToDelete ?: return@ConfirmationDialog
+        isDeletingTransaction = true
+        deleteTransactionError = null
+        coroutineScope.launch {
+          try {
+            viewModel.deleteTransactionSuspend(item)
+            isDeletingTransaction = false
+            transactionToDelete = null
+          } catch (e: Exception) {
+            isDeletingTransaction = false
+            deleteTransactionError = e.localizedMessage ?: "Failed to delete transaction."
+          }
+        }
       },
-      onDismiss = { transactionToDelete = null }
+      onDismiss = {
+        if (!isDeletingTransaction) {
+          transactionToDelete = null
+          deleteTransactionError = null
+        }
+      }
     )
   }
 

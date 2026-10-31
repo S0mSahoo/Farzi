@@ -37,7 +37,9 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,8 +83,11 @@ fun BudgetScreen(
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
   val summary by viewModel.budgetMonthSummary.collectAsStateWithLifecycle()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
+  val coroutineScope = rememberCoroutineScope()
   var showMonthPicker by remember { mutableStateOf(false) }
   var showDeleteDialog by remember { mutableStateOf(false) }
+  var isDeletingBudget by remember { mutableStateOf(false) }
+  var deleteBudgetError by remember { mutableStateOf<String?>(null) }
   val currencySymbol = userProfile.currencySymbol
   val monthKey = DateUtils.getMonthKey(selectedCalendar)
   val currentBudget = remember(allBudgets, monthKey) { allBudgets.firstOrNull { it.monthKey == monthKey } }
@@ -123,11 +128,28 @@ fun BudgetScreen(
       message = "Remove the budget plan for ${summary.monthLabel}? Your transactions will remain untouched.",
       confirmButtonText = "Delete budget",
       confirmButtonColor = ExpenseRed,
+      isLoading = isDeletingBudget,
+      errorMessage = deleteBudgetError,
       onConfirm = {
-        viewModel.deleteBudget(monthKey)
-        showDeleteDialog = false
+        isDeletingBudget = true
+        deleteBudgetError = null
+        coroutineScope.launch {
+          try {
+            viewModel.deleteBudgetSuspend(monthKey)
+            isDeletingBudget = false
+            showDeleteDialog = false
+          } catch (e: Exception) {
+            isDeletingBudget = false
+            deleteBudgetError = e.localizedMessage ?: "Failed to delete budget."
+          }
+        }
       },
-      onDismiss = { showDeleteDialog = false }
+      onDismiss = {
+        if (!isDeletingBudget) {
+          showDeleteDialog = false
+          deleteBudgetError = null
+        }
+      }
     )
   }
 

@@ -60,11 +60,14 @@ fun ConfirmationDialog(
   message: String,
   confirmButtonText: String = "Delete",
   confirmButtonColor: Color = ExpenseRed,
+  isLoading: Boolean = false,
+  errorMessage: String? = null,
+  autoDismissOnConfirm: Boolean = false,
   onConfirm: () -> Unit,
   onDismiss: () -> Unit
 ) {
   AlertDialog(
-    onDismissRequest = onDismiss,
+    onDismissRequest = { if (!isLoading) onDismiss() },
     icon = {
       Icon(
         imageVector = Icons.Default.Warning,
@@ -81,30 +84,50 @@ fun ConfirmationDialog(
       )
     },
     text = {
-      Text(
-        text = message,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+          text = message,
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (errorMessage != null) {
+          Text(
+            text = errorMessage,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            fontWeight = FontWeight.Medium
+          )
+        }
+      }
     },
     confirmButton = {
       PremiumButton(
         onClick = {
           onConfirm()
-          onDismiss()
+          if (autoDismissOnConfirm) onDismiss()
         },
+        enabled = !isLoading,
         colors = ButtonDefaults.buttonColors(
           containerColor = confirmButtonColor,
           contentColor = Color.White
         ),
         modifier = Modifier.testTag("confirm_dialog_button")
       ) {
-        Text(confirmButtonText)
+        if (isLoading) {
+          androidx.compose.material3.CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = Color.White
+          )
+        } else {
+          Text(confirmButtonText)
+        }
       }
     },
     dismissButton = {
       PremiumOutlinedButton(
         onClick = onDismiss,
+        enabled = !isLoading,
         modifier = Modifier.testTag("cancel_dialog_button")
       ) {
         Text("Cancel")

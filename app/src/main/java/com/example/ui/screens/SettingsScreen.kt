@@ -329,13 +329,17 @@ fun SettingsScreen(
     )
   }
 
+  var isVerifyingPassphrase by remember { mutableStateOf(false) }
+
   if (showRecoveryPassphraseDialog) {
     AlertDialog(
       onDismissRequest = {
-        showRecoveryPassphraseDialog = false
-        recoveryPassphraseInput = ""
-        recoveryPassphraseConfirm = ""
-        recoveryPassphraseError = null
+        if (!isVerifyingPassphrase) {
+          showRecoveryPassphraseDialog = false
+          recoveryPassphraseInput = ""
+          recoveryPassphraseConfirm = ""
+          recoveryPassphraseError = null
+        }
       },
       title = {
         Text(
@@ -358,9 +362,12 @@ fun SettingsScreen(
           OutlinedTextField(
             value = recoveryPassphraseInput,
             onValueChange = {
-              recoveryPassphraseInput = it
-              recoveryPassphraseError = null
+              if (!isVerifyingPassphrase) {
+                recoveryPassphraseInput = it
+                recoveryPassphraseError = null
+              }
             },
+            enabled = !isVerifyingPassphrase,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Recovery passphrase") },
             singleLine = true,
@@ -369,9 +376,12 @@ fun SettingsScreen(
           OutlinedTextField(
             value = recoveryPassphraseConfirm,
             onValueChange = {
-              recoveryPassphraseConfirm = it
-              recoveryPassphraseError = null
+              if (!isVerifyingPassphrase) {
+                recoveryPassphraseConfirm = it
+                recoveryPassphraseError = null
+              }
             },
+            enabled = !isVerifyingPassphrase,
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Confirm passphrase") },
             singleLine = true,
@@ -388,6 +398,7 @@ fun SettingsScreen(
       },
       confirmButton = {
         PremiumTextButton(
+          enabled = !isVerifyingPassphrase,
           onClick = {
             when {
               recoveryPassphraseInput.length < 12 -> {
@@ -397,28 +408,47 @@ fun SettingsScreen(
                 recoveryPassphraseError = "The passphrases do not match."
               }
               else -> {
-                try {
-                  CryptoManager.replaceStoredCloudRecoveryPassphrase(context, recoveryPassphraseInput)
-                  isRecoveryPassphraseConfigured = true
-                  showRecoveryPassphraseDialog = false
-                  recoveryPassphraseInput = ""
-                  recoveryPassphraseConfirm = ""
-                  recoveryPassphraseError = null
-                  Toast.makeText(
-                    context,
-                    "Recovery passphrase saved securely on this device. Tap Sync Now to sync or migrate your Drive backup.",
-                    Toast.LENGTH_LONG
-                  ).show()
-                } catch (e: Exception) {
-                  recoveryPassphraseError = e.localizedMessage ?: "Could not save the recovery passphrase securely."
+                isVerifyingPassphrase = true
+                recoveryPassphraseError = null
+                coroutineScope.launch {
+                  val result = viewModel.verifyAndSetRecoveryPassphrase(recoveryPassphraseInput)
+                  isVerifyingPassphrase = false
+                  result.fold(
+                    onSuccess = {
+                      isRecoveryPassphraseConfigured = true
+                      showRecoveryPassphraseDialog = false
+                      recoveryPassphraseInput = ""
+                      recoveryPassphraseConfirm = ""
+                      recoveryPassphraseError = null
+                      Toast.makeText(
+                        context,
+                        "Recovery passphrase saved securely on this device. Tap Sync Now to sync or migrate your Drive backup.",
+                        Toast.LENGTH_LONG
+                      ).show()
+                    },
+                    onFailure = { error ->
+                      recoveryPassphraseError = error.localizedMessage ?: "Verification failed."
+                    }
+                  )
                 }
               }
             }
           }
-        ) { Text("Save Passphrase") }
+        ) {
+          if (isVerifyingPassphrase) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(16.dp),
+              strokeWidth = 2.dp,
+              color = MaterialTheme.colorScheme.primary
+            )
+          } else {
+            Text("Save Passphrase")
+          }
+        }
       },
       dismissButton = {
         PremiumTextButton(
+          enabled = !isVerifyingPassphrase,
           onClick = {
             showRecoveryPassphraseDialog = false
             recoveryPassphraseInput = ""

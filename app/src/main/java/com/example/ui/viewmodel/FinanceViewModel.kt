@@ -37,6 +37,7 @@ import com.example.data.model.UserProfile
 import com.example.data.model.YearlyFinancialSummary
 import com.example.data.repository.FinanceRepository
 import com.example.ui.components.DateUtils
+import com.example.util.CryptoManager
 import com.example.util.JsonPortabilityManager
 import com.example.util.JsonValidationResult
 import com.example.util.PaisaJsonBackup
@@ -863,17 +864,106 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
+  suspend fun cancelRecurringOccurrenceSuspend(occurrence: RecurringOccurrence) = withContext(Dispatchers.IO) {
+    repository.cancelRecurringOccurrence(occurrence.rule.id, occurrence.occurrenceDateKey)
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after cancel occurrence", e) }
+  }
+
   fun cancelRecurringOccurrence(occurrence: RecurringOccurrence) {
     viewModelScope.launch {
-      repository.cancelRecurringOccurrence(occurrence.rule.id, occurrence.occurrenceDateKey)
+      try {
+        cancelRecurringOccurrenceSuspend(occurrence)
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "cancelRecurringOccurrence failed", e)
+      }
+    }
+  }
+
+  suspend fun restoreRecurringOccurrence(occurrence: RecurringOccurrence) {
+    viewModelScope.launch {
+      repository.restoreRecurringOccurrence(occurrence.rule.id, occurrence.occurrenceDateKey)
       syncCurrentStateToDrive()
     }
   }
 
-  fun restoreRecurringOccurrence(occurrence: RecurringOccurrence) {
-    viewModelScope.launch {
-      repository.restoreRecurringOccurrence(occurrence.rule.id, occurrence.occurrenceDateKey)
-      syncCurrentStateToDrive()
+  suspend fun verifyAndSetRecoveryPassphrase(candidatePassphrase: String): Result<Unit> {
+    if (candidatePassphrase.length < 12) {
+      return Result.failure(IllegalArgumentException("Recovery passphrase must contain at least 12 characters."))
+    }
+    return withContext(Dispatchers.IO) {
+      val account = if (!isGuestSession()) driveService.getLastSignedInAccount() else null
+
+      // Case A: No cloud account connected or in guest mode
+      if (account == null) {
+        return@withContext try {
+          CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          Result.success(Unit)
+        } catch (e: Exception) {
+          Result.failure(e)
+        }
+      }
+
+      // Account connected: attempt to fetch raw cloud envelope to inspect backup encryption scheme
+      val envelope = try {
+        driveService.fetchRawCloudEnvelope(account)
+      } catch (e: Exception) {
+        // Case D: Network/Auth failure or inability to inspect backup. Do not assume no backup exists! Do not replace stored passphrase.
+        return@withContext Result.failure(
+          java.io.IOException("Could not verify passphrase with Google Drive: ${e.localizedMessage ?: "Network error"}. Your previously stored passphrase was kept.", e)
+        )
+      }
+
+      // Case A: Account connected, but no backup file exists on Google Drive yet
+      if (envelope == null) {
+        return@withContext try {
+          CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          Result.success(Unit)
+        } catch (e: Exception) {
+          Result.failure(e)
+        }
+      }
+
+      // Envelope exists; inspect encryption scheme
+      when (envelope.encryptionScheme) {
+        "recovery-passphrase-v1" -> {
+          // Case B & C: Verify candidate passphrase against existing bundle before replacing stored passphrase
+          val bundle = com.example.util.EncryptedBundle(
+            saltBase64 = envelope.saltBase64,
+            ivBase64 = envelope.ivBase64,
+            ciphertextBase64 = envelope.ciphertextBase64
+          )
+          val isValid = CryptoManager.verifyPassphraseAgainstBundle(bundle, candidatePassphrase)
+          if (isValid) {
+            try {
+              CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+              Result.success(Unit)
+            } catch (e: Exception) {
+              Result.failure(e)
+            }
+          } else {
+            // Case C: Incorrect passphrase - reject and preserve previously stored passphrase
+            Result.failure(
+              IllegalArgumentException("The entered recovery passphrase does not match your existing Google Drive cloud backup. Previously saved passphrase was kept.")
+            )
+          }
+        }
+        "google-id-v1", "" -> {
+          // Case E: Legacy backup encrypted with Google ID.
+          // Allow new passphrase to be established; subsequent sync will migrate backup.
+          try {
+            CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+            Result.success(Unit)
+          } catch (e: Exception) {
+            Result.failure(e)
+          }
+        }
+        else -> {
+          // Case F: Unknown encryption scheme. Fail safely.
+          Result.failure(
+            IllegalStateException("The existing cloud backup uses an unsupported encryption scheme ('${envelope.encryptionScheme}'). Previously saved passphrase was kept.")
+          )
+        }
+      }
     }
   }
 
