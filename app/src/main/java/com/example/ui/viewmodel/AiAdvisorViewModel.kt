@@ -16,11 +16,18 @@ import com.example.ui.components.DateUtils
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.ai.type.FunctionResponsePart
+import com.google.firebase.ai.type.GenerateContentResponse
 import com.google.firebase.ai.type.Candidate
 import com.google.firebase.ai.type.GroundingMetadata
 import com.google.firebase.ai.type.WebGroundingChunk
 import com.google.firebase.ai.type.content
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +60,13 @@ data class ChatMessage(
 )
 
 data class Source(val title: String, val url: String)
+
+data class ChatSuggestion(val id: String, val label: String, val prompt: String)
+
+private data class StreamedChatResponse(
+    val text: String,
+    val response: GenerateContentResponse?
+)
 
 sealed interface ProposedActionData {
     data class LogTransactionData(
@@ -157,6 +171,12 @@ class AiAdvisorViewModel : ViewModel() {
     private var activeChat: com.google.firebase.ai.Chat? = null
     private var financeViewModel: FinanceViewModel? = null
 
+    private var presentationJob: Job? = null
+    private val _suggestions = MutableStateFlow(
+        listOf(ChatSuggestion("analyze", "Analyze my finances", "Analyze my current financial position using my actual records."))
+    )
+    val suggestions: StateFlow<List<ChatSuggestion>> = _suggestions.asStateFlow()
+
     private val _pendingActionGroup = MutableStateFlow<PendingActionGroup?>(null)
     val pendingActionGroup: StateFlow<PendingActionGroup?> = _pendingActionGroup.asStateFlow()
 
@@ -171,13 +191,124 @@ class AiAdvisorViewModel : ViewModel() {
     )
 
     fun bindFinanceViewModel(viewModel: FinanceViewModel) {
-        this.financeViewModel = viewModel
-        this.toolExecutor = DefaultFinancialToolExecutor(
+        if (financeViewModel === viewModel) return
+        presentationJob?.cancel()
+        financeViewModel = viewModel
+        toolExecutor = DefaultFinancialToolExecutor(
             getTransactions = { viewModel.allTransactions.value },
             getBudgets = { viewModel.allBudgets.value },
             getRecurringRules = { viewModel.allRecurringRules.value },
             getCurrencySymbol = { getCurrencySymbol() }
         )
+        presentationJob = viewModelScope.launch {
+            combine(
+                viewModel.allTransactions,
+                viewModel.allBudgets,
+                viewModel.allRecurringRules,
+                viewModel.userProfile
+            ) { transactions, budgets, rules, profile ->
+                buildAssistantPresentation(transactions, budgets, rules, profile.name)
+            }.flowOn(Dispatchers.Default).collect { presentation ->
+                val (greeting, nextSuggestions) = presentation
+                _suggestions.value = nextSuggestions
+                // Replace only the untouched initial greeting; never rewrite chat history.
+                if (_messages.value.size == 1 && _messages.value.firstOrNull()?.role == "model") {
+                    _messages.value = listOf(_messages.value.first().copy(text = greeting))
+                }
+            }
+        }
+    }
+
+    private fun buildAssistantPresentation(
+        transactions: List<TransactionItem>,
+        budgets: List<com.example.data.model.BudgetModel>,
+        recurringRules: List<RecurringRule>,
+        profileName: String
+    ): Pair<String, List<ChatSuggestion>> {
+        val now = Calendar.getInstance()
+        val timeGreeting = when (now.get(Calendar.HOUR_OF_DAY)) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            else -> "Good evening"
+        }
+        val firstName = profileName.trim().substringBefore(" ").ifBlank { "" }
+        val greetingPrefix = if (firstName.isBlank()) timeGreeting else "$timeGreeting, $firstName"
+        val monthKey = DateUtils.getMonthKey(now)
+        val monthTransactions = transactions.filter { DateUtils.getMonthKey(it.timestamp) == monthKey }
+        val hasData = monthTransactions.isNotEmpty()
+        val greeting = buildString {
+            append("$greetingPrefix! I'm Paisa AI, your personal financial assistant. ")
+            if (hasData) {
+                append("I can review your recorded activity for this month, compare periods, and help you plan your next steps.")
+            } else {
+                append("Start by recording income or expenses, or ask me how to build a practical budget.")
+            }
+            append(" What would you like to work on?")
+        }
+
+        val categoryTotals = monthTransactions.asSequence()
+            .filter { it.type == TransactionType.EXPENSE }
+            .groupBy { it.category }
+            .mapValues { (_, items) -> items.sumOf { it.amount } }
+            .entries
+            .sortedByDescending { it.value }
+
+        val suggestions = buildList {
+            add(ChatSuggestion(
+                "analyze",
+                "Analyze this month",
+                "Analyze my current month's income, expenses, savings rate and budget status using the read-only query tools."
+            ))
+            if (categoryTotals.isNotEmpty()) {
+                val topCategory = categoryTotals.first().key.displayName
+                add(ChatSuggestion(
+                    "category",
+                    "Review $topCategory",
+                    "Review my $topCategory spending this month. Use my actual transaction data and identify practical ways to manage it."
+                ))
+            } else if (!hasData) {
+                add(ChatSuggestion(
+                    "start",
+                    "Get started",
+                    "Explain a simple way to start tracking my income and expenses in Paisa."
+                ))
+            }
+            if (budgets.none { it.monthKey == monthKey }) {
+                add(ChatSuggestion(
+                    "budget",
+                    "Plan a monthly budget",
+                    "Help me decide a sensible monthly budget based on my recorded income and spending. Do not create it until I confirm."
+                ))
+            } else {
+                add(ChatSuggestion(
+                    "budget",
+                    "Check my budget",
+                    "Review my current month's budget utilization and tell me what needs attention."
+                ))
+            }
+            if (recurringRules.isNotEmpty()) {
+                add(ChatSuggestion(
+                    "recurring",
+                    "Review recurring bills",
+                    "Summarize my active recurring commitments and identify subscriptions or bills worth reviewing."
+                ))
+            } else {
+                add(ChatSuggestion(
+                    "recurring",
+                    "Plan for recurring costs",
+                    "Explain how I can account for recurring bills and subscriptions in my monthly plan."
+                ))
+            }
+            val previousMonthKey = DateUtils.getMonthKey(Calendar.getInstance().apply { add(Calendar.MONTH, -1) })
+            if (transactions.any { DateUtils.getMonthKey(it.timestamp) == previousMonthKey } && hasData) {
+                add(ChatSuggestion(
+                    "compare",
+                    "Compare with last month",
+                    "Compare my actual spending and income this month with last month. Highlight the biggest changes."
+                ))
+            }
+        }.take(4)
+        return greeting to suggestions
     }
 
     var lastFailedPrompt: String? = null
@@ -351,15 +482,38 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
     )
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
+    private suspend fun collectStream(
+        stream: Flow<GenerateContentResponse>,
+        onPartialText: (String) -> Unit
+    ): StreamedChatResponse {
+        val accumulatedText = StringBuilder()
+        var lastResponse: GenerateContentResponse? = null
+        withTimeout(60_000L) {
+            stream.collect { chunk ->
+                chunk.text?.let { piece ->
+                    accumulatedText.append(piece)
+                    val userVisibleText = accumulatedText.substringBefore("ACTION_JSON:").trimEnd()
+                    if (userVisibleText.isNotBlank()) onPartialText(userVisibleText)
+                }
+                lastResponse = chunk
+            }
+        }
+        return StreamedChatResponse(accumulatedText.toString(), lastResponse)
+    }
+
     fun sendMessage(prompt: String) {
         executeSend(prompt, isRetry = false)
     }
 
     private fun executeSend(prompt: String, isRetry: Boolean) {
-        if (prompt.isBlank() || _isProcessingAction.value || _pendingActionGroup.value != null) return
+        if (prompt.isBlank() ||
+            _isProcessingAction.value ||
+            _pendingActionGroup.value != null ||
+            _uiState.value is AiUiState.Loading ||
+            _uiState.value is AiUiState.Streaming
+        ) return
         if (!isRetry) {
-            val userMsg = ChatMessage("user", prompt)
-            _messages.value = _messages.value + userMsg
+            _messages.value = _messages.value + ChatMessage("user", prompt)
             lastFailedPrompt = null
         }
         _uiState.value = AiUiState.Loading
@@ -368,70 +522,54 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
         val currentMonthLabel = DateUtils.getMonthLabel(System.currentTimeMillis())
         val todayDate = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
         val currentYear = SimpleDateFormat("yyyy", Locale.US).format(Date())
-
-        // Privacy-preserving context: current temporal anchors without dumping entire database
         val contextualPrompt = "[Current Context: Today is $todayDate ($currentMonthLabel), Month Key: $currentMonthKey, Year: $currentYear]\n$prompt"
 
         viewModelScope.launch {
             try {
                 val currentChat = obtainChat()
-                var currentResponse = withTimeout(60_000L) {
-                    currentChat.sendMessage(contextualPrompt)
+                var streamed = collectStream(currentChat.sendMessageStream(contextualPrompt)) { partial ->
+                    _uiState.value = AiUiState.Streaming(partial)
                 }
 
                 var rounds = 0
                 val maxToolRounds = 5
-                while (currentResponse.functionCalls.isNotEmpty() && rounds < maxToolRounds) {
+                while (streamed.response?.functionCalls?.isNotEmpty() == true && rounds < maxToolRounds) {
                     rounds++
-                    val functionCalls = currentResponse.functionCalls
                     val responseParts = mutableListOf<FunctionResponsePart>()
-                    for (call in functionCalls) {
+                    for (call in streamed.response.functionCalls) {
                         val mapArgs = call.args.mapValues { jsonElementToAny(it.value) }
                         val toolResultJson = toolExecutor.executeTool(call.name, mapArgs)
                         val kotlinxObj = kotlinx.serialization.json.Json.parseToJsonElement(toolResultJson.toString()) as kotlinx.serialization.json.JsonObject
-                        responseParts.add(
-                            FunctionResponsePart(call.name, kotlinxObj, call.id)
-                        )
+                        responseParts.add(FunctionResponsePart(call.name, kotlinxObj, call.id))
                     }
 
-                    currentResponse = withTimeout(60_000L) {
-                        currentChat.sendMessage(
-                            com.google.firebase.ai.type.Content("function", responseParts)
-                        )
+                    streamed = collectStream(
+                        currentChat.sendMessageStream(com.google.firebase.ai.type.Content("function", responseParts))
+                    ) { partial ->
+                        _uiState.value = AiUiState.Streaming(partial)
                     }
                 }
 
-                val rawAnswer = currentResponse.text.orEmpty()
+                val rawAnswer = streamed.text
+                val remainingFunctionCalls = streamed.response?.functionCalls.orEmpty()
                 if (rawAnswer.isNotBlank()) {
                     val (cleanedText, actionNotice) = processAgenticAction(rawAnswer)
-                    val finalText = if (actionNotice.isNotBlank()) {
-                        "$cleanedText\n\n$actionNotice"
-                    } else {
-                        cleanedText
-                    }
-
-                    // Extract sources from grounding metadata
+                    val finalText = if (actionNotice.isNotBlank()) "$cleanedText\n\n$actionNotice" else cleanedText
                     val sources = mutableListOf<Source>()
                     try {
-                        val groundingMetadata = currentResponse.candidates.firstOrNull()?.groundingMetadata
-                        groundingMetadata?.groundingChunks?.forEach { chunk ->
+                        streamed.response?.candidates?.firstOrNull()?.groundingMetadata?.groundingChunks?.forEach { chunk ->
                             val web = chunk.web
-                            if (web != null) {
-                                val uri = web.uri
-                                val title = web.title
-                                if (!uri.isNullOrBlank() && !title.isNullOrBlank()) {
-                                    sources.add(Source(title, uri))
-                                }
+                            if (web != null && !web.uri.isNullOrBlank() && !web.title.isNullOrBlank()) {
+                                sources.add(Source(web.title!!, web.uri!!))
                             }
                         }
                     } catch (e: Exception) {
                         Log.e(TAG, "Error extracting grounding metadata", e)
                     }
-
                     _messages.value = _messages.value + ChatMessage("model", finalText, sources = sources)
                     _uiState.value = AiUiState.Success(finalText)
                     lastFailedPrompt = null
-                } else if (currentResponse.functionCalls.isNotEmpty()) {
+                } else if (remainingFunctionCalls.isNotEmpty()) {
                     val fallbackMsg = "I reached the maximum tool query depth for this question. Please try asking a more specific question."
                     _messages.value = _messages.value + ChatMessage("model", fallbackMsg)
                     _uiState.value = AiUiState.Success(fallbackMsg)
