@@ -26,6 +26,7 @@ import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
 import com.example.data.insight.FinanceInsight
 import com.example.data.insight.FinanceInsightEngine
+import com.example.data.insight.FinanceAggregations
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
@@ -48,6 +49,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -393,7 +395,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       recurringRules = rules,
       currencySymbol = profile.currencySymbol
     )
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
@@ -415,7 +417,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       recurringRules = rules,
       currencySymbol = profile.currencySymbol
     )
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
@@ -452,37 +454,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     allTransactions,
     allBudgets,
     _universalCalendar
-  ) { transactions, budgets, cal ->
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-
-    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val budgetObj = budgets.find { it.monthKey == monthKey }
-    val budgetLimit = budgetObj?.totalBudget ?: 0.0
-    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
-    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
-
-    MonthlyFinancialSummary(
-      monthKey = monthKey,
-      monthLabel = monthLabel,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      budgetLimit = budgetLimit,
-      budgetUsed = totalExpense,
-      budgetRemaining = budgetRemaining,
-      budgetUsagePercent = budgetUsagePercent,
-      transactionCount = monthTransactions.size
-    )
-  }.stateIn(
+  ) { transactions, budgets, calendar ->
+    FinanceAggregations.monthlySummary(transactions, budgets, calendar)
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = MonthlyFinancialSummary(
@@ -494,46 +468,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   val dashboardYearSummary: StateFlow<YearlyFinancialSummary> = combine(
     allTransactions,
     _universalCalendar
-  ) { transactions, cal ->
-    val year = cal.get(Calendar.YEAR)
-    val startOfYear = DateUtils.getStartOfYear(year)
-    val endOfYear = DateUtils.getEndOfYear(year)
-
-    val yearTransactions = transactions.filter { it.timestamp in startOfYear..endOfYear }
-    val totalIncome = yearTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = yearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val monthlyList = (0..11).map { monthIdx ->
-      val monthCal = Calendar.getInstance().apply {
-        set(year, monthIdx, 1, 0, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val mStart = DateUtils.getStartOfMonth(monthCal)
-      val mEnd = DateUtils.getEndOfMonth(monthCal)
-      val mTx = yearTransactions.filter { it.timestamp in mStart..mEnd }
-      val mIncome = mTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val mExpense = mTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      MonthlyFinancialSummary(
-        monthKey = DateUtils.getMonthKey(monthCal),
-        monthLabel = DateUtils.getMonthLabel(monthCal),
-        totalIncome = mIncome,
-        totalExpense = mExpense,
-        savings = mIncome - mExpense,
-        transactionCount = mTx.size
-      )
-    }
-
-    YearlyFinancialSummary(
-      year = year,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      monthlyBreakdown = monthlyList
-    )
-  }.stateIn(
+  ) { transactions, calendar ->
+    FinanceAggregations.yearlySummary(transactions, calendar.get(Calendar.YEAR))
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = YearlyFinancialSummary(year = Calendar.getInstance().get(Calendar.YEAR))
@@ -542,28 +479,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   val dashboardCategorySpending: StateFlow<List<CategorySpending>> = combine(
     allTransactions,
     _universalCalendar
-  ) { transactions, cal ->
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-    val monthExpenses = transactions.filter { it.timestamp in startOfMonth..endOfMonth && it.type == TransactionType.EXPENSE }
-    val totalMonthExpense = monthExpenses.sumOf { it.amount }
-
-    if (totalMonthExpense == 0.0) {
-      emptyList()
-    } else {
-      monthExpenses.groupBy { it.category }.map { (category, list) ->
-        val amount = list.sumOf { it.amount }
-        val pct = (amount / totalMonthExpense).toFloat()
-        CategorySpending(
-          category = category,
-          amount = amount,
-          percentage = pct,
-          count = list.size,
-          color = category.color
-        )
-      }.sortedByDescending { it.amount }
-    }
-  }.stateIn(
+  ) { transactions, calendar ->
+    FinanceAggregations.categorySpending(transactions, calendar)
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -572,36 +490,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
   val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = combine(
     allTransactions,
     _universalCalendar
-  ) { transactions, cal ->
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val year = cal.get(Calendar.YEAR)
-    val month = cal.get(Calendar.MONTH)
-
-    val points = mutableListOf<DailySpendingPoint>()
-    for (day in 1..daysInMonth) {
-      val dayCal = Calendar.getInstance().apply {
-        set(year, month, day, 0, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val startDay = dayCal.timeInMillis
-      val endDay = DateUtils.getEndOfDay(startDay)
-      val dayTx = transactions.filter { it.timestamp in startDay..endDay }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-
-      points.add(
-        DailySpendingPoint(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(dayCal),
-          dayLabel = day.toString(),
-          expense = exp,
-          income = inc,
-          net = inc - exp
-        )
-      )
-    }
-    points
-  }.stateIn(
+  ) { transactions, calendar ->
+    FinanceAggregations.dailyTrend(transactions, calendar)
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -626,11 +517,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val leadDays = (firstDayOfWeek - Calendar.MONDAY + 7) % 7
     val todayKey = DateUtils.getDayKey(Calendar.getInstance())
 
-    // Group transactions by day key for fast O(1) matching
-    val txByDate = HashMap<String, MutableList<TransactionItem>>()
+    // Aggregate each transaction once into a day bucket. UI rendering then performs O(1)
+    // lookups without repeatedly filtering the same day list for income and expenses.
+    data class DayAccumulator(
+      val transactions: MutableList<TransactionItem> = mutableListOf(),
+      var income: Double = 0.0,
+      var expense: Double = 0.0
+    )
+    val byDate = HashMap<String, DayAccumulator>()
     for (tx in transactions) {
-      val key = DateUtils.getDayKey(tx.timestamp)
-      txByDate.getOrPut(key) { mutableListOf() }.add(tx)
+      val bucket = byDate.getOrPut(DateUtils.getDayKey(tx.timestamp)) { DayAccumulator() }
+      bucket.transactions.add(tx)
+      when (tx.type) {
+        TransactionType.INCOME -> bucket.income += tx.amount
+        TransactionType.EXPENSE -> bucket.expense += tx.amount
+      }
     }
 
     val gridDays = ArrayList<CalendarDayData?>(42)
@@ -653,9 +554,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       }
       val dateKey = DateUtils.getDayKey(c)
       val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val dayTx = txByDate[dateKey] ?: emptyList()
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+      val dayBucket = byDate[dateKey]
+      val dayTx = dayBucket?.transactions ?: emptyList()
+      val inc = dayBucket?.income ?: 0.0
+      val exp = dayBucket?.expense ?: 0.0
       gridDays.add(
         CalendarDayData(
           dayOfMonth = day,
@@ -685,7 +587,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _universalCalendar
   ) { transactions, cal ->
     computeCalendarDays(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), transactions)
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -698,7 +600,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val start = DateUtils.getStartOfDay(dayMillis)
     val end = DateUtils.getEndOfDay(dayMillis)
     transactions.filter { it.timestamp in start..end }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -711,36 +613,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     allBudgets,
     _universalCalendar
   ) { transactions, budgets, cal ->
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-
-    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val budgetObj = budgets.find { it.monthKey == monthKey }
-    val budgetLimit = budgetObj?.totalBudget ?: 0.0
-    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
-    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
-
-    MonthlyFinancialSummary(
-      monthKey = monthKey,
-      monthLabel = monthLabel,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      budgetLimit = budgetLimit,
-      budgetUsed = totalExpense,
-      budgetRemaining = budgetRemaining,
-      budgetUsagePercent = budgetUsagePercent,
-      transactionCount = monthTransactions.size
-    )
-  }.stateIn(
+    FinanceAggregations.monthlySummary(transactions, budgets, cal)
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = MonthlyFinancialSummary(
@@ -749,6 +623,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     )
   )
 
+
   // Category Detail View Flow (Respects universal calendar month)
   val selectedCategoryDetail: StateFlow<CategorySpendingDetail?> = combine(
     _selectedCategory,
@@ -756,29 +631,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _universalCalendar
   ) { category, transactions, cal ->
     if (category == null) return@combine null
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
+    val start = DateUtils.getStartOfMonth(cal)
+    val end = DateUtils.getEndOfMonth(cal)
+    var totalSpent = 0.0
+    var totalIncome = 0.0
+    val matching = ArrayList<TransactionItem>()
 
-    val catTransactions = transactions.filter {
-      it.category == category && it.timestamp in startOfMonth..endOfMonth
-    }.sortedByDescending { it.timestamp }
-
-    val totalSpent = catTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val totalIncome = catTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    for (transaction in transactions) {
+      if (transaction.category != category || transaction.timestamp !in start..end) continue
+      matching.add(transaction)
+      when (transaction.type) {
+        TransactionType.EXPENSE -> totalSpent += transaction.amount
+        TransactionType.INCOME -> totalIncome += transaction.amount
+      }
+    }
+    matching.sortByDescending { it.timestamp }
 
     CategorySpendingDetail(
       category = category,
-      monthKey = monthKey,
-      monthLabel = monthLabel,
+      monthKey = DateUtils.getMonthKey(cal),
+      monthLabel = DateUtils.getMonthLabel(cal),
       totalSpent = totalSpent,
-      transactionCount = catTransactions.size,
+      transactionCount = matching.size,
       totalIncome = totalIncome,
       netAmount = totalIncome - totalSpent,
-      transactions = catTransactions
+      transactions = matching
     )
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
   fun selectCategoryForDetail(category: TransactionCategory) {
     _selectedCategory.value = category
@@ -1039,7 +918,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       val matchesCat = cat == null || item.category == cat
       matchesQuery && matchesType && matchesCat
     }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()

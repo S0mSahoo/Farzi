@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
@@ -36,6 +37,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -81,6 +83,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.ActionExecutionStatus
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
@@ -100,11 +103,13 @@ fun AiAdvisorScreen(
     financialSummaryContext: String = ""
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingActionGroup by viewModel.pendingActionGroup.collectAsStateWithLifecycle()
     val isProcessingAction by viewModel.isProcessingAction.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val useTwoPane = LocalAdaptiveInfo.current.useTwoPaneLayout
 
     val streamingLength = (uiState as? AiUiState.Streaming)?.text?.length ?: 0
 
@@ -114,11 +119,11 @@ fun AiAdvisorScreen(
                 (if (uiState is AiUiState.Loading || uiState is AiUiState.Streaming || uiState is AiUiState.Error) 1 else 0) +
                 (if (pendingActionGroup != null) 1 else 0)
         if (totalCount > 0) {
-            listState.animateScrollToItem(totalCount - 1)
+            listState.scrollToItem(totalCount - 1)
         }
     }
 
-    val isControlsDisabled = pendingActionGroup != null || isProcessingAction || uiState is AiUiState.Loading
+    val isControlsDisabled = pendingActionGroup != null || isProcessingAction || uiState is AiUiState.Loading || uiState is AiUiState.Streaming
 
     Scaffold(
         topBar = {
@@ -154,10 +159,15 @@ fun AiAdvisorScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(if (useTwoPane) 2.1f else 1f)
+                    .fillMaxHeight()
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -280,6 +290,48 @@ fun AiAdvisorScreen(
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
+            if (useTwoPane) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Try a question",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Suggestions update from your recorded transactions, budgets and recurring rules.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    suggestions.forEach { suggestion ->
+                        AssistChip(
+                            onClick = { viewModel.sendMessage(suggestion.prompt) },
+                            enabled = !isControlsDisabled,
+                            label = { Text(suggestion.label) },
+                            modifier = Modifier.fillMaxWidth().testTag("ai_suggestion_${suggestion.id}")
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            "Paisa AI uses read-only financial tools for analysis. Any proposed transaction or budget change must be reviewed and explicitly confirmed by you.",
+                            modifier = Modifier.padding(14.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            } // End transcript + contextual suggestion panes
 
             Surface(
                 tonalElevation = 6.dp,
@@ -289,50 +341,24 @@ fun AiAdvisorScreen(
                     .imePadding()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    // Quick Action Chips
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .padding(bottom = 6.dp)
-                            .testTag("ai_suggestion_chips")
-                    ) {
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.requestFinancialInsight() },
-                                enabled = !isControlsDisabled,
-                                label = { Text("📊 Analyze My Spending") },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log an expense of ₹45 for lunch paid via UPI") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("📝 Log ₹45 Lunch Expense") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log income of ₹3000 for monthly salary") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("💰 Log ₹3000 Salary") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Set my monthly budget for this month to ₹1500") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🎯 Set ₹1500 Budget") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Add a monthly recurring rule for Netflix subscription of ₹15 paid via credit card") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🔄 Add ₹15 Netflix Bill") }
-                            )
-                        }
-                    }
+                    // Compact suggestions stay near the composer on phones; tablet/desktop uses the side panel.
+                if (!useTwoPane) {
+                                    // Suggestions are derived from the current local financial context.
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .padding(bottom = 6.dp)
+                                                .testTag("ai_suggestion_chips")
+                                        ) {
+                                            items(suggestions, key = { it.id }) { suggestion ->
+                                                AssistChip(
+                                                    onClick = { viewModel.sendMessage(suggestion.prompt) },
+                                                    enabled = !isControlsDisabled,
+                                                    label = { Text(suggestion.label) }
+                                                )
+                                            }
+                                        }
+                }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),

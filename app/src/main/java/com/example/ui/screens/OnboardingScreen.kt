@@ -13,6 +13,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,12 +24,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,9 +51,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -70,11 +73,13 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.components.AppBrandLogo
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
 import com.google.android.gms.common.api.ApiException
-import kotlinx.coroutines.delay
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 @Composable
 fun OnboardingScreen(
@@ -83,15 +88,10 @@ fun OnboardingScreen(
   var isSigningIn by remember { mutableStateOf(false) }
   var statusMessage by remember { mutableStateOf<String?>(null) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
-  var currentPage by remember { mutableIntStateOf(0) }
-
-  // Auto advance pager every 4.2 seconds
-  LaunchedEffect(currentPage, isSigningIn) {
-    if (!isSigningIn) {
-      delay(4200)
-      currentPage = (currentPage + 1) % 3
-    }
-  }
+  val pagerState = rememberPagerState(initialPage = 0, pageCount = { 8 })
+  val pagerScope = rememberCoroutineScope()
+  val currentPage = pagerState.currentPage
+  val isLandscapePhone = LocalAdaptiveInfo.current.isLandscapePhone
 
   @Suppress("DEPRECATION")
   val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -203,91 +203,109 @@ fun OnboardingScreen(
         }
       }
 
-      // 2. Main Content Area Blended Seamlessly into Background (No Outer Box)
+      // 2. Eight swipeable feature pages. Sign-in and Guest actions remain below and fixed.
       Column(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(vertical = 4.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        modifier = Modifier.fillMaxWidth().weight(1f, fill = false).padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
-        // Floating Tab Switcher
-        Surface(
-          shape = CircleShape,
-          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
-          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)),
+        HorizontalPager(
+          state = pagerState,
           modifier = Modifier.fillMaxWidth()
-        ) {
-          Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-          ) {
-            OnboardingTabButton(
-              title = "Track",
-              icon = Icons.AutoMirrored.Filled.TrendingUp,
-              isSelected = currentPage == 0,
-              onClick = { currentPage = 0 },
-              modifier = Modifier.weight(1f)
+            .heightIn(
+              min = if (isLandscapePhone) 185.dp else 270.dp,
+              max = if (isLandscapePhone) 245.dp else 390.dp
             )
-            OnboardingTabButton(
-              title = "Budgets",
-              icon = Icons.Default.Savings,
-              isSelected = currentPage == 1,
-              onClick = { currentPage = 1 },
-              modifier = Modifier.weight(1f)
-            )
-            OnboardingTabButton(
-              title = "Private Sync",
-              icon = Icons.Default.Shield,
-              isSelected = currentPage == 2,
-              onClick = { currentPage = 2 },
-              modifier = Modifier.weight(1f)
-            )
-          }
-        }
-
-        // Dynamic Animated Content Blended Directly on Background
-        AnimatedContent(
-          targetState = currentPage,
-          transitionSpec = {
-            if (targetState > initialState) {
-              (slideInHorizontally(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis)) { width -> width } + fadeIn(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis))).togetherWith(
-                slideOutHorizontally(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis)) { width -> -width } + fadeOut(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis))
-              )
-            } else {
-              (slideInHorizontally(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis)) { width -> -width } + fadeIn(animationSpec = tween(PaisaMotion.EnterFadeDurationMillis))).togetherWith(
-                slideOutHorizontally(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis)) { width -> width } + fadeOut(animationSpec = tween(PaisaMotion.ExitFadeDurationMillis))
-              )
-            }
-          },
-          label = "onboarding_blended_hero"
+            .testTag("onboarding_pager"),
+          key = { it }
         ) { page ->
-          when (page) {
-            0 -> TrackHeroContent()
-            1 -> BudgetHeroContent()
-            else -> SyncHeroContent()
+          Box(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 2.dp),
+            contentAlignment = Alignment.Center
+          ) {
+            when (page) {
+              0 -> TrackHeroContent()
+              1 -> OnboardingFeatureHero(
+                eyebrow = "TRANSACTIONS",
+                title = "Every entry,\nclearly organized.",
+                description = "Record income and expenses with categories, notes, payment methods and dates.",
+                highlights = listOf("Fast income and expense entry", "Search, filter and edit history", "A clear record of where money goes")
+              )
+              2 -> BudgetHeroContent()
+              3 -> OnboardingFeatureHero(
+                eyebrow = "CALENDAR",
+                title = "See your money\nday by day.",
+                description = "Explore each date, spot spending patterns and add transactions directly from your calendar.",
+                highlights = listOf("Swipe between months", "See daily income and expenses", "Open the transactions for any date")
+              )
+              4 -> OnboardingFeatureHero(
+                eyebrow = "RECURRING BILLS",
+                title = "Stay ahead of\nregular payments.",
+                description = "Keep subscriptions and recurring bills visible without automatically recording payments you have not made.",
+                highlights = listOf("Daily, weekly, monthly and yearly rules", "Upcoming and overdue schedules", "Mark a payment paid only when it happens")
+              )
+              5 -> OnboardingFeatureHero(
+                eyebrow = "ANALYTICS",
+                title = "Understand the\npattern behind spending.",
+                description = "Review monthly and yearly cash flow, category mix, budget use and meaningful changes over time.",
+                highlights = listOf("Monthly and annual summaries", "Income versus expense trends", "Category insights grounded in recorded data")
+              )
+              6 -> OnboardingFeatureHero(
+                eyebrow = "PAISA AI",
+                title = "Ask questions\nabout your finances.",
+                description = "Use Paisa AI to explore your recorded data, ask for practical guidance and propose changes for your confirmation.",
+                highlights = listOf("Read-only financial queries", "Current external information when needed", "Review and confirm every proposed change")
+              )
+              else -> SyncHeroContent()
+            }
           }
         }
 
-        // Page Indicator Dots
         Row(
-          modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+          modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.Center,
           verticalAlignment = Alignment.CenterVertically
         ) {
-          repeat(3) { index ->
-            val isSelected = index == currentPage
+          repeat(8) { index ->
+            val selected = index == currentPage
             Box(
               modifier = Modifier
-                .padding(horizontal = 4.dp)
-                .size(if (isSelected) 22.dp else 7.dp, 7.dp)
+                .padding(horizontal = 3.dp)
+                .size(if (selected) 20.dp else 7.dp, 7.dp)
                 .clip(CircleShape)
                 .background(
-                  if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                  if (selected) MaterialTheme.colorScheme.primary
+                  else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
                 )
-                .clickable { currentPage = index }
+                .clickable { pagerScope.launch { pagerState.animateScrollToPage(index) } }
+                .testTag("onboarding_page_dot_$index")
             )
+          }
+        }
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          OutlinedButton(
+            onClick = { pagerScope.launch { pagerState.animateScrollToPage((currentPage - 1).coerceAtLeast(0)) } },
+            enabled = currentPage > 0 && !isSigningIn,
+            modifier = Modifier.testTag("onboarding_back_button")
+          ) {
+            Text("Back")
+          }
+          Text(
+            "Page ${currentPage + 1} of 8",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.testTag("onboarding_page_count")
+          )
+          Button(
+            onClick = { pagerScope.launch { pagerState.animateScrollToPage((currentPage + 1).coerceAtMost(7)) } },
+            enabled = currentPage < 7 && !isSigningIn,
+            modifier = Modifier.testTag("onboarding_next_button")
+          ) {
+            Text("Next")
           }
         }
       }
@@ -434,56 +452,71 @@ fun OnboardingScreen(
   }
 }
 
+
 @Composable
-private fun OnboardingTabButton(
+private fun OnboardingFeatureHero(
+  eyebrow: String,
   title: String,
-  icon: ImageVector,
-  isSelected: Boolean,
-  onClick: () -> Unit,
-  modifier: Modifier = Modifier
+  description: String,
+  highlights: List<String>
 ) {
-  val activeColor = MaterialTheme.colorScheme.primary
-  val activeContent = MaterialTheme.colorScheme.onPrimary
-  val inactiveContent = MaterialTheme.colorScheme.onSurfaceVariant
-
-  val bgColor by androidx.compose.animation.animateColorAsState(
-    targetValue = if (isSelected) activeColor else Color.Transparent,
-    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
-    label = "tab_bg_color"
-  )
-  val contentColor by androidx.compose.animation.animateColorAsState(
-    targetValue = if (isSelected) activeContent else inactiveContent,
-    animationSpec = tween(PaisaMotion.EnterFadeDurationMillis),
-    label = "tab_content_color"
-  )
-
-  Box(
-    modifier = modifier
-      .clip(CircleShape)
-      .background(bgColor)
-      .clickable(onClick = onClick)
-      .padding(vertical = 7.dp, horizontal = 8.dp),
-    contentAlignment = Alignment.Center
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+    verticalArrangement = Arrangement.spacedBy(10.dp)
   ) {
-    Row(
-      horizontalArrangement = Arrangement.spacedBy(4.dp),
-      verticalAlignment = Alignment.CenterVertically
+    Text(
+      eyebrow,
+      style = MaterialTheme.typography.labelSmall,
+      color = MaterialTheme.colorScheme.primary,
+      fontWeight = FontWeight.Bold,
+      letterSpacing = 1.3.sp
+    )
+    Text(
+      title,
+      style = MaterialTheme.typography.headlineSmall,
+      color = MaterialTheme.colorScheme.onSurface,
+      fontWeight = FontWeight.ExtraBold,
+      lineHeight = 30.sp
+    )
+    Text(
+      description,
+      style = MaterialTheme.typography.bodySmall,
+      color = MaterialTheme.colorScheme.onSurfaceVariant,
+      lineHeight = 18.sp
+    )
+    Surface(
+      shape = RoundedCornerShape(20.dp),
+      color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f),
+      border = androidx.compose.foundation.BorderStroke(
+        1.dp,
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+      ),
+      modifier = Modifier.fillMaxWidth()
     ) {
-      Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = contentColor,
-        modifier = Modifier.size(13.dp)
-      )
-      Text(
-        text = title,
-        style = MaterialTheme.typography.labelSmall,
-        fontSize = 10.sp,
-        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-        color = contentColor,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis
-      )
+      Column(
+        modifier = Modifier.padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp)
+      ) {
+        highlights.forEach { highlight ->
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Icon(
+              imageVector = Icons.Default.CheckCircle,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(16.dp)
+            )
+            Text(
+              highlight,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurface,
+              fontWeight = FontWeight.Medium
+            )
+          }
+        }
+      }
     }
   }
 }
