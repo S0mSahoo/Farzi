@@ -102,7 +102,7 @@ fun OnboardingScreen(
     try {
       val account = task.getResult(ApiException::class.java)
       if (account != null && !account.email.isNullOrBlank()) {
-        Log.i("GoogleSignIn", "Google Sign-In successful for email: ${account.email}")
+        Log.i("GoogleSignIn", "Google Sign-In successful")
         statusMessage = "Connecting with ${account.displayName ?: account.email}..."
         viewModel.onGoogleSignInSuccess(account) { success, error ->
           isSigningIn = false
@@ -193,7 +193,7 @@ fun OnboardingScreen(
           modifier = Modifier.clip(CircleShape)
         ) {
           Text(
-            "v2.5 Premium",
+            "v${com.example.BuildConfig.VERSION_NAME}",
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelSmall,
             fontSize = 10.sp,
@@ -422,7 +422,7 @@ fun OnboardingScreen(
           )
           Spacer(Modifier.width(4.dp))
           Text(
-            "100% Private. Guest data stays local; Google Drive sync is encrypted.",
+            "Guest data stays local on device. Optional encrypted Google Drive sync; Paisa AI processes queries via Google Gemini API.",
             style = MaterialTheme.typography.labelSmall,
             fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -648,7 +648,7 @@ private fun SyncHeroContent() {
     verticalArrangement = Arrangement.spacedBy(10.dp)
   ) {
     Text(
-      "Your private cloud.\nZero third-party servers.",
+      "Encrypted Cloud Sync.\nYour data, your control.",
       style = MaterialTheme.typography.titleLarge,
       fontSize = 21.sp,
       color = MaterialTheme.colorScheme.onSurface,
@@ -656,7 +656,7 @@ private fun SyncHeroContent() {
       lineHeight = 27.sp
     )
     Text(
-      "Your financial records back up directly into your personal Google Drive account.",
+      "Your financial records back up directly into your personal Google Drive account with end-to-end passphrase encryption.",
       style = MaterialTheme.typography.bodySmall,
       fontSize = 12.sp,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -673,7 +673,7 @@ private fun SyncHeroContent() {
         modifier = Modifier.padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
       ) {
-        BulletCheckRow(label = "Encrypted Google Drive cloud sync")
+        BulletCheckRow(label = "Encrypted Google Drive sync with recovery passphrase")
         BulletCheckRow(label = "Instant restore across your Android devices")
         BulletCheckRow(label = "Full offline support in Guest mode")
       }

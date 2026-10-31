@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import com.example.data.model.BudgetModel
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionType
@@ -66,7 +67,7 @@ fun SetBudgetSheet(
   currentBudget: BudgetModel?,
   currencySymbol: String = "₹",
   onDismiss: () -> Unit,
-  onSave: (monthKey: String, totalBudget: Double, categoryBudgets: Map<TransactionCategory, Double>) -> Unit
+  onSave: suspend (monthKey: String, totalBudget: Double, categoryBudgets: Map<TransactionCategory, Double>) -> Unit
 ) {
   var totalBudgetText by remember {
     mutableStateOf(
@@ -88,6 +89,8 @@ fun SetBudgetSheet(
 
   var showAddCategoryMenu by remember { mutableStateOf(false) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
+  var isSaving by remember { mutableStateOf(false) }
+  val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
   val expenseCategories = remember {
     TransactionCategory.values().filter { it.defaultType == TransactionType.EXPENSE }
@@ -321,6 +324,7 @@ fun SetBudgetSheet(
 
       PremiumButton(
         onClick = {
+          if (isSaving) return@PremiumButton
           val totalAmt = totalBudgetText.toDoubleOrNull() ?: 0.0
           if (totalAmt <= 0.0 && categoryBudgetsState.isEmpty()) {
             errorMessage = "Please enter a monthly budget limit greater than 0"
@@ -335,9 +339,20 @@ fun SetBudgetSheet(
             }
           }
 
-          onSave(monthKey, totalAmt, catMap)
-          onDismiss()
+          coroutineScope.launch {
+            isSaving = true
+            errorMessage = null
+            try {
+              onSave(monthKey, totalAmt, catMap)
+              onDismiss()
+            } catch (e: Exception) {
+              errorMessage = "Failed to save budget: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+              isSaving = false
+            }
+          }
         },
+        enabled = !isSaving,
         shape = RoundedCornerShape(24.dp),
         modifier = Modifier
           .fillMaxWidth()
@@ -345,7 +360,7 @@ fun SetBudgetSheet(
           .testTag("save_budget_button")
       ) {
         Text(
-          text = "Save Budget",
+          text = if (isSaving) "Saving..." else "Save Budget",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold
         )

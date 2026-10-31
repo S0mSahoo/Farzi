@@ -66,6 +66,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.example.data.model.PaymentMethod
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
@@ -83,7 +84,7 @@ fun AddEditTransactionSheet(
   prefilledType: TransactionType? = null,
   currencySymbol: String = "₹",
   onDismiss: () -> Unit,
-  onSave: (
+  onSave: suspend (
     title: String,
     amount: Double,
     type: TransactionType,
@@ -125,6 +126,8 @@ fun AddEditTransactionSheet(
   var showDatePicker by remember { mutableStateOf(false) }
   var showPaymentMethodDropdown by remember { mutableStateOf(false) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
+  var isSaving by remember { mutableStateOf(false) }
+  val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
   val adaptiveInfo = LocalAdaptiveInfo.current
   val compactHeight = adaptiveInfo.isLandscapePhone
@@ -562,6 +565,7 @@ fun AddEditTransactionSheet(
       // Save Button
       PremiumButton(
         onClick = {
+          if (isSaving) return@PremiumButton
           val amt = amountText.toDoubleOrNull()
           if (amt == null || amt <= 0.0) {
             errorMessage = "Please enter a valid amount greater than 0"
@@ -572,18 +576,29 @@ fun AddEditTransactionSheet(
             return@PremiumButton
           }
 
-          onSave(
-            titleText.trim(),
-            amt,
-            transactionType,
-            selectedCategory,
-            selectedTimestamp,
-            noteText.trim(),
-            paymentMethod,
-            isRecurring
-          )
-          onDismiss()
+          coroutineScope.launch {
+            isSaving = true
+            errorMessage = null
+            try {
+              onSave(
+                titleText.trim(),
+                amt,
+                transactionType,
+                selectedCategory,
+                selectedTimestamp,
+                noteText.trim(),
+                paymentMethod,
+                isRecurring
+              )
+              onDismiss()
+            } catch (e: Exception) {
+              errorMessage = "Failed to save record: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+              isSaving = false
+            }
+          }
         },
+        enabled = !isSaving,
         colors = ButtonDefaults.buttonColors(
           containerColor = activeColor,
           contentColor = Color.White
@@ -595,7 +610,7 @@ fun AddEditTransactionSheet(
           .testTag("save_transaction_button")
       ) {
         Text(
-          text = if (initialTransaction == null) "Save Transaction" else "Update Transaction",
+          text = if (isSaving) "Saving..." else if (initialTransaction == null) "Save Transaction" else "Update Transaction",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold
         )

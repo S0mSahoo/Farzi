@@ -205,7 +205,7 @@ fun MainAppScreen(
       },
       onSave = { title, amount, type, category, timestamp, note, paymentMethod, isRecurring ->
         if (editingTransaction != null) {
-          viewModel.updateTransaction(
+          viewModel.updateTransactionSuspend(
             editingTransaction!!.copy(
               title = title,
               amount = amount,
@@ -219,7 +219,7 @@ fun MainAppScreen(
             )
           )
         } else {
-          viewModel.addTransaction(
+          viewModel.addTransactionSuspend(
             title = title,
             amount = amount,
             type = type,
@@ -245,7 +245,7 @@ fun MainAppScreen(
       },
       onSave = { title, amount, type, category, interval, startDate, endDate, paymentMethod, note ->
         if (editingRecurringRule != null) {
-          viewModel.updateRecurringRule(
+          viewModel.updateRecurringRuleSuspend(
             editingRecurringRule!!.copy(
               title = title,
               amount = amount,
@@ -259,7 +259,7 @@ fun MainAppScreen(
             )
           )
         } else {
-          viewModel.addRecurringRule(
+          viewModel.addRecurringRuleSuspend(
             title = title,
             amount = amount,
             type = type,
@@ -288,7 +288,7 @@ fun MainAppScreen(
         targetBudgetMonthLabel = null
       },
       onSave = { key, totalLimit, catLimits ->
-        viewModel.saveMonthlyBudget(key, totalLimit, catLimits)
+        viewModel.saveMonthlyBudgetSuspend(key, totalLimit, catLimits)
       }
     )
   }

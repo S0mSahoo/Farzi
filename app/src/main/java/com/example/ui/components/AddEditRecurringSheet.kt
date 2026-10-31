@@ -71,6 +71,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -79,7 +80,7 @@ fun AddEditRecurringSheet(
   initialRule: RecurringRule? = null,
   currencySymbol: String = "₹",
   onDismiss: () -> Unit,
-  onSave: (
+  onSave: suspend (
     title: String,
     amount: Double,
     type: TransactionType,
@@ -124,6 +125,8 @@ fun AddEditRecurringSheet(
 
   var showStartDatePicker by remember { mutableStateOf(false) }
   var errorMessage by remember { mutableStateOf<String?>(null) }
+  var isSaving by remember { mutableStateOf(false) }
+  val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
 
   val availableCategories = remember(ruleType) {
     TransactionCategory.values().filter { it.defaultType == ruleType }
@@ -510,6 +513,7 @@ fun AddEditRecurringSheet(
 
       PremiumButton(
         onClick = {
+          if (isSaving) return@PremiumButton
           val amt = amountText.toDoubleOrNull()
           if (amt == null || amt <= 0.0) {
             errorMessage = "Please enter a valid amount"
@@ -520,19 +524,30 @@ fun AddEditRecurringSheet(
             return@PremiumButton
           }
 
-          onSave(
-            titleText.trim(),
-            amt,
-            ruleType,
-            selectedCategory,
-            selectedInterval,
-            startDate,
-            endDate,
-            paymentMethod,
-            noteText.trim()
-          )
-          onDismiss()
+          coroutineScope.launch {
+            isSaving = true
+            errorMessage = null
+            try {
+              onSave(
+                titleText.trim(),
+                amt,
+                ruleType,
+                selectedCategory,
+                selectedInterval,
+                startDate,
+                endDate,
+                paymentMethod,
+                noteText.trim()
+              )
+              onDismiss()
+            } catch (e: Exception) {
+              errorMessage = "Failed to save rule: ${e.localizedMessage ?: "Unknown error"}"
+            } finally {
+              isSaving = false
+            }
+          }
         },
+        enabled = !isSaving,
         colors = ButtonDefaults.buttonColors(
           containerColor = if (ruleType == TransactionType.INCOME) IncomeGreen else ExpenseRed,
           contentColor = Color.White
@@ -544,7 +559,7 @@ fun AddEditRecurringSheet(
           .testTag("save_recurring_rule_button")
       ) {
         Text(
-          text = if (initialRule == null) "Create Recurring Rule" else "Update Recurring Rule",
+          text = if (isSaving) "Saving..." else if (initialRule == null) "Create Recurring Rule" else "Update Recurring Rule",
           style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold
         )

@@ -73,4 +73,25 @@ class CryptoManagerTest {
 
     assertTrue("Short recovery passphrases must be rejected", encryptionRejected)
   }
+
+  @Test
+  fun testVerifyPassphraseAgainstBundle() {
+    val original = """{"profile":{"name":"Test"}}"""
+    val passphrase = "correct horse battery staple 2026"
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(original, passphrase)
+
+    assertTrue("Correct passphrase must verify successfully", CryptoManager.verifyPassphraseAgainstBundle(bundle, passphrase))
+    org.junit.Assert.assertFalse("Incorrect passphrase must fail verification", CryptoManager.verifyPassphraseAgainstBundle(bundle, "wrong passphrase 1234"))
+  }
+
+  @Test
+  fun testPassphraseVerificationAgainstExistingBundle() {
+    val originalPassphrase = "first valid recovery passphrase 2026"
+    val originalData = """{"test":"payload"}"""
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(originalData, originalPassphrase)
+
+    val invalidCandidate = "invalid candidate passphrase 9999"
+    org.junit.Assert.assertFalse("Invalid candidate must fail verification against existing cloud bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, invalidCandidate))
+    assertTrue("Valid candidate must pass verification against existing cloud bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, originalPassphrase))
+  }
 }

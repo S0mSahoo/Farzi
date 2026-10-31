@@ -180,8 +180,12 @@ class AiAdvisorViewModel : ViewModel() {
         )
     }
 
+    var lastFailedPrompt: String? = null
+        private set
+
     fun resetChat() {
         activeChat = null
+        lastFailedPrompt = null
     }
 
     private fun getCurrencySymbol(): String {
@@ -348,9 +352,16 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
     fun sendMessage(prompt: String) {
+        executeSend(prompt, isRetry = false)
+    }
+
+    private fun executeSend(prompt: String, isRetry: Boolean) {
         if (prompt.isBlank() || _isProcessingAction.value || _pendingActionGroup.value != null) return
-        val userMsg = ChatMessage("user", prompt)
-        _messages.value = _messages.value + userMsg
+        if (!isRetry) {
+            val userMsg = ChatMessage("user", prompt)
+            _messages.value = _messages.value + userMsg
+            lastFailedPrompt = null
+        }
         _uiState.value = AiUiState.Loading
 
         val currentMonthKey = DateUtils.getMonthKey(System.currentTimeMillis())
@@ -419,21 +430,28 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
 
                     _messages.value = _messages.value + ChatMessage("model", finalText, sources = sources)
                     _uiState.value = AiUiState.Success(finalText)
+                    lastFailedPrompt = null
                 } else if (currentResponse.functionCalls.isNotEmpty()) {
                     val fallbackMsg = "I reached the maximum tool query depth for this question. Please try asking a more specific question."
                     _messages.value = _messages.value + ChatMessage("model", fallbackMsg)
                     _uiState.value = AiUiState.Success(fallbackMsg)
+                    lastFailedPrompt = null
                 } else {
+                    activeChat = null
+                    lastFailedPrompt = prompt
                     _uiState.value = AiUiState.Error("AI returned an empty response.")
                 }
             } catch (e: TimeoutCancellationException) {
                 Log.e(TAG, "AI generation timed out", e)
+                activeChat = null
+                lastFailedPrompt = prompt
                 _uiState.value = AiUiState.Error("Generation timed out after 60 seconds. Please try again.")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "AI generation failed", e)
                 activeChat = null
+                lastFailedPrompt = prompt
                 _uiState.value = AiUiState.Error(e.localizedMessage ?: "Failed to get AI response. Please try again.")
             }
         }
@@ -1281,9 +1299,9 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
     }
 
     fun retryLastMessage() {
-        val lastUserMsg = _messages.value.lastOrNull { it.role == "user" }
-        if (lastUserMsg != null) {
-            sendMessage(lastUserMsg.text)
+        val promptToRetry = lastFailedPrompt ?: _messages.value.lastOrNull { it.role == "user" }?.text
+        if (promptToRetry != null && !_isProcessingAction.value && _pendingActionGroup.value == null) {
+            executeSend(promptToRetry, isRetry = true)
         }
     }
 

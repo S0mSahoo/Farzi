@@ -617,6 +617,35 @@ class AiActionValidationTest {
         assertNull(aiViewModel.pendingActionGroup.value)
         assertEquals("Database must remain untouched after cancellation", initialCount, financeViewModel.allTransactions.value.size)
     }
+
+    @Test
+    fun testRetryDoesNotDuplicateUserChatMessage() {
+        val initialUserMsgCount = aiViewModel.messages.value.count { it.role == "user" }
+        assertEquals(0, initialUserMsgCount)
+
+        aiViewModel.sendMessage("Analyze my recent transactions")
+        flushCoroutines()
+
+        val userMsgCountAfterSend = aiViewModel.messages.value.count { it.role == "user" }
+        assertEquals(1, userMsgCountAfterSend)
+
+        // Trigger retry
+        aiViewModel.retryLastMessage()
+        flushCoroutines()
+
+        val userMsgCountAfterRetry = aiViewModel.messages.value.count { it.role == "user" }
+        assertEquals("Retrying MUST NOT duplicate the user message bubble in messages list", 1, userMsgCountAfterRetry)
+    }
+
+    @Test
+    fun testResetChatClearsLastFailedPrompt() {
+        aiViewModel.sendMessage("Help me plan a budget")
+        flushCoroutines()
+
+        aiViewModel.resetChat()
+
+        assertNull("resetChat() MUST clear lastFailedPrompt", aiViewModel.lastFailedPrompt)
+    }
 }
 
 

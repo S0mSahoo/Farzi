@@ -94,7 +94,7 @@ class DefaultFinancialToolExecutor(
         val totalIncome = monthTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
         val totalExpense = monthTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
         val netSavings = totalIncome - totalExpense
-        val savingsRate = if (totalIncome > 0.0) ((netSavings / totalIncome) * 100.0).coerceAtLeast(0.0) else 0.0
+        val savingsRate = if (totalIncome > 0.0) ((netSavings / totalIncome) * 100.0) else 0.0
 
         val budget = budgets.find { it.monthKey == period }
         val budgetLimit = budget?.totalBudget
@@ -155,7 +155,7 @@ class DefaultFinancialToolExecutor(
         val totalIncome = yearTxs.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
         val totalExpense = yearTxs.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
         val netSavings = totalIncome - totalExpense
-        val savingsRate = if (totalIncome > 0.0) ((netSavings / totalIncome) * 100.0).coerceAtLeast(0.0) else 0.0
+        val savingsRate = if (totalIncome > 0.0) ((netSavings / totalIncome) * 100.0) else 0.0
 
         val insights = FinanceInsightEngine.generateYearlyInsights(
           year = targetYear,

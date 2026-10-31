@@ -129,6 +129,38 @@ object CryptoManager {
   }
 
   /**
+   * Verifies whether a candidate passphrase correctly decrypts the provided encrypted bundle.
+   * Returns true if decryption succeeds, false if decryption fails.
+   */
+  fun verifyPassphraseAgainstBundle(bundle: EncryptedBundle, passphrase: String): Boolean {
+    if (passphrase.length < 12) return false
+    return try {
+      val result = decryptCloudPayloadWithPassphrase(bundle, passphrase)
+      result.isNotBlank()
+    } catch (_: Exception) {
+      false
+    }
+  }
+
+  /**
+   * Verifies candidatePassphrase against existingBundle (if non-null) before replacing the stored passphrase.
+   * If existingBundle is present and candidatePassphrase fails decryption, throws IllegalArgumentException
+   * and leaves stored passphrase untouched.
+   */
+  fun verifyAndReplaceStoredCloudRecoveryPassphrase(
+    context: Context,
+    candidatePassphrase: String,
+    existingBundle: EncryptedBundle? = null
+  ) {
+    require(candidatePassphrase.length >= 12) { "Recovery passphrase must contain at least 12 characters." }
+    if (existingBundle != null) {
+      val isValid = verifyPassphraseAgainstBundle(existingBundle, candidatePassphrase)
+      require(isValid) { "The entered recovery passphrase does not match the existing cloud backup encryption." }
+    }
+    replaceStoredCloudRecoveryPassphrase(context, candidatePassphrase)
+  }
+
+  /**
    * Stores the recovery passphrase encrypted with an AES key held by Android Keystore.
    * It is intentionally not included in Android backup/restore; another device must have the
    * user re-enter the same passphrase to access the cross-device cloud backup.

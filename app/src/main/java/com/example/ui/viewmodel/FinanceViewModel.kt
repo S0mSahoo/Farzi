@@ -1155,7 +1155,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       recurringRuleId = recurringRuleId
     )
     val id = repository.insertTransaction(item)
-    syncCurrentStateToDrive()
+    try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after add transaction", e) }
     id
   }
 
@@ -1173,7 +1173,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       try {
         addTransactionSuspend(title, amount, type, category, timestamp, note, paymentMethod, isRecurring, recurringRuleId)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "addTransaction failed", e)
+      }
     }
   }
 
@@ -1192,7 +1194,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       try {
         updateTransactionSuspend(item)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "updateTransaction failed", e)
+      }
     }
   }
 
@@ -1206,7 +1210,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun deleteTransaction(item: TransactionItem) {
     viewModelScope.launch {
-      deleteTransactionSuspend(item)
+      try {
+        deleteTransactionSuspend(item)
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "deleteTransaction failed", e)
+      }
     }
   }
 
@@ -1220,7 +1228,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun deleteTransactionById(id: Long) {
     viewModelScope.launch {
-      deleteTransactionByIdSuspend(id)
+      try {
+        deleteTransactionByIdSuspend(id)
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "deleteTransactionById failed", e)
+      }
     }
   }
 
@@ -1262,7 +1274,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       try {
         saveMonthlyBudgetSuspend(monthKey, totalBudget, categoryBudgets)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "saveMonthlyBudget failed", e)
+      }
     }
   }
 
@@ -1276,7 +1290,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun deleteBudget(monthKey: String) {
     viewModelScope.launch {
-      deleteBudgetSuspend(monthKey)
+      try {
+        deleteBudgetSuspend(monthKey)
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "deleteBudget failed", e)
+      }
     }
   }
 
@@ -1330,7 +1348,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       try {
         addRecurringRuleSuspend(title, amount, type, category, interval, startDate, endDate, paymentMethod, note)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "addRecurringRule failed", e)
+      }
     }
   }
 
@@ -1351,17 +1371,23 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     viewModelScope.launch {
       try {
         updateRecurringRuleSuspend(rule)
-      } catch (_: Exception) {}
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "updateRecurringRule failed", e)
+      }
     }
   }
 
   fun toggleRecurringRule(id: Long, isActive: Boolean) {
     viewModelScope.launch {
-      repository.toggleRecurringRule(id, isActive)
-      if (isActive) {
-        try { repository.processDueRecurringRules() } catch (e: Exception) { Log.e("FinanceViewModel", "Process rules failed", e) }
+      try {
+        repository.toggleRecurringRule(id, isActive)
+        if (isActive) {
+          try { repository.processDueRecurringRules() } catch (e: Exception) { Log.e("FinanceViewModel", "Process rules failed", e) }
+        }
+        try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after toggle rule", e) }
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "toggleRecurringRule failed", e)
       }
-      try { syncCurrentStateToDrive() } catch (e: Exception) { Log.e("FinanceViewModel", "Sync failed after toggle rule", e) }
     }
   }
 
@@ -1375,7 +1401,11 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   fun deleteRecurringRule(id: Long) {
     viewModelScope.launch {
-      deleteRecurringRuleSuspend(id)
+      try {
+        deleteRecurringRuleSuspend(id)
+      } catch (e: Exception) {
+        Log.e("FinanceViewModel", "deleteRecurringRule failed", e)
+      }
     }
   }
 

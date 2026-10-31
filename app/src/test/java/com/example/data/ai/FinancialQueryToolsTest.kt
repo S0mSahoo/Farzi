@@ -199,4 +199,98 @@ class FinancialQueryToolsTest {
     assertEquals("ERROR", result.getString("status"))
     assertEquals("EXECUTION_ERROR", result.getString("errorCode"))
   }
+
+  @Test
+  fun testNegativeSavingsRateMonthlyAndYearly() = runBlocking {
+    val negativeTxs = listOf(
+      TransactionItem(
+        id = 101L,
+        title = "Income",
+        amount = 30000.0,
+        type = TransactionType.INCOME,
+        category = TransactionCategory.SALARY,
+        paymentMethod = PaymentMethod.NET_BANKING,
+        timestamp = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 1, 10, 0, 0) }.timeInMillis
+      ),
+      TransactionItem(
+        id = 102L,
+        title = "Expense",
+        amount = 36000.0,
+        type = TransactionType.EXPENSE,
+        category = TransactionCategory.HOUSING,
+        paymentMethod = PaymentMethod.NET_BANKING,
+        timestamp = Calendar.getInstance().apply { set(2026, Calendar.SEPTEMBER, 5, 10, 0, 0) }.timeInMillis
+      )
+    )
+    val customExecutor = DefaultFinancialToolExecutor(
+      getTransactions = { negativeTxs },
+      getBudgets = { emptyList() },
+      getRecurringRules = { emptyList() },
+      getCurrencySymbol = { "₹" }
+    )
+
+    val monthlyResult = customExecutor.executeTool(
+      "getFinancialSummary",
+      mapOf("periodType" to "MONTHLY", "period" to "2026-09")
+    )
+    assertEquals("SUCCESS", monthlyResult.getString("status"))
+    assertEquals(30000.0, monthlyResult.getDouble("totalIncome"), 0.01)
+    assertEquals(36000.0, monthlyResult.getDouble("totalExpense"), 0.01)
+    assertEquals(-6000.0, monthlyResult.getDouble("netSavings"), 0.01)
+    assertEquals(-20.0, monthlyResult.getDouble("savingsRatePercent"), 0.01)
+
+    val yearlyResult = customExecutor.executeTool(
+      "getFinancialSummary",
+      mapOf("periodType" to "YEARLY", "period" to "2026")
+    )
+    assertEquals("SUCCESS", yearlyResult.getString("status"))
+    assertEquals(30000.0, yearlyResult.getDouble("totalIncome"), 0.01)
+    assertEquals(36000.0, yearlyResult.getDouble("totalExpense"), 0.01)
+    assertEquals(-6000.0, yearlyResult.getDouble("netSavings"), 0.01)
+    assertEquals(-20.0, yearlyResult.getDouble("savingsRatePercent"), 0.01)
+  }
+
+  @Test
+  fun testZeroIncomeWithExpensesAndZeroExpense() = runBlocking {
+    val zeroIncomeTxs = listOf(
+      TransactionItem(
+        id = 201L,
+        title = "Shopping",
+        amount = 5000.0,
+        type = TransactionType.EXPENSE,
+        category = TransactionCategory.SHOPPING,
+        paymentMethod = PaymentMethod.UPI,
+        timestamp = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 1, 10, 0, 0) }.timeInMillis
+      )
+    )
+    val customExecutor = DefaultFinancialToolExecutor(
+      getTransactions = { zeroIncomeTxs },
+      getBudgets = { emptyList() },
+      getRecurringRules = { emptyList() }
+    )
+
+    val resultWithExpenses = customExecutor.executeTool(
+      "getFinancialSummary",
+      mapOf("periodType" to "MONTHLY", "period" to "2026-10")
+    )
+    assertEquals(0.0, resultWithExpenses.getDouble("totalIncome"), 0.01)
+    assertEquals(5000.0, resultWithExpenses.getDouble("totalExpense"), 0.01)
+    assertEquals(-5000.0, resultWithExpenses.getDouble("netSavings"), 0.01)
+    assertEquals(0.0, resultWithExpenses.getDouble("savingsRatePercent"), 0.01)
+
+    val emptyExecutor = DefaultFinancialToolExecutor(
+      getTransactions = { emptyList() },
+      getBudgets = { emptyList() },
+      getRecurringRules = { emptyList() }
+    )
+
+    val resultEmpty = emptyExecutor.executeTool(
+      "getFinancialSummary",
+      mapOf("periodType" to "MONTHLY", "period" to "2026-10")
+    )
+    assertEquals(0.0, resultEmpty.getDouble("totalIncome"), 0.01)
+    assertEquals(0.0, resultEmpty.getDouble("totalExpense"), 0.01)
+    assertEquals(0.0, resultEmpty.getDouble("netSavings"), 0.01)
+    assertEquals(0.0, resultEmpty.getDouble("savingsRatePercent"), 0.01)
+  }
 }
