@@ -492,7 +492,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
             stream.collect { chunk ->
                 chunk.text?.let { piece ->
                     accumulatedText.append(piece)
-                    val userVisibleText = accumulatedText.substringBefore("ACTION_JSON:").trimEnd()
+                    val userVisibleText = accumulatedText.toString().substringBefore("ACTION_JSON:").trimEnd()
                     if (userVisibleText.isNotBlank()) onPartialText(userVisibleText)
                 }
                 lastResponse = chunk
