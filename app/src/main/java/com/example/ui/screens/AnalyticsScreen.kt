@@ -235,7 +235,8 @@ private fun MonthlyAnalyticsContent(
   categorySpending: List<CategorySpending>,
   viewModel: FinanceViewModel,
   twoPane: Boolean
-) {  val summaryPanel: @Composable () -> Unit = {
+) {
+  val summaryPanel: @Composable () -> Unit = {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val isLight = !com.example.ui.theme.isAppInDarkTheme()
         Surface(
@@ -404,7 +405,9 @@ private fun MonthlyAnalyticsContent(
       categoryPanel()
     }
   }
-}@Composable
+}
+
+@Composable
 private fun YearlyAnalyticsContent(
   yearlySummary: YearlyFinancialSummary,
   currentYear: Int,
@@ -413,7 +416,8 @@ private fun YearlyAnalyticsContent(
   periodLabel: String,
   viewModel: FinanceViewModel,
   twoPane: Boolean
-) {  val overviewPanel: @Composable () -> Unit = {
+) {
+  val overviewPanel: @Composable () -> Unit = {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         val isLight = !com.example.ui.theme.isAppInDarkTheme()
         val textColor = if (isLight) Color(0xFF2E1065) else Color.White
@@ -526,7 +530,9 @@ private fun YearlyAnalyticsContent(
       monthlyBreakdownPanel()
     }
   }
-}@Composable
+}
+
+@Composable
 private fun AnalyticsMetricCard(
   title: String,
   value: String,
