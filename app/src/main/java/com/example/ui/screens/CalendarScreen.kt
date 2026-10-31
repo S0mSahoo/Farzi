@@ -201,6 +201,174 @@ fun CalendarScreen(
     )
   }
 
+  val daySummaryPanel: @Composable () -> Unit = {
+    AnimatedContent(
+      targetState = selectedDayMillis,
+      transitionSpec = { PaisaMotion.DefaultContentTransform },
+      label = "calendar_day_detail_transition"
+    ) { dayMillis ->
+      val isLight = !com.example.ui.theme.isAppInDarkTheme()
+      val dayTransactions = selectedDayTransactions
+      val (detailIncome, detailExpense, detailNet) = remember(dayTransactions) {
+        var income = 0.0
+        var expense = 0.0
+        for (transaction in dayTransactions) {
+          when (transaction.type) {
+            TransactionType.INCOME -> income += transaction.amount
+            TransactionType.EXPENSE -> expense += transaction.amount
+          }
+        }
+        Triple(income, expense, income - expense)
+      }
+
+      Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Transparent,
+        border = androidx.compose.foundation.BorderStroke(
+          1.dp,
+          if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)
+        ),
+        modifier = Modifier
+          .fillMaxWidth()
+          .background(
+            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+              colors = if (isLight) listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+              else listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+            ),
+            shape = RoundedCornerShape(28.dp)
+          )
+      ) {
+        val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+        val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top
+          ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+              Text(
+                DateUtils.getDisplayDate(dayMillis),
+                style = MaterialTheme.typography.titleLarge,
+                color = textColor,
+                fontWeight = FontWeight.Bold
+              )
+              com.example.ui.util.AnimatedFinancialText(
+                if (dayTransactions.isEmpty()) "No recorded activity"
+                else "${dayTransactions.size} ${if (dayTransactions.size == 1) "transaction" else "transactions"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = subTextColor
+              )
+            }
+            PremiumIconButton(onClick = { onAddTransactionForDate(dayMillis) }) {
+              Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
+            }
+          }
+          Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+              com.example.ui.util.AnimatedFinancialText(
+                IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = IncomeGreen,
+                maxLines = 1,
+                softWrap = false
+              )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+              com.example.ui.util.AnimatedFinancialText(
+                IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = ExpenseRed,
+                maxLines = 1,
+                softWrap = false
+              )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+              Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
+              com.example.ui.util.AnimatedFinancialText(
+                IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = textColor,
+                maxLines = 1,
+                softWrap = false
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  val dayActivityPanel: @Composable () -> Unit = {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+      AnimatedContent(
+        targetState = selectedDayTransactions.isEmpty(),
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "calendar_activity_heading"
+      ) { isEmpty ->
+        com.example.ui.components.PremiumSectionHeading(
+          title = "Day activity",
+          subtitle = if (isEmpty) "Nothing recorded on this date." else "Select an entry to see or edit its details."
+        )
+      }
+
+      if (selectedDayTransactions.isEmpty()) {
+        PremiumCard {
+          com.example.ui.components.PremiumEmptyState(
+            title = "A quiet day",
+            body = "Nothing has been recorded for this date yet.",
+            action = {
+              PremiumOutlinedButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(7.dp))
+                Text("Add to this day")
+              }
+            }
+          )
+        }
+      } else {
+        PremiumCard {
+          Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)) {
+            val orderedTransactions = remember(selectedDayTransactions) {
+              selectedDayTransactions.sortedByDescending { it.timestamp }
+            }
+            orderedTransactions.forEachIndexed { index, transaction ->
+              com.example.ui.components.PremiumTransactionRow(
+                transaction = transaction,
+                currencySymbol = currencySymbol,
+                onClick = { onEditTransaction(transaction) },
+                trailing = {
+                  PremiumIconButton(
+                    onClick = { transactionToDelete = transaction },
+                    modifier = Modifier.size(36.dp)
+                  ) {
+                    Icon(
+                      Icons.Default.Delete,
+                      contentDescription = "Delete ${transaction.title}",
+                      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                      modifier = Modifier.size(18.dp)
+                    )
+                  }
+                }
+              )
+              if (index != orderedTransactions.lastIndex) {
+                HorizontalDivider(
+                  modifier = Modifier.padding(start = 58.dp),
+                  color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   Box(
     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.TopCenter
@@ -359,263 +527,13 @@ fun CalendarScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.Top
           ) {
-            Column(modifier = Modifier.weight(1f)) {
-                            AnimatedContent(
-                        targetState = selectedDayMillis,
-                        transitionSpec = { PaisaMotion.DefaultContentTransform },
-                        label = "calendar_day_detail_transition"
-                      ) { dayMillis ->
-                        val isLight = !com.example.ui.theme.isAppInDarkTheme()
-                        val dayTransactions = selectedDayTransactions
-                        val (detailIncome, detailExpense, detailNet) = remember(dayTransactions) {
-                          var inc = 0.0
-                          var exp = 0.0
-                          for (tx in dayTransactions) {
-                            if (tx.type == TransactionType.INCOME) {
-                              inc += tx.amount
-                            } else if (tx.type == TransactionType.EXPENSE) {
-                              exp += tx.amount
-                            }
-                          }
-                          Triple(inc, exp, inc - exp)
-                        }
-              
-                        Surface(
-                          shape = RoundedCornerShape(28.dp),
-                          color = Color.Transparent,
-                          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-                          modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                colors = if (isLight) {
-                                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                                } else {
-                                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
-                                }
-                              ),
-                              shape = RoundedCornerShape(28.dp)
-                            )
-                        ) {
-                          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
-                          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-              
-                          Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            Row(
-                              modifier = Modifier.fillMaxWidth(),
-                              horizontalArrangement = Arrangement.SpaceBetween,
-                              verticalAlignment = Alignment.Top
-                            ) {
-                              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                                Text(DateUtils.getDisplayDate(dayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
-                                com.example.ui.util.AnimatedFinancialText(
-                                  if (dayTransactions.isEmpty()) "No recorded activity" else "${dayTransactions.size} ${if (dayTransactions.size == 1) "transaction" else "transactions"}",
-                                  style = MaterialTheme.typography.bodySmall,
-                                  color = subTextColor
-                                )
-                              }
-                              PremiumIconButton(onClick = { onAddTransactionForDate(dayMillis) }) {
-                                Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
-                              }
-                            }
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
-                              }
-                              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
-                              }
-                              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
-                              }
-                            }
-                          }
-                        }
-                      }
-            }
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            AnimatedContent(
-                        targetState = selectedDayTransactions.isEmpty(),
-                        transitionSpec = { PaisaMotion.DefaultContentTransform },
-                        label = "calendar_activity_heading"
-                      ) { isEmpty ->
-                        com.example.ui.components.PremiumSectionHeading(
-                          title = "Day activity",
-                          subtitle = if (isEmpty) "Nothing recorded on this date." else "Select an entry to see or edit its details."
-                        )
-                      }
-                    }
-              
-                    if (selectedDayTransactions.isEmpty()) {
-                      item {
-                        PremiumCard {
-                          com.example.ui.components.PremiumEmptyState(
-                            title = "A quiet day",
-                            body = "Nothing has been recorded for this date yet.",
-                            action = {
-                              PremiumOutlinedButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
-                                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                                Spacer(Modifier.width(7.dp))
-                                Text("Add to this day")
-                              }
-                            }
-                          )
-                        }
-                      }
-                    } else {
-                      item {
-                        PremiumCard {
-                          Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)) {
-                            selectedDayTransactions.sortedByDescending { it.timestamp }.forEachIndexed { index, transaction ->
-                              com.example.ui.components.PremiumTransactionRow(
-                                transaction = transaction,
-                                currencySymbol = currencySymbol,
-                                onClick = { onEditTransaction(transaction) },
-                                trailing = {
-                                  PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                                  }
-                                }
-                              )
-                              if (index != selectedDayTransactions.lastIndex) {
-                                HorizontalDivider(modifier = Modifier.padding(start = 58.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-                              }
-                            }
-                          }
-                        }
-                      }
-            }
+            Column(modifier = Modifier.weight(1f)) { daySummaryPanel() }
+            Column(modifier = Modifier.weight(1f)) { dayActivityPanel() }
           }
         } else {
           Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AnimatedContent(
-                      targetState = selectedDayMillis,
-                      transitionSpec = { PaisaMotion.DefaultContentTransform },
-                      label = "calendar_day_detail_transition"
-                    ) { dayMillis ->
-                      val isLight = !com.example.ui.theme.isAppInDarkTheme()
-                      val dayTransactions = selectedDayTransactions
-                      val (detailIncome, detailExpense, detailNet) = remember(dayTransactions) {
-                        var inc = 0.0
-                        var exp = 0.0
-                        for (tx in dayTransactions) {
-                          if (tx.type == TransactionType.INCOME) {
-                            inc += tx.amount
-                          } else if (tx.type == TransactionType.EXPENSE) {
-                            exp += tx.amount
-                          }
-                        }
-                        Triple(inc, exp, inc - exp)
-                      }
-            
-                      Surface(
-                        shape = RoundedCornerShape(28.dp),
-                        color = Color.Transparent,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-                        modifier = Modifier
-                          .fillMaxWidth()
-                          .background(
-                            brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                              colors = if (isLight) {
-                                listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                              } else {
-                                listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
-                              }
-                            ),
-                            shape = RoundedCornerShape(28.dp)
-                          )
-                      ) {
-                        val textColor = if (isLight) Color(0xFF2E1065) else Color.White
-                        val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-            
-                        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                          Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
-                          ) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                              Text(DateUtils.getDisplayDate(dayMillis), style = MaterialTheme.typography.titleLarge, color = textColor, fontWeight = FontWeight.Bold)
-                              com.example.ui.util.AnimatedFinancialText(
-                                if (dayTransactions.isEmpty()) "No recorded activity" else "${dayTransactions.size} ${if (dayTransactions.size == 1) "transaction" else "transactions"}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = subTextColor
-                              )
-                            }
-                            PremiumIconButton(onClick = { onAddTransactionForDate(dayMillis) }) {
-                              Icon(Icons.Default.Add, contentDescription = "Add transaction for selected date", tint = textColor)
-                            }
-                          }
-                          Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                              Text("Money in", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailIncome, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = IncomeGreen, maxLines = 1, softWrap = false)
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                              Text("Money out", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailExpense, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = ExpenseRed, maxLines = 1, softWrap = false)
-                            }
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                              Text("Net", style = MaterialTheme.typography.labelSmall, color = subTextColor)
-                              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatCompact(detailNet, currencySymbol), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = textColor, maxLines = 1, softWrap = false)
-                            }
-                          }
-                        }
-                      }
-                    }
-                        AnimatedContent(
-                      targetState = selectedDayTransactions.isEmpty(),
-                      transitionSpec = { PaisaMotion.DefaultContentTransform },
-                      label = "calendar_activity_heading"
-                    ) { isEmpty ->
-                      com.example.ui.components.PremiumSectionHeading(
-                        title = "Day activity",
-                        subtitle = if (isEmpty) "Nothing recorded on this date." else "Select an entry to see or edit its details."
-                      )
-                    }
-                  }
-            
-                  if (selectedDayTransactions.isEmpty()) {
-                    item {
-                      PremiumCard {
-                        com.example.ui.components.PremiumEmptyState(
-                          title = "A quiet day",
-                          body = "Nothing has been recorded for this date yet.",
-                          action = {
-                            PremiumOutlinedButton(onClick = { onAddTransactionForDate(selectedDayMillis) }) {
-                              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                              Spacer(Modifier.width(7.dp))
-                              Text("Add to this day")
-                            }
-                          }
-                        )
-                      }
-                    }
-                  } else {
-                    item {
-                      PremiumCard {
-                        Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)) {
-                          selectedDayTransactions.sortedByDescending { it.timestamp }.forEachIndexed { index, transaction ->
-                            com.example.ui.components.PremiumTransactionRow(
-                              transaction = transaction,
-                              currencySymbol = currencySymbol,
-                              onClick = { onEditTransaction(transaction) },
-                              trailing = {
-                                PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
-                                  Icon(Icons.Default.Delete, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
-                                }
-                              }
-                            )
-                            if (index != selectedDayTransactions.lastIndex) {
-                              HorizontalDivider(modifier = Modifier.padding(start = 58.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
-                            }
-                          }
-                        }
-                      }
-                    }
+            daySummaryPanel()
+            dayActivityPanel()
           }
         }
       }
