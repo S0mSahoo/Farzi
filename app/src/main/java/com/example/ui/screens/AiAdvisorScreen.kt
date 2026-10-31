@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.WindowInsets
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.ActionExecutionStatus
 import com.example.ui.viewmodel.AiAdvisorViewModel
 import com.example.ui.viewmodel.AiUiState
@@ -107,6 +109,7 @@ fun AiAdvisorScreen(
     val isProcessingAction by viewModel.isProcessingAction.collectAsStateWithLifecycle()
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val useTwoPane = LocalAdaptiveInfo.current.useTwoPaneLayout
 
     val streamingLength = (uiState as? AiUiState.Streaming)?.text?.length ?: 0
 
@@ -156,10 +159,15 @@ fun AiAdvisorScreen(
                 .padding(paddingValues)
                 .background(MaterialTheme.colorScheme.background)
         ) {
+            Row(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
-                    .weight(1f)
+                    .weight(if (useTwoPane) 2.1f else 1f)
+                    .fillMaxHeight()
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -282,6 +290,47 @@ fun AiAdvisorScreen(
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
+            if (useTwoPane) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(end = 16.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        "Try a question",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        "Suggestions update from your recorded transactions, budgets and recurring rules.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    suggestions.forEach { suggestion ->
+                        AssistChip(
+                            onClick = { viewModel.sendMessage(suggestion.prompt) },
+                            enabled = !isControlsDisabled,
+                            label = { Text(suggestion.label) },
+                            modifier = Modifier.fillMaxWidth().testTag("ai_suggestion_${suggestion.id}")
+                        )
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    ) {
+                        Text(
+                            "Paisa AI uses read-only financial tools for analysis. Any proposed transaction or budget change must be reviewed and explicitly confirmed by you.",
+                            modifier = Modifier.padding(14.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
 
             Surface(
                 tonalElevation = 6.dp,
@@ -291,21 +340,24 @@ fun AiAdvisorScreen(
                     .imePadding()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    // Suggestions are derived from the current local financial context.
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .padding(bottom = 6.dp)
-                            .testTag("ai_suggestion_chips")
-                    ) {
-                        items(suggestions, key = { it.id }) { suggestion ->
-                            AssistChip(
-                                onClick = { viewModel.sendMessage(suggestion.prompt) },
-                                enabled = !isControlsDisabled,
-                                label = { Text(suggestion.label) }
-                            )
-                        }
-                    }
+                    // Compact suggestions stay near the composer on phones; tablet/desktop uses the side panel.
+                if (!useTwoPane) {
+                                    // Suggestions are derived from the current local financial context.
+                                        LazyRow(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .padding(bottom = 6.dp)
+                                                .testTag("ai_suggestion_chips")
+                                        ) {
+                                            items(suggestions, key = { it.id }) { suggestion ->
+                                                AssistChip(
+                                                    onClick = { viewModel.sendMessage(suggestion.prompt) },
+                                                    enabled = !isControlsDisabled,
+                                                    label = { Text(suggestion.label) }
+                                                )
+                                            }
+                                        }
+                }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
