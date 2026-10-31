@@ -105,4 +105,55 @@ class CryptoManagerTest {
     assertTrue("Valid passphrase decrypts bundle", CryptoManager.verifyPassphraseAgainstBundle(bundle, passphrase))
     org.junit.Assert.assertFalse("Incorrect passphrase fails decryption", CryptoManager.verifyPassphraseAgainstBundle(bundle, "wrong passphrase 654321"))
   }
+
+  @Test
+  fun testStoredRecoveryPassphraseEncryptionAndDecryptionRoundTrip() {
+    val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+    val testPassphrase = "my secure recovery passphrase 2026"
+
+    CryptoManager.replaceStoredCloudRecoveryPassphrase(context, testPassphrase)
+    val restored = CryptoManager.getStoredCloudRecoveryPassphrase(context)
+
+    assertEquals("Restored passphrase must match original", testPassphrase, restored)
+
+    val prefs = context.getSharedPreferences("paisa_cloud_recovery", android.content.Context.MODE_PRIVATE)
+    val ivText = prefs.getString("encrypted_recovery_iv", null)
+    org.junit.Assert.assertNotNull("Provider-generated IV must be stored", ivText)
+    val ivBytes = android.util.Base64.decode(ivText, android.util.Base64.NO_WRAP)
+    assertEquals("Generated IV must be standard GCM 12 bytes", 12, ivBytes.size)
+  }
+
+  @Test
+  fun testStoreCloudRecoveryPassphrasePreventsAccidentalOverwrite() {
+    val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+    val initialPassphrase = "initial recovery passphrase 2026"
+
+    CryptoManager.replaceStoredCloudRecoveryPassphrase(context, initialPassphrase)
+    assertEquals(initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
+
+    try {
+      CryptoManager.storeCloudRecoveryPassphrase(context, "different passphrase attempting overwrite")
+      org.junit.Assert.fail("storeCloudRecoveryPassphrase must not silently overwrite an existing stored passphrase")
+    } catch (e: IllegalStateException) {
+      assertTrue("Exception must explain already stored passphrase", e.message?.contains("already stored") == true)
+    }
+
+    assertEquals("Original passphrase must remain untouched", initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
+  }
+
+  @Test
+  fun testFailedReplacementDoesNotCorruptExistingPassphrase() {
+    val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+    val initialPassphrase = "initial recovery passphrase 2026"
+
+    CryptoManager.replaceStoredCloudRecoveryPassphrase(context, initialPassphrase)
+    assertEquals(initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
+
+    try {
+      CryptoManager.replaceStoredCloudRecoveryPassphrase(context, "short")
+      org.junit.Assert.fail("Short passphrase must throw IllegalArgumentException")
+    } catch (_: IllegalArgumentException) {}
+
+    assertEquals("Original passphrase must remain intact after validation failure", initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
+  }
 }

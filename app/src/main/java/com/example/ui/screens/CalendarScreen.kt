@@ -105,6 +105,8 @@ fun CalendarScreen(
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   var showDatePicker by remember { mutableStateOf(false) }
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
+  var isDeletingTransaction by remember { mutableStateOf(false) }
+  var deleteTransactionError by remember { mutableStateOf<String?>(null) }
   val currencySymbol = userProfile.currencySymbol
   val selectedDayKey = DateUtils.getDayKey(selectedDayMillis)
 
@@ -169,11 +171,29 @@ fun CalendarScreen(
       message = "Delete “${transactionToDelete?.title}”? This cannot be undone.",
       confirmButtonText = "Delete",
       confirmButtonColor = ExpenseRed,
+      isLoading = isDeletingTransaction,
+      errorMessage = deleteTransactionError,
       onConfirm = {
-        transactionToDelete?.let { viewModel.deleteTransaction(it) }
-        transactionToDelete = null
+        val item = transactionToDelete ?: return@ConfirmationDialog
+        isDeletingTransaction = true
+        deleteTransactionError = null
+        coroutineScope.launch {
+          try {
+            viewModel.deleteTransactionSuspend(item)
+            isDeletingTransaction = false
+            transactionToDelete = null
+          } catch (e: Exception) {
+            isDeletingTransaction = false
+            deleteTransactionError = e.localizedMessage ?: "Failed to delete transaction."
+          }
+        }
       },
-      onDismiss = { transactionToDelete = null }
+      onDismiss = {
+        if (!isDeletingTransaction) {
+          transactionToDelete = null
+          deleteTransactionError = null
+        }
+      }
     )
   }
 

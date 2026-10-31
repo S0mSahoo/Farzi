@@ -331,14 +331,23 @@ class GoogleDriveBackupService(private val context: Context) {
     } finally {
       response.close()
     }
-    if (jsonContent.isBlank()) return@withContext null
+    if (jsonContent.isBlank()) {
+      throw IOException("The existing Google Drive backup file is empty.")
+    }
 
     val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
-    try {
+    val envelope = try {
       envelopeAdapter.fromJson(jsonContent)
     } catch (e: Exception) {
-      null
+      throw IOException("Malformed cloud backup envelope on Google Drive: ${e.localizedMessage ?: "Invalid JSON"}", e)
+    } ?: throw IOException("The cloud backup envelope on Google Drive is empty or could not be parsed.")
+
+    if (envelope.encrypted) {
+      if (envelope.saltBase64.isBlank() || envelope.ivBase64.isBlank() || envelope.ciphertextBase64.isBlank()) {
+        throw IOException("The cloud backup envelope on Google Drive is missing required encryption fields.")
+      }
     }
+    envelope
   }
 
   /**
