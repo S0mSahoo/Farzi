@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,6 +78,13 @@ import com.example.ui.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
+
+private data class TransactionFeedEntry(
+  val key: String,
+  val dateLabel: String? = null,
+  val transaction: TransactionItem? = null,
+  val entryCount: Int = 0
+)
 
 @Composable
 fun TransactionsScreen(
@@ -174,6 +182,18 @@ fun TransactionsScreen(
         todayKey -> "Today"
         yesterdayKey -> "Yesterday"
         else -> DateUtils.getDisplayDate(tx.timestamp)
+      }
+    }
+  }
+
+  // Flatten headers and transactions so LazyColumn virtualizes every transaction row.
+  val feedEntries = remember(grouped) {
+    buildList {
+      grouped.forEach { (dateLabel, dayTransactions) ->
+        add(TransactionFeedEntry("header_$dateLabel", dateLabel = dateLabel, entryCount = dayTransactions.size))
+        dayTransactions.forEach { transaction ->
+          add(TransactionFeedEntry("tx_" + transaction.id + "_" + transaction.timestamp, transaction = transaction))
+        }
       }
     }
   }
@@ -522,8 +542,10 @@ fun TransactionsScreen(
           }
         }
       } else {
-        grouped.entries.forEach { (dateLabel, itemsForDay) ->
-          item(key = "header_$dateLabel") {
+        items(feedEntries, key = { it.key }) { entry ->
+          val dateLabel = entry.dateLabel
+          val transaction = entry.transaction
+          if (dateLabel != null) {
             Row(
               modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
               horizontalArrangement = Arrangement.SpaceBetween,
@@ -531,34 +553,24 @@ fun TransactionsScreen(
             ) {
               Text(dateLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
               Text(
-                "${itemsForDay.size} ${if (itemsForDay.size == 1) "entry" else "entries"}",
+                "${entry.entryCount} ${if (entry.entryCount == 1) "entry" else "entries"}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
-          }
-          item(key = "group_$dateLabel") {
+          } else if (transaction != null) {
             PremiumCard {
-              Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)) {
-                itemsForDay.forEachIndexed { index, tx ->
-                  PremiumTransactionRow(
-                    transaction = tx,
-                    currencySymbol = currencySymbol,
-                    onClick = { onEditTransaction(tx) },
-                    trailing = {
-                      PremiumIconButton(onClick = { transactionToDelete = tx }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${tx.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
-                      }
-                    }
-                  )
-                  if (index != itemsForDay.lastIndex) {
-                    HorizontalDivider(
-                      modifier = Modifier.padding(start = 58.dp),
-                      color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                    )
+              PremiumTransactionRow(
+                transaction = transaction,
+                currencySymbol = currencySymbol,
+                onClick = { onEditTransaction(transaction) },
+                trailing = {
+                  PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
                   }
-                }
-              }
+                },
+                modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)
+              )
             }
           }
         }
