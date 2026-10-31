@@ -61,6 +61,25 @@ data class ChatMessage(
 
 data class Source(val title: String, val url: String)
 
+internal object AiStreamSanitizer {
+    private const val ACTION_MARKER = "ACTION_JSON:"
+
+    /**
+     * Returns only the user-visible prefix of accumulated model text. A trailing partial
+     * marker is held back so a marker split across network chunks cannot leak into the UI.
+     */
+    fun visibleText(accumulatedText: String): String {
+        val markerIndex = accumulatedText.indexOf(ACTION_MARKER)
+        if (markerIndex >= 0) return accumulatedText.substring(0, markerIndex).trimEnd()
+
+        val maxOverlap = minOf(ACTION_MARKER.length - 1, accumulatedText.length)
+        val overlap = (maxOverlap downTo 1).firstOrNull { length ->
+            accumulatedText.endsWith(ACTION_MARKER.substring(0, length))
+        } ?: 0
+        return accumulatedText.dropLast(overlap).trimEnd()
+    }
+}
+
 data class ChatSuggestion(val id: String, val label: String, val prompt: String)
 
 private data class StreamedChatResponse(
@@ -492,7 +511,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
             stream.collect { chunk ->
                 chunk.text?.let { piece ->
                     accumulatedText.append(piece)
-                    val userVisibleText = accumulatedText.toString().substringBefore("ACTION_JSON:").trimEnd()
+                    val userVisibleText = AiStreamSanitizer.visibleText(accumulatedText.toString())
                     if (userVisibleText.isNotBlank()) onPartialText(userVisibleText)
                 }
                 lastResponse = chunk
