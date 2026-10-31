@@ -486,7 +486,7 @@ fun TransactionsScreen(
               ) {
                 if (searchQuery.isNotBlank()) {
                   Text(
-                    text = "${projection.recordCount} ${if (sorted.size == 1) "record" else "records"}",
+                    text = "${projection.recordCount} ${if (projection.recordCount == 1) "record" else "records"}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -494,7 +494,7 @@ fun TransactionsScreen(
                   )
                 } else {
                   com.example.ui.util.AnimatedFinancialText(
-                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    text = "${projection.recordCount} ${if (projection.recordCount == 1) "record" else "records"}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
