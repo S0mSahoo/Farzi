@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +101,7 @@ fun AiAdvisorScreen(
     financialSummaryContext: String = ""
 ) {
     val messages by viewModel.messages.collectAsStateWithLifecycle()
+    val suggestions by viewModel.suggestions.collectAsStateWithLifecycle()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val pendingActionGroup by viewModel.pendingActionGroup.collectAsStateWithLifecycle()
     val isProcessingAction by viewModel.isProcessingAction.collectAsStateWithLifecycle()
@@ -114,11 +116,11 @@ fun AiAdvisorScreen(
                 (if (uiState is AiUiState.Loading || uiState is AiUiState.Streaming || uiState is AiUiState.Error) 1 else 0) +
                 (if (pendingActionGroup != null) 1 else 0)
         if (totalCount > 0) {
-            listState.animateScrollToItem(totalCount - 1)
+            listState.scrollToItem(totalCount - 1)
         }
     }
 
-    val isControlsDisabled = pendingActionGroup != null || isProcessingAction || uiState is AiUiState.Loading
+    val isControlsDisabled = pendingActionGroup != null || isProcessingAction || uiState is AiUiState.Loading || uiState is AiUiState.Streaming
 
     Scaffold(
         topBar = {
@@ -289,47 +291,18 @@ fun AiAdvisorScreen(
                     .imePadding()
             ) {
                 Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                    // Quick Action Chips
+                    // Suggestions are derived from the current local financial context.
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .padding(bottom = 6.dp)
                             .testTag("ai_suggestion_chips")
                     ) {
-                        item {
+                        items(suggestions, key = { it.id }) { suggestion ->
                             AssistChip(
-                                onClick = { viewModel.requestFinancialInsight() },
+                                onClick = { viewModel.sendMessage(suggestion.prompt) },
                                 enabled = !isControlsDisabled,
-                                label = { Text("📊 Analyze My Spending") },
-                                leadingIcon = { Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log an expense of ₹45 for lunch paid via UPI") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("📝 Log ₹45 Lunch Expense") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Log income of ₹3000 for monthly salary") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("💰 Log ₹3000 Salary") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Set my monthly budget for this month to ₹1500") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🎯 Set ₹1500 Budget") }
-                            )
-                        }
-                        item {
-                            AssistChip(
-                                onClick = { viewModel.sendMessage("Add a monthly recurring rule for Netflix subscription of ₹15 paid via credit card") },
-                                enabled = !isControlsDisabled,
-                                label = { Text("🔄 Add ₹15 Netflix Bill") }
+                                label = { Text(suggestion.label) }
                             )
                         }
                     }
