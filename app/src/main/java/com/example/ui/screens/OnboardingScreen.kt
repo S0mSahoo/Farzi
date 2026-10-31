@@ -13,6 +13,8 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +73,7 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.components.AppBrandLogo
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInStatusCodes
@@ -88,6 +91,7 @@ fun OnboardingScreen(
   val pagerState = rememberPagerState(initialPage = 0, pageCount = { 8 })
   val pagerScope = rememberCoroutineScope()
   val currentPage = pagerState.currentPage
+  val isLandscapePhone = LocalAdaptiveInfo.current.isLandscapePhone
 
   @Suppress("DEPRECATION")
   val googleSignInLauncher = rememberLauncherForActivityResult(
@@ -206,11 +210,16 @@ fun OnboardingScreen(
       ) {
         HorizontalPager(
           state = pagerState,
-          modifier = Modifier.fillMaxWidth().heightIn(min = 270.dp, max = 390.dp).testTag("onboarding_pager"),
+          modifier = Modifier.fillMaxWidth()
+            .heightIn(
+              min = if (isLandscapePhone) 185.dp else 270.dp,
+              max = if (isLandscapePhone) 245.dp else 390.dp
+            )
+            .testTag("onboarding_pager"),
           key = { it }
         ) { page ->
           Box(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 2.dp),
             contentAlignment = Alignment.Center
           ) {
             when (page) {
