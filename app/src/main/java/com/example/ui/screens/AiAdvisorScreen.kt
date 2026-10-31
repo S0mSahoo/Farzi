@@ -331,6 +331,7 @@ fun AiAdvisorScreen(
                     }
                 }
             }
+            } // End transcript + contextual suggestion panes
 
             Surface(
                 tonalElevation = 6.dp,
