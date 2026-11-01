@@ -288,11 +288,14 @@ class AiActionValidationTest {
     @Test
     fun testNormalizedDateMatchingForUpdateAndDelete() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val targetDateStr = "2026-08-15"
+        val testYear = 2026
+        val targetDateStr = "$testYear-08-15"
         val targetTime = sdf.parse(targetDateStr)!!.time
+        val testRunId = java.util.UUID.randomUUID().toString().take(8)
+        val targetTitle = "Target Date Tx $testRunId"
 
         financeViewModel.addTransaction(
-            title = "Target Date Tx",
+            title = targetTitle,
             amount = 45.0,
             type = TransactionType.EXPENSE,
             category = TransactionCategory.FOOD_DINING,
@@ -300,11 +303,11 @@ class AiActionValidationTest {
             note = "Special lunch",
             paymentMethod = PaymentMethod.UPI
         )
-        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Target Date Tx" } }
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == targetTitle } }
 
         // Query with slash format "2026/08/15" -> should match normalized ISO day
         val rawSlashQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "$testYear/08/15", "newAmount": 55.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "$targetTitle", "targetDate": "$testYear/08/15", "newAmount": 55.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawSlashQuery)
@@ -316,7 +319,7 @@ class AiActionValidationTest {
 
         // Query with month name "August 2026" -> should match normalized month key
         val rawMonthNameQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "August $testYear", "newAmount": 65.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "$targetTitle", "targetDate": "August $testYear", "newAmount": 65.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawMonthNameQuery)
@@ -530,7 +533,7 @@ class AiActionValidationTest {
 
         // 1. Delete only this test's Aug 15 transaction using slash format "2026/08/15".
         val rawDeleteSlashDay = """
-            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "$testRunId", "targetDate": "2026/08/15"}
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "$testRunId", "targetDate": "$testYear/08/15"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawDeleteSlashDay)
@@ -548,7 +551,7 @@ class AiActionValidationTest {
 
         // 2. Delete ALL August transactions using month-name target "August 2026".
         val rawDeleteAugMonth = """
-            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL", "targetDate": "August 2026"}
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL", "targetDate": "August $testYear"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawDeleteAugMonth)
