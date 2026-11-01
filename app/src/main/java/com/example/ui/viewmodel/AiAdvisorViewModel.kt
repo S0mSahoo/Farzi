@@ -340,7 +340,7 @@ class AiAdvisorViewModel : ViewModel() {
 
     private fun isValidMonthKey(value: String): Boolean {
         // Keep YYYY-MM validation compatible with minSdk 24 without java.time desugaring.
-        if (!Regex("""^\\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
+        if (!Regex("""^\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
         return true
     }
 
