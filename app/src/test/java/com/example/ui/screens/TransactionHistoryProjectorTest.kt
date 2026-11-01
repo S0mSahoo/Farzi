@@ -90,6 +90,38 @@ class TransactionHistoryProjectorTest {
   }
 
   @Test
+  fun projectorReadsSourceTransactionsOnlyOnce() {
+    val calendar = Calendar.getInstance().apply { timeInMillis = at(6) }
+    val source = listOf(
+      item(1, 4, 100.0, TransactionType.EXPENSE),
+      item(2, 5, 250.0, TransactionType.INCOME),
+      item(3, 6, 50.0, TransactionType.EXPENSE),
+      item(4, 30, 900.0, TransactionType.INCOME, Calendar.SEPTEMBER)
+    )
+    var reads = 0
+    val countingTransactions = object : AbstractList<TransactionItem>() {
+      override val size: Int get() = source.size
+      override fun get(index: Int): TransactionItem {
+        reads++
+        return source[index]
+      }
+    }
+
+    val result = TransactionHistoryProjector.project(
+      transactions = countingTransactions,
+      startOfMonthMillis = DateUtils.getStartOfMonth(calendar),
+      endOfMonthMillis = DateUtils.getEndOfMonth(calendar),
+      selectedDayOfMonth = null,
+      referenceTimestamp = at(6)
+    )
+
+    assertEquals(source.size, reads)
+    assertEquals(3, result.recordCount)
+    assertEquals(250.0, result.totalIncome, 0.001)
+    assertEquals(150.0, result.totalExpense, 0.001)
+  }
+
+  @Test
   fun emptySelectionReturnsZeroTotalsAndNoFeedEntries() {
     val calendar = Calendar.getInstance().apply { timeInMillis = at(6) }
     val result = TransactionHistoryProjector.project(
