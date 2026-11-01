@@ -92,7 +92,7 @@ class CalendarRegressionTest {
     val octoberFifth = days.filterNotNull().single { it.dayOfMonth == 5 }
 
     assertEquals(source.size, reads)
-    assertEquals(1, octoberFifth.transactions.size)
+    assertEquals(2, octoberFifth.transactions.size)
     assertEquals(500.0, octoberFifth.totalIncome, 0.001)
     assertEquals(100.0, octoberFifth.totalExpense, 0.001)
     assertEquals(31, days.filterNotNull().size)
