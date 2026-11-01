@@ -63,6 +63,53 @@ class CryptoManagerTest {
   }
 
   @Test
+  fun localDecryptRejectsInvalidGcmIvLength() {
+    val encrypted = CryptoManager.encryptLocal("private note", "local master key")
+    val invalidIv = android.util.Base64.encodeToString(ByteArray(11), android.util.Base64.NO_WRAP)
+
+    try {
+      CryptoManager.decryptLocal(encrypted.first, invalidIv, "local master key")
+      org.junit.Assert.fail("AES-GCM decryption must reject an IV that is not 12 bytes")
+    } catch (_: IllegalArgumentException) {
+      // Expected: malformed persisted IV is rejected before cipher initialisation.
+    }
+  }
+
+  @Test
+  fun localDecryptRejectsCiphertextShorterThanGcmAuthenticationTag() {
+    val invalidCiphertext = android.util.Base64.encodeToString(ByteArray(15), android.util.Base64.NO_WRAP)
+    val validIv = android.util.Base64.encodeToString(ByteArray(12), android.util.Base64.NO_WRAP)
+
+    try {
+      CryptoManager.decryptLocal(invalidCiphertext, validIv, "local master key")
+      org.junit.Assert.fail("AES-GCM ciphertext must contain a complete authentication tag")
+    } catch (_: IllegalArgumentException) {
+      // Expected: truncated ciphertext is rejected before cipher initialisation.
+    }
+  }
+
+  @Test
+  fun recoveryDecryptRejectsInvalidGcmIvLength() {
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      "{}",
+      "correct horse battery staple 2026"
+    )
+    val malformed = bundle.copy(
+      ivBase64 = android.util.Base64.encodeToString(ByteArray(13), android.util.Base64.NO_WRAP)
+    )
+
+    try {
+      CryptoManager.decryptCloudPayloadWithPassphrase(
+        malformed,
+        "correct horse battery staple 2026"
+      )
+      org.junit.Assert.fail("Recovery payload must reject a non-standard GCM IV")
+    } catch (_: IllegalArgumentException) {
+      // Expected: malformed envelope is rejected before cipher initialisation.
+    }
+  }
+
+  @Test
   fun recoveryPassphraseRequiresAtLeastTwelveCharacters() {
     var encryptionRejected = false
     try {
