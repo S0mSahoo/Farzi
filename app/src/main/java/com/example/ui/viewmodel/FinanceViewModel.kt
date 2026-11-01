@@ -791,7 +791,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       // 1. Genuine guest mode or unauthenticated local profile check
       if (!isAuthenticatedProfile()) {
         return@withContext try {
-          CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          // Guest/offline mode cannot inspect a cloud backup. Permit first-time setup, or
+          // re-entering the exact saved value, but never replace an existing key without
+          // verifying it against its cloud envelope. Otherwise a guest session after sign-out
+          // could silently make the user's existing Drive backup undecryptable.
+          val storedPassphrase = CryptoManager.getStoredCloudRecoveryPassphrase(getApplication())
+          if (storedPassphrase != null && storedPassphrase != candidatePassphrase) {
+            return@withContext Result.failure(
+              IllegalStateException(
+                "Sign in to the Google account that owns the cloud backup before changing its recovery passphrase. The existing passphrase was kept."
+              )
+            )
+          }
+          if (storedPassphrase == null) {
+            CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          }
           Result.success(Unit)
         } catch (e: Exception) {
           Result.failure(e)
