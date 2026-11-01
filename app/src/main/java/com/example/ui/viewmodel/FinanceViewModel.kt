@@ -1256,7 +1256,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   private fun isValidMonthKey(value: String): Boolean {
     // Persisted month keys use the strict YYYY-MM format on all supported Android API levels.
-    if (!Regex("""^\\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
+    if (!Regex("""^\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
     return value.substring(0, 4).toIntOrNull()?.let { it in 1..9999 } == true
   }
 
