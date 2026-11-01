@@ -205,14 +205,15 @@ fun OnboardingScreen(
 
       // 2. Eight swipeable feature pages. Sign-in and Guest actions remain below and fixed.
       Column(
-        modifier = Modifier.fillMaxWidth().weight(1f, fill = false).padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
       ) {
         HorizontalPager(
           state = pagerState,
           modifier = Modifier.fillMaxWidth()
+            .weight(1f)
             .heightIn(
-              min = if (isLandscapePhone) 185.dp else 270.dp,
+              min = if (isLandscapePhone) 145.dp else 180.dp,
               max = if (isLandscapePhone) 245.dp else 390.dp
             )
             .testTag("onboarding_pager"),
