@@ -304,7 +304,7 @@ class AiActionValidationTest {
 
         // Query with slash format "2026/08/15" -> should match normalized ISO day
         val rawSlashQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "2026/08/15", "newAmount": 55.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "$testYear/08/15", "newAmount": 55.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawSlashQuery)
@@ -316,7 +316,7 @@ class AiActionValidationTest {
 
         // Query with month name "August 2026" -> should match normalized month key
         val rawMonthNameQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "August 2026", "newAmount": 65.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "August $testYear", "newAmount": 65.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawMonthNameQuery)
@@ -507,9 +507,12 @@ class AiActionValidationTest {
     @Test
     fun testNormalizedDateMatchingForDeletionsActualRecords() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val timeAug10 = sdf.parse("2026-08-10")!!.time
-        val timeAug15 = sdf.parse("2026-08-15")!!.time
-        val timeSept1 = sdf.parse("2026-09-01")!!.time
+        // Use a distant test-only year so the intentional "ALL August" action cannot
+        // delete fixed-date fixtures belonging to another test in the shared Room database.
+        val testYear = Calendar.getInstance().get(Calendar.YEAR) + 50
+        val timeAug10 = sdf.parse(String.format(Locale.US, "%04d-08-10", testYear))!!.time
+        val timeAug15 = sdf.parse(String.format(Locale.US, "%04d-08-15", testYear))!!.time
+        val timeSept1 = sdf.parse(String.format(Locale.US, "%04d-09-01", testYear))!!.time
         // Room is a process-wide singleton in these Robolectric tests. A unique token prevents
         // records left by other tests from matching this test's title/category query.
         val testRunId = java.util.UUID.randomUUID().toString().take(8)
