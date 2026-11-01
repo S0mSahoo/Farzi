@@ -9,8 +9,9 @@ package com.example.data.ai
  */
 internal object AiModelConfiguration {
   const val DEFAULT_MODEL_NAME = "gemini-3.8-flash"
+  const val FAST_FALLBACK_MODEL_NAME = "gemini-3.5-flash-lite"
 
-  private val supportedModelNames = setOf(DEFAULT_MODEL_NAME)
+  private val supportedModelNames = setOf(DEFAULT_MODEL_NAME, FAST_FALLBACK_MODEL_NAME)
 
   fun resolve(configuredModelName: String?): String {
     val candidate = configuredModelName?.trim().orEmpty()
