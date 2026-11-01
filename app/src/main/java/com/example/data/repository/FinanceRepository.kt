@@ -83,26 +83,56 @@ class FinanceRepository(private val context: Context) {
   }
 
   suspend fun deleteTransaction(item: TransactionItem): Int = withContext(Dispatchers.IO) {
-    transactionDao.deleteTransaction(TransactionEntity.fromModel(item))
+    database.withTransaction {
+      val deleted = transactionDao.deleteTransaction(TransactionEntity.fromModel(item))
+      if (deleted > 0 && item.id > 0L) {
+        paidRecurringOccurrenceDao.deleteByPaidTransactionIds(listOf(item.id))
+      }
+      deleted
+    }
   }
 
   suspend fun deleteTransactionById(id: Long): Int = withContext(Dispatchers.IO) {
-    transactionDao.deleteById(id)
+    database.withTransaction {
+      val deleted = transactionDao.deleteById(id)
+      if (deleted > 0 && id > 0L) {
+        paidRecurringOccurrenceDao.deleteByPaidTransactionIds(listOf(id))
+      }
+      deleted
+    }
   }
 
   suspend fun clearAllTransactions() = withContext(Dispatchers.IO) {
-    transactionDao.clearAll()
+    database.withTransaction {
+      transactionDao.clearAll()
+      paidRecurringOccurrenceDao.clearAll()
+    }
   }
 
   // ================= Bulk Delete =================
 
   suspend fun deleteTransactionsByIds(ids: List<Long>): Int = withContext(Dispatchers.IO) {
-    if (ids.isEmpty()) return@withContext 0
-    transactionDao.deleteByIds(ids)
+    val distinctIds = ids.filter { it > 0L }.distinct()
+    if (distinctIds.isEmpty()) return@withContext 0
+    database.withTransaction {
+      val deleted = transactionDao.deleteByIds(distinctIds)
+      if (deleted > 0) {
+        paidRecurringOccurrenceDao.deleteByPaidTransactionIds(distinctIds)
+      }
+      deleted
+    }
   }
 
   suspend fun deleteTransactionsBetween(startTime: Long, endTime: Long): Int = withContext(Dispatchers.IO) {
-    transactionDao.deleteBetween(startTime, endTime)
+    if (endTime < startTime) return@withContext 0
+    database.withTransaction {
+      val transactionIds = transactionDao.getTransactionsBetween(startTime, endTime).map { it.id }
+      val deleted = transactionDao.deleteBetween(startTime, endTime)
+      if (deleted > 0 && transactionIds.isNotEmpty()) {
+        paidRecurringOccurrenceDao.deleteByPaidTransactionIds(transactionIds)
+      }
+      deleted
+    }
   }
 
   // ================= Budgets CRUD =================
@@ -126,8 +156,11 @@ class FinanceRepository(private val context: Context) {
   }
 
   suspend fun deleteRecurringRule(id: Long): Int = withContext(Dispatchers.IO) {
-    paidRecurringOccurrenceDao.deleteForRule(id)
-    recurringRuleDao.deleteRuleById(id)
+    database.withTransaction {
+      // Historical transactions are deliberately retained; only the schedule and its markers go.
+      paidRecurringOccurrenceDao.deleteForRule(id)
+      recurringRuleDao.deleteRuleById(id)
+    }
   }
 
   suspend fun toggleRecurringRule(id: Long, isActive: Boolean) = withContext(Dispatchers.IO) {
@@ -188,7 +221,10 @@ class FinanceRepository(private val context: Context) {
       val dateKey = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date(occurrenceTimestamp))
       val existingPaid = paidRecurringOccurrenceDao.getPaidOccurrence(rule.id, dateKey)
       if (existingPaid != null && !existingPaid.isCancelled && existingPaid.paidTransactionId > 0) {
-        return@withTransaction existingPaid.paidTransactionId
+        // Repair a stale marker left by older app versions if its transaction was removed.
+        if (transactionDao.getTransactionById(existingPaid.paidTransactionId) != null) {
+          return@withTransaction existingPaid.paidTransactionId
+        }
       }
 
       // The transaction and its recurring-payment marker must commit together. Otherwise a
@@ -220,19 +256,30 @@ class FinanceRepository(private val context: Context) {
   }
 
   suspend fun cancelRecurringOccurrence(ruleId: Long, dateKey: String) = withContext(Dispatchers.IO) {
-    paidRecurringOccurrenceDao.markPaid(
-      PaidRecurringOccurrenceEntity(
-        ruleId = ruleId,
-        occurrenceDateKey = dateKey,
-        paidTransactionId = -1L,
-        paidTimestamp = System.currentTimeMillis(),
-        isCancelled = true
+    database.withTransaction {
+      val existing = paidRecurringOccurrenceDao.getPaidOccurrence(ruleId, dateKey)
+      if (existing != null && !existing.isCancelled && existing.paidTransactionId > 0L &&
+        transactionDao.getTransactionById(existing.paidTransactionId) != null) {
+        throw IllegalStateException("This recurring occurrence is already marked as paid. Delete its transaction before skipping it.")
+      }
+      if (existing?.isCancelled == true) return@withTransaction
+      paidRecurringOccurrenceDao.markPaid(
+        PaidRecurringOccurrenceEntity(
+          ruleId = ruleId,
+          occurrenceDateKey = dateKey,
+          paidTransactionId = -1L,
+          paidTimestamp = System.currentTimeMillis(),
+          isCancelled = true
+        )
       )
-    )
+    }
   }
 
   suspend fun restoreRecurringOccurrence(ruleId: Long, dateKey: String) = withContext(Dispatchers.IO) {
-    paidRecurringOccurrenceDao.unmarkPaid(ruleId, dateKey)
+    database.withTransaction {
+      // Never remove a genuine paid marker through the restore/unschedule action.
+      paidRecurringOccurrenceDao.unmarkCancelled(ruleId, dateKey)
+    }
   }
 
   private fun occurrenceAtIndex(startDateMillis: Long, interval: RecurrenceInterval, index: Int): Long {
