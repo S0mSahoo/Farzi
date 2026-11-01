@@ -301,4 +301,109 @@ class CryptoManagerTest {
     assertEquals(listOf("new-iv" to "new-ciphertext"), writes)
   }
 
+  @Test
+  fun recoveryEnvelopeVerificationAcceptsOnlyMatchingPassphraseForCurrentScheme() {
+    val expected = "correct recovery passphrase 2026"
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      """{"transactions":[]}""",
+      expected
+    )
+
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "recovery-passphrase-v1",
+        expected
+      )
+    )
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MISMATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "recovery-passphrase-v1",
+        "incorrect recovery passphrase 2026"
+      )
+    )
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationKeepsLegacyFormatsOnMigrationPath() {
+    val bundle = EncryptedBundle(
+      saltBase64 = "",
+      ivBase64 = "",
+      ciphertextBase64 = ""
+    )
+
+    listOf("google-id-v1", "").forEach { scheme ->
+      assertEquals(
+        com.example.util.RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION,
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          bundle,
+          scheme,
+          "new recovery passphrase 2026"
+        )
+      )
+    }
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsUnknownEncryptionScheme() {
+    val bundle = EncryptedBundle("", "", "")
+
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "future-unknown-v9",
+        "new recovery passphrase 2026"
+      )
+    )
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsMalformedOrTamperedBundlesWithoutThrowing() {
+    val passphrase = "correct recovery passphrase 2026"
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      """{"sensitive":"value"}""",
+      passphrase
+    )
+    val ciphertext = android.util.Base64.decode(
+      bundle.ciphertextBase64,
+      android.util.Base64.NO_WRAP
+    )
+    ciphertext[ciphertext.lastIndex] = (ciphertext.last().toInt() xor 0x01).toByte()
+    val tampered = bundle.copy(
+      ciphertextBase64 = android.util.Base64.encodeToString(ciphertext, android.util.Base64.NO_WRAP)
+    )
+
+    val malformed = bundle.copy(ivBase64 = "not-base64")
+    val invalidSalt = bundle.copy(
+      saltBase64 = android.util.Base64.encodeToString(ByteArray(15), android.util.Base64.NO_WRAP)
+    )
+
+    listOf(tampered, malformed, invalidSalt).forEach { invalidBundle ->
+      assertEquals(
+        com.example.util.RecoveryPassphraseVerification.MISMATCH,
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          invalidBundle,
+          "recovery-passphrase-v1",
+          passphrase
+        )
+      )
+    }
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsShortCandidateBeforeDecryption() {
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MISMATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        EncryptedBundle("", "", ""),
+        "recovery-passphrase-v1",
+        "short"
+      )
+    )
+  }
+
 }
