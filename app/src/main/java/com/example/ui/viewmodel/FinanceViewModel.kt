@@ -58,7 +58,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.time.YearMonth
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -1255,17 +1254,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Budget Operations =================
 
+  private fun isValidMonthKey(value: String): Boolean {
+    // Persisted month keys use the strict YYYY-MM format on all supported Android API levels.
+    if (!Regex("""^\\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
+    return value.substring(0, 4).toIntOrNull()?.let { it in 1..9999 } == true
+  }
+
   suspend fun saveMonthlyBudgetSuspend(
     monthKey: String,
     totalBudget: Double,
     categoryBudgets: Map<TransactionCategory, Double> = emptyMap()
   ): Long = withContext(Dispatchers.IO) {
-    val validMonth = try {
-      YearMonth.parse(monthKey)
-      true
-    } catch (_: Exception) {
-      false
-    }
+    val validMonth = isValidMonthKey(monthKey)
     if (!validMonth || !totalBudget.isFinite() || totalBudget <= 0.0 ||
       categoryBudgets.values.any { !it.isFinite() || it < 0.0 }) {
       throw IllegalArgumentException("Invalid budget parameters")
