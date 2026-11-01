@@ -19,6 +19,14 @@ data class EncryptedBundle(
   val ciphertextBase64: String
 )
 
+/** Outcome of checking a candidate against the encryption format of a cloud backup. */
+enum class RecoveryPassphraseVerification {
+  MATCH,
+  LEGACY_BACKUP_REQUIRES_MIGRATION,
+  MISMATCH,
+  UNSUPPORTED_ENCRYPTION
+}
+
 object CryptoManager {
   private const val ALGORITHM = "AES/GCM/NoPadding"
   private const val GCM_TAG_LENGTH = 128
@@ -135,6 +143,29 @@ object CryptoManager {
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+  }
+
+  /**
+   * Applies the recovery-passphrase policy for a downloaded cloud envelope.
+   * Legacy formats remain recoverable through their existing migration path; unknown formats
+   * are rejected rather than accidentally treated as a valid passphrase.
+   */
+  fun verifyRecoveryPassphraseForEnvelope(
+    bundle: EncryptedBundle,
+    encryptionScheme: String,
+    passphrase: String
+  ): RecoveryPassphraseVerification {
+    if (passphrase.length < 12) return RecoveryPassphraseVerification.MISMATCH
+    return when (encryptionScheme) {
+      "recovery-passphrase-v1" ->
+        if (verifyPassphraseAgainstBundle(bundle, passphrase)) {
+          RecoveryPassphraseVerification.MATCH
+        } else {
+          RecoveryPassphraseVerification.MISMATCH
+        }
+      "google-id-v1", "" -> RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION
+      else -> RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION
+    }
   }
 
   /**
