@@ -1,6 +1,7 @@
 package com.example.ui.viewmodel
 
 import android.util.Log
+import com.example.BuildConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.model.PaymentMethod
