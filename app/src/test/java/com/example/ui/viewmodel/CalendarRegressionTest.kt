@@ -3,6 +3,10 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.model.CalendarDayData
+import com.example.data.model.PaymentMethod
+import com.example.data.model.TransactionCategory
+import com.example.data.model.TransactionItem
+import com.example.data.model.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
@@ -51,6 +55,47 @@ class CalendarRegressionTest {
     assertEquals(42, oct2026.size)
     val oct2026ActiveDays = oct2026.filterNotNull()
     assertEquals(31, oct2026ActiveDays.size)
+  }
+
+  @Test
+  fun calendarAggregationScansSourceOnceAndRetainsOnlyVisibleMonthTransactions() {
+    fun tx(id: Long, amount: Double, type: TransactionType, year: Int, month: Int, day: Int) =
+      TransactionItem(
+        id = id,
+        title = "Calendar $id",
+        amount = amount,
+        type = type,
+        category = if (type == TransactionType.INCOME) TransactionCategory.SALARY else TransactionCategory.GROCERIES,
+        timestamp = Calendar.getInstance().apply {
+          set(year, month, day, 12, 0, 0)
+          set(Calendar.MILLISECOND, 0)
+        }.timeInMillis,
+        paymentMethod = PaymentMethod.UPI
+      )
+
+    val source = listOf(
+      tx(1, 100.0, TransactionType.EXPENSE, 2026, Calendar.OCTOBER, 5),
+      tx(2, 500.0, TransactionType.INCOME, 2026, Calendar.OCTOBER, 5),
+      tx(3, 900.0, TransactionType.EXPENSE, 2026, Calendar.SEPTEMBER, 30),
+      tx(4, 700.0, TransactionType.INCOME, 2026, Calendar.NOVEMBER, 1)
+    )
+    var reads = 0
+    val countingTransactions = object : AbstractList<TransactionItem>() {
+      override val size: Int get() = source.size
+      override fun get(index: Int): TransactionItem {
+        reads++
+        return source[index]
+      }
+    }
+
+    val days = viewModel.computeCalendarDays(2026, Calendar.OCTOBER, countingTransactions)
+    val octoberFifth = days.filterNotNull().single { it.dayOfMonth == 5 }
+
+    assertEquals(source.size, reads)
+    assertEquals(1, octoberFifth.transactions.size)
+    assertEquals(500.0, octoberFifth.totalIncome, 0.001)
+    assertEquals(100.0, octoberFifth.totalExpense, 0.001)
+    assertEquals(31, days.filterNotNull().size)
   }
 
   @Test
