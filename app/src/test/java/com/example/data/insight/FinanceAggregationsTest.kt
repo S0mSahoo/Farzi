@@ -96,4 +96,44 @@ class FinanceAggregationsTest {
     assertEquals(200.0, trend[3].net, 0.001)
     assertTrue(trend.take(3).all { it.expense == 0.0 && it.income == 0.0 })
   }
+  @Test
+  fun monthlyMetricsVisitsEachTransactionOnceAndFeedsAllMonthlyProjections() {
+    val source = listOf(
+      tx(1, 12_000.0, TransactionType.INCOME, TransactionCategory.SALARY, 2026, Calendar.OCTOBER, 2),
+      tx(2, 1_000.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, 2026, Calendar.OCTOBER, 3),
+      tx(3, 500.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, 2026, Calendar.OCTOBER, 3),
+      tx(4, 9_000.0, TransactionType.EXPENSE, TransactionCategory.HOUSING, 2026, Calendar.SEPTEMBER, 30)
+    )
+    var reads = 0
+    val countingTransactions = object : AbstractList<TransactionItem>() {
+      override val size: Int get() = source.size
+      override fun get(index: Int): TransactionItem {
+        reads++
+        return source[index]
+      }
+    }
+    val calendar = Calendar.getInstance().apply {
+      set(2026, Calendar.OCTOBER, 15, 12, 0, 0)
+      set(Calendar.MILLISECOND, 0)
+    }
+
+    val metrics = FinanceAggregations.monthlyMetrics(countingTransactions, calendar)
+
+    assertEquals(source.size, reads)
+    assertEquals(12_000.0, metrics.totalIncome, 0.001)
+    assertEquals(1_500.0, metrics.totalExpense, 0.001)
+    assertEquals(3, metrics.transactionCount)
+    assertEquals(1, metrics.categorySpending.size)
+    assertEquals(1_500.0, metrics.categorySpending.single().amount, 0.001)
+    assertEquals(1_500.0, metrics.dailyTrend[2].expense, 0.001)
+    assertEquals(12_000.0, metrics.dailyTrend[1].income, 0.001)
+
+    val summary = FinanceAggregations.monthlySummary(
+      metrics,
+      listOf(BudgetModel(monthKey = "2026-10", totalBudget = 2_000.0))
+    )
+    assertEquals(2_000.0, summary.budgetLimit, 0.001)
+    assertEquals(500.0, summary.budgetRemaining, 0.001)
+  }
+
 }
