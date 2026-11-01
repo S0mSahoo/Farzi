@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.util.CryptoManager
+import com.example.util.EncryptedBundle
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
