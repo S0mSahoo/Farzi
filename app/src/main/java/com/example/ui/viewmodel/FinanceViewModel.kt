@@ -512,9 +512,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // Mon -> 0 leading blanks, Tue -> 1, ..., Sat -> 5, Sun -> 6
     val leadDays = (firstDayOfWeek - Calendar.MONDAY + 7) % 7
     val todayKey = DateUtils.getDayKey(Calendar.getInstance())
+    val monthStart = DateUtils.getStartOfMonth(cal)
+    val monthEnd = DateUtils.getEndOfMonth(cal)
 
-    // Aggregate each transaction once into a day bucket. UI rendering then performs O(1)
-    // lookups without repeatedly filtering the same day list for income and expenses.
+    // Aggregate only transactions belonging to the visible month. This still scans the source
+    // once, but avoids allocating date buckets and retaining transaction references for the
+    // user's entire history on every calendar page change.
+    // UI rendering then performs O(1) lookups without repeatedly filtering each day.
     data class DayAccumulator(
       val transactions: MutableList<TransactionItem> = mutableListOf(),
       var income: Double = 0.0,
@@ -522,6 +526,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     )
     val byDate = HashMap<String, DayAccumulator>()
     for (tx in transactions) {
+      if (tx.timestamp !in monthStart..monthEnd) continue
       val bucket = byDate.getOrPut(DateUtils.getDayKey(tx.timestamp)) { DayAccumulator() }
       bucket.transactions.add(tx)
       when (tx.type) {
