@@ -449,18 +449,29 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ----------------- 1. Dashboard Flows (Scoped to _universalCalendar) -----------------
 
-  val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+  // One shared transaction scan feeds all monthly dashboard projections.
+  private val dashboardMonthlyMetrics: StateFlow<com.example.data.insight.MonthlyFinanceMetrics> = combine(
     allTransactions,
-    allBudgets,
     _universalCalendar
-  ) { transactions, budgets, calendar ->
-    FinanceAggregations.monthlySummary(transactions, budgets, calendar)
+  ) { transactions, calendar ->
+    FinanceAggregations.monthlyMetrics(transactions, calendar)
   }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
-    initialValue = MonthlyFinancialSummary(
-      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
-      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
+    initialValue = FinanceAggregations.monthlyMetrics(emptyList(), _universalCalendar.value)
+  )
+
+  val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+    dashboardMonthlyMetrics,
+    allBudgets
+  ) { metrics, budgets ->
+    FinanceAggregations.monthlySummary(metrics, budgets)
+  }.stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = FinanceAggregations.monthlySummary(
+      FinanceAggregations.monthlyMetrics(emptyList(), _universalCalendar.value),
+      emptyList()
     )
   )
 
@@ -475,27 +486,13 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     initialValue = YearlyFinancialSummary(year = Calendar.getInstance().get(Calendar.YEAR))
   )
 
-  val dashboardCategorySpending: StateFlow<List<CategorySpending>> = combine(
-    allTransactions,
-    _universalCalendar
-  ) { transactions, calendar ->
-    FinanceAggregations.categorySpending(transactions, calendar)
-  }.flowOn(Dispatchers.Default).stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
+  val dashboardCategorySpending: StateFlow<List<CategorySpending>> = dashboardMonthlyMetrics
+    .map { it.categorySpending }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = combine(
-    allTransactions,
-    _universalCalendar
-  ) { transactions, calendar ->
-    FinanceAggregations.dailyTrend(transactions, calendar)
-  }.flowOn(Dispatchers.Default).stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
+  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = dashboardMonthlyMetrics
+    .map { it.dailyTrend }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   // ----------------- 2. Calendar Screen Flows (Scoped to _universalCalendar & _calendarSelectedDayMillis) -----------------
 
@@ -607,20 +604,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ----------------- 3. Budget Screen Flows (Scoped to _universalCalendar) -----------------
 
-  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
-    allTransactions,
-    allBudgets,
-    _universalCalendar
-  ) { transactions, budgets, cal ->
-    FinanceAggregations.monthlySummary(transactions, budgets, cal)
-  }.flowOn(Dispatchers.Default).stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = MonthlyFinancialSummary(
-      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
-      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
-    )
-  )
+  // Reuse the dashboard summary so the budget screen does not rescan transactions.
+  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
 
 
   // Category Detail View Flow (Respects universal calendar month)
