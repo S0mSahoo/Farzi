@@ -730,7 +730,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
 
         // Parse numeric dates explicitly instead of relying on locale-sensitive
         // SimpleDateFormat handling for both '-' and '/' separators.
-        val numericDay = Regex("""^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$""").matchEntire(clean)
+        val numericDay = Regex("""^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$""").matchEntire(clean)
         if (numericDay != null) {
             val year = numericDay.groupValues[1].toInt()
             val month = numericDay.groupValues[2].toInt()
@@ -738,7 +738,7 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
             return validateDateTarget(year, month, day)
         }
 
-        val numericMonth = Regex("""^(\\d{4})[-/](\\d{1,2})$""").matchEntire(clean)
+        val numericMonth = Regex("""^(\d{4})[-/](\d{1,2})$""").matchEntire(clean)
         if (numericMonth != null) {
             val year = numericMonth.groupValues[1].toInt()
             val month = numericMonth.groupValues[2].toInt()
