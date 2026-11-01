@@ -59,13 +59,22 @@ class FinanceAggregationsTest {
 
   @Test
   fun yearlySummaryAggregatesEachTransactionOnceIntoMonthBuckets() {
-    val transactions = listOf(
+    val source = listOf(
       tx(1, 10_000.0, TransactionType.INCOME, TransactionCategory.SALARY, 2026, Calendar.JANUARY, 2),
       tx(2, 2_000.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, 2026, Calendar.JANUARY, 3),
       tx(3, 5_000.0, TransactionType.INCOME, TransactionCategory.FREELANCE, 2026, Calendar.MARCH, 1),
       tx(4, 8_000.0, TransactionType.EXPENSE, TransactionCategory.HOUSING, 2025, Calendar.DECEMBER, 31)
     )
+    var reads = 0
+    val transactions = object : AbstractList<TransactionItem>() {
+      override val size: Int get() = source.size
+      override fun get(index: Int): TransactionItem {
+        reads++
+        return source[index]
+      }
+    }
     val summary = FinanceAggregations.yearlySummary(transactions, 2026)
+    assertEquals(source.size, reads)
 
     assertEquals(15_000.0, summary.totalIncome, 0.001)
     assertEquals(2_000.0, summary.totalExpense, 0.001)
