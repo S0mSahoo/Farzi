@@ -837,40 +837,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
       }
 
-      // 6. Handle encryption schemes explicitly
-      when (envelope.encryptionScheme) {
-        "recovery-passphrase-v1" -> {
-          val bundle = com.example.util.EncryptedBundle(
-            saltBase64 = envelope.saltBase64,
-            ivBase64 = envelope.ivBase64,
-            ciphertextBase64 = envelope.ciphertextBase64
-          )
-          val isValid = CryptoManager.verifyPassphraseAgainstBundle(bundle, candidatePassphrase)
-          if (!isValid) {
-            return@withContext Result.failure(
-              IllegalArgumentException("The entered recovery passphrase does not match your existing Google Drive cloud backup. Previously saved passphrase was kept.")
-            )
-          }
-
+      // 6. Verify the candidate according to the envelope's declared encryption scheme.
+      val bundle = com.example.util.EncryptedBundle(
+        saltBase64 = envelope.saltBase64,
+        ivBase64 = envelope.ivBase64,
+        ciphertextBase64 = envelope.ciphertextBase64
+      )
+      when (
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          bundle = bundle,
+          encryptionScheme = envelope.encryptionScheme,
+          passphrase = candidatePassphrase
+        )
+      ) {
+        com.example.util.RecoveryPassphraseVerification.MATCH,
+        com.example.util.RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION -> {
+          // Re-check both profile and account after the network operation; a session switch
+          // while the envelope was downloading must never authorize a local credential change.
           val currentAccount = driveService.getLastSignedInAccount()
-          if (!isAuthenticatedProfile() || currentAccount == null || !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id) {
-            return@withContext Result.failure(
-              IllegalStateException("The active session changed during verification. Passphrase was not updated.")
-            )
-          }
-
-          try {
-            CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
-            Result.success(Unit)
-          } catch (e: Exception) {
-            Result.failure(e)
-          }
-        }
-        "google-id-v1", "" -> {
-          // Legacy backup encrypted with Google ID.
-          // Allow new passphrase to be established; subsequent sync will migrate backup.
-          val currentAccount = driveService.getLastSignedInAccount()
-          if (!isAuthenticatedProfile() || currentAccount == null || !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id) {
+          if (!isAuthenticatedProfile() || currentAccount == null ||
+            !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id
+          ) {
             return@withContext Result.failure(
               IllegalStateException("The active session changed during verification. Passphrase was not updated.")
             )
@@ -882,10 +869,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             Result.failure(e)
           }
         }
-        else -> {
-          // Unknown encryption scheme. Fail safely.
+        com.example.util.RecoveryPassphraseVerification.MISMATCH -> {
           Result.failure(
-            IllegalStateException("The existing cloud backup uses an unsupported encryption scheme ('${envelope.encryptionScheme}'). Previously saved passphrase was kept.")
+            IllegalArgumentException(
+              "The entered recovery passphrase does not match your existing Google Drive cloud backup. Previously saved passphrase was kept."
+            )
+          )
+        }
+        com.example.util.RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION -> {
+          Result.failure(
+            IllegalStateException(
+              "The existing cloud backup uses an unsupported encryption scheme ('${envelope.encryptionScheme}'). Previously saved passphrase was kept."
+            )
           )
         }
       }
