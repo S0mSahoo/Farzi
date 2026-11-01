@@ -27,6 +27,7 @@ import com.example.data.model.PaymentMethod
 import com.example.data.insight.FinanceInsight
 import com.example.data.insight.FinanceInsightEngine
 import com.example.data.insight.FinanceAggregations
+import com.example.data.insight.TransactionFilterProjector
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
@@ -906,16 +907,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _filterType,
     _filterCategory
   ) { transactions, query, type, cat ->
-    transactions.filter { item ->
-      val matchesQuery = query.isBlank() ||
-          item.title.contains(query, ignoreCase = true) ||
-          item.category.displayName.contains(query, ignoreCase = true) ||
-          item.note.contains(query, ignoreCase = true) ||
-          item.amount.toString().contains(query)
-      val matchesType = type == null || item.type == type
-      val matchesCat = cat == null || item.category == cat
-      matchesQuery && matchesType && matchesCat
-    }
+    TransactionFilterProjector.filter(transactions, query, type, cat)
   }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
