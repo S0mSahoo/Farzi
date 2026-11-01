@@ -10,6 +10,7 @@ import com.example.data.model.TransactionCategory
 import com.example.data.ai.DefaultFinancialToolExecutor
 import com.example.data.ai.FinancialQueryTools
 import com.example.data.ai.FinancialToolExecutor
+import com.example.data.ai.AiModelConfiguration
 import com.example.data.model.TransactionItem
 import com.example.data.model.TransactionType
 import com.example.ui.components.DateUtils
@@ -352,7 +353,7 @@ class AiAdvisorViewModel : ViewModel() {
         activeChat?.let { return it }
 
         val newChat = Firebase.ai.generativeModel(
-            modelName = "gemini-3.8-flash",
+            modelName = AiModelConfiguration.resolve(BuildConfig.PAISA_AI_MODEL_NAME),
             tools = FinancialQueryTools.allTools
         ).startChat(
             history = listOf(
