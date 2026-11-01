@@ -203,4 +203,102 @@ class CryptoManagerTest {
 
     assertEquals("Original passphrase must remain intact after validation failure", initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
   }
+  @Test
+  fun recoveryPreferenceWriteFailureRestoresExactPreviousValues() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+    var call = 0
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = "old-iv",
+        previousValue = "old-ciphertext",
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        call++
+        call == 2
+      }
+      org.junit.Assert.fail("A failed first write must report an IOException after rollback")
+    } catch (e: java.io.IOException) {
+      assertTrue(e.message.orEmpty().contains("previous saved value was restored"))
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", "old-iv" to "old-ciphertext"),
+      writes
+    )
+  }
+
+  @Test
+  fun recoveryPreferenceWriteAndRollbackFailureIsReportedAsUncertainState() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = null,
+        previousValue = null,
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        false
+      }
+      org.junit.Assert.fail("A failed write and failed rollback must be surfaced as an uncertain state")
+    } catch (e: IllegalStateException) {
+      assertTrue(e.message.orEmpty().contains("could not be confirmed"))
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", null to null),
+      writes
+    )
+  }
+
+  @Test
+  fun recoveryPreferenceCommitExceptionStillAttemptsRollback() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+    var call = 0
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = "old-iv",
+        previousValue = "old-ciphertext",
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        call++
+        if (call == 1) throw java.io.IOException("simulated commit exception")
+        true
+      }
+      org.junit.Assert.fail("A commit exception must be reported after rollback")
+    } catch (e: java.io.IOException) {
+      assertTrue(e.message.orEmpty().contains("previous saved value was restored"))
+      assertEquals("simulated commit exception", e.cause?.message)
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", "old-iv" to "old-ciphertext"),
+      writes
+    )
+  }
+
+  @Test
+  fun successfulRecoveryPreferenceWriteDoesNotRunRollback() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+
+    CryptoManager.persistRecoveryPassphraseValues(
+      previousIv = "old-iv",
+      previousValue = "old-ciphertext",
+      newIv = "new-iv",
+      newValue = "new-ciphertext"
+    ) { iv, value ->
+      writes += iv to value
+      true
+    }
+
+    assertEquals(listOf("new-iv" to "new-ciphertext"), writes)
+  }
+
 }
