@@ -21,6 +21,14 @@ class AiModelConfigurationTest {
   }
 
   @Test
+  fun verifiedFlashLiteModelCanBeSelectedForLowerCostDeployments() {
+    assertEquals(
+      AiModelConfiguration.FAST_FALLBACK_MODEL_NAME,
+      AiModelConfiguration.resolve(AiModelConfiguration.FAST_FALLBACK_MODEL_NAME)
+    )
+  }
+
+  @Test
   fun unsupportedModelFailsFastInsteadOfSilentlyChangingModels() {
     assertThrows(IllegalArgumentException::class.java) {
       AiModelConfiguration.resolve("gemini-2.0-flash")
