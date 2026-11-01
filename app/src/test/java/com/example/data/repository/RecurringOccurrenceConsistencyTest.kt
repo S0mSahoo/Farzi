@@ -71,6 +71,18 @@ class RecurringOccurrenceConsistencyTest {
   }
 
   @Test
+  fun calendarStyleTransactionDeletionAlsoRemovesItsPaidMarker() = runBlocking {
+    val (rule, timestamp) = createRule("Calendar delete rule")
+    val transactionId = markPaid(rule, timestamp)
+    val transaction = repository.allTransactions.first().single()
+
+    assertEquals(transactionId, transaction.id)
+    assertEquals(1, repository.deleteTransaction(transaction))
+    assertTrue(repository.allTransactions.first().isEmpty())
+    assertTrue(repository.allPaidOccurrences.first().isEmpty())
+  }
+
+  @Test
   fun bulkAndDateRangeDeletionAlsoRemoveLinkedOccurrenceMarkers() = runBlocking {
     val (bulkRule, bulkTimestamp) = createRule("Bulk delete rule")
     val bulkTransactionId = markPaid(bulkRule, bulkTimestamp)
