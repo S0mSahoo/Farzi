@@ -338,6 +338,12 @@ class AiAdvisorViewModel : ViewModel() {
         lastFailedPrompt = null
     }
 
+    private fun isValidMonthKey(value: String): Boolean {
+        // Keep YYYY-MM validation compatible with minSdk 24 without java.time desugaring.
+        if (!Regex("""^\\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
+        return true
+    }
+
     private fun getCurrencySymbol(): String {
         return financeViewModel?.userProfile?.value?.currencySymbol ?: "₹"
     }
@@ -944,10 +950,8 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
             }
             "SET_BUDGET", "SAVE_BUDGET" -> {
                 val monthKey = json.optString("monthKey", DateUtils.getMonthKey(System.currentTimeMillis())).trim()
-                try {
-                    java.time.YearMonth.parse(monthKey)
-                } catch (_: Exception) {
-                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected YYYY-MM.")
+                if (!isValidMonthKey(monthKey)) {
+                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected a valid YYYY-MM month.")
                 }
                 val totalBudget = json.optDouble("totalBudget", 0.0)
                 if (totalBudget <= 0.0 || !totalBudget.isFinite()) {
@@ -968,10 +972,8 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
                 if (monthKey.isBlank()) {
                     return ActionParseResult(error = "Month key for budget deletion cannot be blank.")
                 }
-                try {
-                    java.time.YearMonth.parse(monthKey)
-                } catch (_: Exception) {
-                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected YYYY-MM.")
+                if (!isValidMonthKey(monthKey)) {
+                    return ActionParseResult(error = "Invalid month key format '$monthKey'. Expected a valid YYYY-MM month.")
                 }
                 val allBudgets = financeViewModel?.allBudgets?.value ?: emptyList()
                 val existing = allBudgets.find { it.monthKey == monthKey }
