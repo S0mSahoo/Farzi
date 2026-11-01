@@ -715,7 +715,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       }
     }
     results.sortedBy { it.occurrenceTimestamp }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -723,15 +723,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   val todayRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.DUE_TODAY }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val overdueRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.OVERDUE }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val upcomingRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.SCHEDULED || it.status == OccurrenceStatus.UPCOMING }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   fun markRecurringPaymentPaid(occurrence: RecurringOccurrence) {
     viewModelScope.launch {
