@@ -723,34 +723,61 @@ Intervals: DAILY, WEEKLY, MONTHLY, YEARLY.
     }
 
     private fun parseAndNormalizeDateTarget(targetDate: String): Result<DateTarget> {
-        if (targetDate.isBlank()) return Result.failure(IllegalArgumentException("Target date cannot be blank."))
+        if (targetDate.isBlank()) {
+            return Result.failure(IllegalArgumentException("Target date cannot be blank."))
+        }
         val clean = targetDate.trim()
-        val formats = listOf(
-            "yyyy-MM-dd" to false,
-            "yyyy-MM" to true,
-            "yyyy/MM/dd" to false,
-            "yyyy/MM" to true,
-            "MMMM yyyy" to true,
-            "MMM yyyy" to true,
-            "MMMM, yyyy" to true
-        )
 
-        val sdfDayOut = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val sdfMonthOut = SimpleDateFormat("yyyy-MM", Locale.US)
+        // Parse numeric dates explicitly instead of relying on locale-sensitive
+        // SimpleDateFormat handling for both '-' and '/' separators.
+        val numericDay = Regex("""^(\\d{4})[-/](\\d{1,2})[-/](\\d{1,2})$""").matchEntire(clean)
+        if (numericDay != null) {
+            val year = numericDay.groupValues[1].toInt()
+            val month = numericDay.groupValues[2].toInt()
+            val day = numericDay.groupValues[3].toInt()
+            return validateDateTarget(year, month, day)
+        }
 
-        for ((pattern, isMonthOnly) in formats) {
+        val numericMonth = Regex("""^(\\d{4})[-/](\\d{1,2})$""").matchEntire(clean)
+        if (numericMonth != null) {
+            val year = numericMonth.groupValues[1].toInt()
+            val month = numericMonth.groupValues[2].toInt()
+            if (year !in 1..9999 || month !in 1..12) {
+                return Result.failure(IllegalArgumentException("Invalid target date format '$targetDate'."))
+            }
+            return Result.success(DateTarget.MonthKey(String.format(Locale.US, "%04d-%02d", year, month)))
+        }
+
+        // Keep named-month support (e.g. "August 2026") for natural-language actions.
+        val namedMonthFormats = listOf("MMMM yyyy", "MMM yyyy", "MMMM, yyyy")
+        for (pattern in namedMonthFormats) {
             val sdf = SimpleDateFormat(pattern, Locale.US).apply { isLenient = false }
             val pos = java.text.ParsePosition(0)
             val parsed = sdf.parse(clean, pos)
             if (parsed != null && pos.index == clean.length) {
-                return if (isMonthOnly) {
-                    Result.success(DateTarget.MonthKey(sdfMonthOut.format(parsed)))
-                } else {
-                    Result.success(DateTarget.DayKey(sdfDayOut.format(parsed)))
-                }
+                return Result.success(
+                    DateTarget.MonthKey(SimpleDateFormat("yyyy-MM", Locale.US).format(parsed))
+                )
             }
         }
         return Result.failure(IllegalArgumentException("Invalid target date format '$targetDate'."))
+    }
+
+    private fun validateDateTarget(year: Int, month: Int, day: Int): Result<DateTarget> {
+        if (year !in 1..9999 || month !in 1..12 || day !in 1..31) {
+            return Result.failure(IllegalArgumentException("Invalid target date format."))
+        }
+        return try {
+            val calendar = Calendar.getInstance().apply {
+                isLenient = false
+                clear()
+                set(year, month - 1, day, 12, 0, 0)
+            }
+            calendar.timeInMillis // Forces strict calendar validation (e.g. rejects February 30).
+            Result.success(DateTarget.DayKey(String.format(Locale.US, "%04d-%02d-%02d", year, month, day)))
+        } catch (_: IllegalArgumentException) {
+            Result.failure(IllegalArgumentException("Invalid target date format."))
+        }
     }
 
     private fun parseAndValidateSingleAction(json: JSONObject): ActionParseResult {
