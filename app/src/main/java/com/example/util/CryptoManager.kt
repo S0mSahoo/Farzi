@@ -35,6 +35,14 @@ object CryptoManager {
 
   private val secureRandom = SecureRandom()
 
+  private fun requireValidGcmIv(iv: ByteArray) {
+    require(iv.size == GCM_IV_LENGTH) { "Invalid AES-GCM initialization vector." }
+  }
+
+  private fun requireValidGcmCiphertext(ciphertext: ByteArray) {
+    require(ciphertext.size >= GCM_TAG_LENGTH / 8) { "Invalid AES-GCM ciphertext." }
+  }
+
   /**
    * Legacy key derivation retained exclusively to decrypt backups created by older app versions.
    * A Google account identifier is not a secret and must not protect newly written backups.
@@ -121,7 +129,8 @@ object CryptoManager {
     val iv = Base64.decode(bundle.ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(bundle.ciphertextBase64, Base64.NO_WRAP)
     require(salt.size == SALT_LENGTH) { "Invalid backup encryption salt." }
-    require(iv.size == GCM_IV_LENGTH) { "Invalid backup encryption IV." }
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val key = deriveRecoveryKey(passphrase, salt)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
@@ -243,6 +252,8 @@ object CryptoManager {
     val cipher = Cipher.getInstance(ALGORITHM)
     val iv = Base64.decode(ivText, Base64.NO_WRAP)
     val encrypted = Base64.decode(encryptedText, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(encrypted)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(encrypted), Charsets.UTF_8)
   }
@@ -284,6 +295,8 @@ object CryptoManager {
     val salt = Base64.decode(bundle.saltBase64, Base64.NO_WRAP)
     val iv = Base64.decode(bundle.ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(bundle.ciphertextBase64, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val key = deriveKey(userIdentifier, salt)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
@@ -313,6 +326,8 @@ object CryptoManager {
     val key = deriveKey(localMasterKey, salt)
     val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
