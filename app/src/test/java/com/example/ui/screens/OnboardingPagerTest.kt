@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -41,7 +42,7 @@ class OnboardingPagerTest {
     composeTestRule.waitForIdle()
 
     composeTestRule.onNodeWithTag("onboarding_pager").assertIsDisplayed()
-    composeTestRule.onNodeWithText("Page 1 of 8").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("onboarding_page_count").assertIsDisplayed().assertTextEquals("Page 1 of 8")
     composeTestRule.onNodeWithTag("google_sign_in_button").assertIsDisplayed()
     composeTestRule.onNodeWithTag("guest_login_button").assertIsDisplayed()
   }
@@ -57,7 +58,7 @@ class OnboardingPagerTest {
 
     composeTestRule.onNodeWithTag("onboarding_next_button").performClick()
     composeTestRule.waitForIdle()
-    composeTestRule.onNodeWithText("Page 2 of 8").assertIsDisplayed()
+    composeTestRule.onNodeWithTag("onboarding_page_count").assertIsDisplayed().assertTextEquals("Page 2 of 8")
     composeTestRule.onNodeWithText("TRANSACTIONS").assertIsDisplayed()
 
     composeTestRule.onNodeWithTag("onboarding_back_button").performClick()
