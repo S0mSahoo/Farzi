@@ -305,6 +305,34 @@ class GoogleDriveBackupService(private val context: Context) {
   }
 
   /**
+   * Parses and structurally validates a downloaded cloud envelope before it can be used to
+   * authorize a recovery-passphrase change. Cryptographic field lengths and authentication are
+   * checked by CryptoManager when the candidate is verified.
+   */
+  internal fun parseRawCloudEnvelope(jsonContent: String): EncryptedCloudEnvelope {
+    if (jsonContent.isBlank()) {
+      throw IOException("The existing Google Drive backup file is empty.")
+    }
+
+    val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
+    val envelope = try {
+      envelopeAdapter.fromJson(jsonContent)
+    } catch (e: Exception) {
+      throw IOException("Malformed cloud backup envelope on Google Drive: ${e.localizedMessage ?: "Invalid JSON"}", e)
+    } ?: throw IOException("The cloud backup envelope on Google Drive is empty or could not be parsed.")
+
+    if (envelope.encrypted && (
+        envelope.saltBase64.isBlank() ||
+          envelope.ivBase64.isBlank() ||
+          envelope.ciphertextBase64.isBlank()
+      )
+    ) {
+      throw IOException("The cloud backup envelope on Google Drive is missing required encryption fields.")
+    }
+    return envelope
+  }
+
+  /**
    * Fetches the raw encrypted cloud envelope from Google Drive AppData space if present.
    * Does not attempt payload decryption or schema validation.
    * Throws IOException on network/HTTP failures.
@@ -331,23 +359,7 @@ class GoogleDriveBackupService(private val context: Context) {
     } finally {
       response.close()
     }
-    if (jsonContent.isBlank()) {
-      throw IOException("The existing Google Drive backup file is empty.")
-    }
-
-    val envelopeAdapter = moshi.adapter(EncryptedCloudEnvelope::class.java)
-    val envelope = try {
-      envelopeAdapter.fromJson(jsonContent)
-    } catch (e: Exception) {
-      throw IOException("Malformed cloud backup envelope on Google Drive: ${e.localizedMessage ?: "Invalid JSON"}", e)
-    } ?: throw IOException("The cloud backup envelope on Google Drive is empty or could not be parsed.")
-
-    if (envelope.encrypted) {
-      if (envelope.saltBase64.isBlank() || envelope.ivBase64.isBlank() || envelope.ciphertextBase64.isBlank()) {
-        throw IOException("The cloud backup envelope on Google Drive is missing required encryption fields.")
-      }
-    }
-    envelope
+    parseRawCloudEnvelope(jsonContent)
   }
 
   /**
