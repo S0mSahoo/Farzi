@@ -70,16 +70,20 @@ object FinanceAggregations {
       }
     }
 
-    val categories = TransactionCategory.values().mapIndexedNotNull { index, category ->
-      val amount = categoryAmounts[index]
-      if (amount <= 0.0) null else CategorySpending(
-        category = category,
-        amount = amount,
-        percentage = (amount / expense).toFloat(),
-        count = categoryCounts[index],
-        color = category.color
-      )
-    }.sortedByDescending { it.amount }
+    val categories = if (expense <= 0.0) {
+      emptyList()
+    } else {
+      TransactionCategory.values().mapIndexedNotNull { index, category ->
+        val amount = categoryAmounts[index]
+        if (amount <= 0.0) null else CategorySpending(
+          category = category,
+          amount = amount,
+          percentage = (amount / expense).toFloat(),
+          count = categoryCounts[index],
+          color = category.color
+        )
+      }.sortedByDescending { it.amount }
+    }
 
     val dailyTrend = (1..daysInMonth).map { day ->
       val dayCalendar = calendar.clone() as Calendar
