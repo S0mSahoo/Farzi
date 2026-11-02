@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.util.CryptoManager
+import com.example.util.EncryptedBundle
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -60,6 +61,53 @@ class CryptoManagerTest {
     }
 
     assertTrue("AES-GCM must reject an incorrect recovery passphrase", decryptionFailed)
+  }
+
+  @Test
+  fun localDecryptRejectsInvalidGcmIvLength() {
+    val encrypted = CryptoManager.encryptLocal("private note", "local master key")
+    val invalidIv = android.util.Base64.encodeToString(ByteArray(11), android.util.Base64.NO_WRAP)
+
+    try {
+      CryptoManager.decryptLocal(encrypted.first, invalidIv, "local master key")
+      org.junit.Assert.fail("AES-GCM decryption must reject an IV that is not 12 bytes")
+    } catch (_: IllegalArgumentException) {
+      // Expected: malformed persisted IV is rejected before cipher initialisation.
+    }
+  }
+
+  @Test
+  fun localDecryptRejectsCiphertextShorterThanGcmAuthenticationTag() {
+    val invalidCiphertext = android.util.Base64.encodeToString(ByteArray(15), android.util.Base64.NO_WRAP)
+    val validIv = android.util.Base64.encodeToString(ByteArray(12), android.util.Base64.NO_WRAP)
+
+    try {
+      CryptoManager.decryptLocal(invalidCiphertext, validIv, "local master key")
+      org.junit.Assert.fail("AES-GCM ciphertext must contain a complete authentication tag")
+    } catch (_: IllegalArgumentException) {
+      // Expected: truncated ciphertext is rejected before cipher initialisation.
+    }
+  }
+
+  @Test
+  fun recoveryDecryptRejectsInvalidGcmIvLength() {
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      "{}",
+      "correct horse battery staple 2026"
+    )
+    val malformed = bundle.copy(
+      ivBase64 = android.util.Base64.encodeToString(ByteArray(13), android.util.Base64.NO_WRAP)
+    )
+
+    try {
+      CryptoManager.decryptCloudPayloadWithPassphrase(
+        malformed,
+        "correct horse battery staple 2026"
+      )
+      org.junit.Assert.fail("Recovery payload must reject a non-standard GCM IV")
+    } catch (_: IllegalArgumentException) {
+      // Expected: malformed envelope is rejected before cipher initialisation.
+    }
   }
 
   @Test
@@ -156,4 +204,207 @@ class CryptoManagerTest {
 
     assertEquals("Original passphrase must remain intact after validation failure", initialPassphrase, CryptoManager.getStoredCloudRecoveryPassphrase(context))
   }
+  @Test
+  fun recoveryPreferenceWriteFailureRestoresExactPreviousValues() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+    var call = 0
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = "old-iv",
+        previousValue = "old-ciphertext",
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        call++
+        call == 2
+      }
+      org.junit.Assert.fail("A failed first write must report an IOException after rollback")
+    } catch (e: java.io.IOException) {
+      assertTrue(e.message.orEmpty().contains("previous saved value was restored"))
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", "old-iv" to "old-ciphertext"),
+      writes
+    )
+  }
+
+  @Test
+  fun recoveryPreferenceWriteAndRollbackFailureIsReportedAsUncertainState() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = null,
+        previousValue = null,
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        false
+      }
+      org.junit.Assert.fail("A failed write and failed rollback must be surfaced as an uncertain state")
+    } catch (e: IllegalStateException) {
+      assertTrue(e.message.orEmpty().contains("could not be confirmed"))
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", null to null),
+      writes
+    )
+  }
+
+  @Test
+  fun recoveryPreferenceCommitExceptionStillAttemptsRollback() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+    var call = 0
+
+    try {
+      CryptoManager.persistRecoveryPassphraseValues(
+        previousIv = "old-iv",
+        previousValue = "old-ciphertext",
+        newIv = "new-iv",
+        newValue = "new-ciphertext"
+      ) { iv, value ->
+        writes += iv to value
+        call++
+        if (call == 1) throw java.io.IOException("simulated commit exception")
+        true
+      }
+      org.junit.Assert.fail("A commit exception must be reported after rollback")
+    } catch (e: java.io.IOException) {
+      assertTrue(e.message.orEmpty().contains("previous saved value was restored"))
+      assertEquals("simulated commit exception", e.cause?.message)
+    }
+
+    assertEquals(
+      listOf("new-iv" to "new-ciphertext", "old-iv" to "old-ciphertext"),
+      writes
+    )
+  }
+
+  @Test
+  fun successfulRecoveryPreferenceWriteDoesNotRunRollback() {
+    val writes = mutableListOf<Pair<String?, String?>>()
+
+    CryptoManager.persistRecoveryPassphraseValues(
+      previousIv = "old-iv",
+      previousValue = "old-ciphertext",
+      newIv = "new-iv",
+      newValue = "new-ciphertext"
+    ) { iv, value ->
+      writes += iv to value
+      true
+    }
+
+    assertEquals(listOf("new-iv" to "new-ciphertext"), writes)
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationAcceptsOnlyMatchingPassphraseForCurrentScheme() {
+    val expected = "correct recovery passphrase 2026"
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      """{"transactions":[]}""",
+      expected
+    )
+
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "recovery-passphrase-v1",
+        expected
+      )
+    )
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MISMATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "recovery-passphrase-v1",
+        "incorrect recovery passphrase 2026"
+      )
+    )
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationKeepsLegacyFormatsOnMigrationPath() {
+    val bundle = EncryptedBundle(
+      saltBase64 = "",
+      ivBase64 = "",
+      ciphertextBase64 = ""
+    )
+
+    listOf("google-id-v1", "").forEach { scheme ->
+      assertEquals(
+        com.example.util.RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION,
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          bundle,
+          scheme,
+          "new recovery passphrase 2026"
+        )
+      )
+    }
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsUnknownEncryptionScheme() {
+    val bundle = EncryptedBundle("", "", "")
+
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        bundle,
+        "future-unknown-v9",
+        "new recovery passphrase 2026"
+      )
+    )
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsMalformedOrTamperedBundlesWithoutThrowing() {
+    val passphrase = "correct recovery passphrase 2026"
+    val bundle = CryptoManager.encryptCloudPayloadWithPassphrase(
+      """{"sensitive":"value"}""",
+      passphrase
+    )
+    val ciphertext = android.util.Base64.decode(
+      bundle.ciphertextBase64,
+      android.util.Base64.NO_WRAP
+    )
+    ciphertext[ciphertext.lastIndex] = (ciphertext.last().toInt() xor 0x01).toByte()
+    val tampered = bundle.copy(
+      ciphertextBase64 = android.util.Base64.encodeToString(ciphertext, android.util.Base64.NO_WRAP)
+    )
+
+    val malformed = bundle.copy(ivBase64 = "not-base64")
+    val invalidSalt = bundle.copy(
+      saltBase64 = android.util.Base64.encodeToString(ByteArray(15), android.util.Base64.NO_WRAP)
+    )
+
+    listOf(tampered, malformed, invalidSalt).forEach { invalidBundle ->
+      assertEquals(
+        com.example.util.RecoveryPassphraseVerification.MISMATCH,
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          invalidBundle,
+          "recovery-passphrase-v1",
+          passphrase
+        )
+      )
+    }
+  }
+
+  @Test
+  fun recoveryEnvelopeVerificationRejectsShortCandidateBeforeDecryption() {
+    assertEquals(
+      com.example.util.RecoveryPassphraseVerification.MISMATCH,
+      CryptoManager.verifyRecoveryPassphraseForEnvelope(
+        EncryptedBundle("", "", ""),
+        "recovery-passphrase-v1",
+        "short"
+      )
+    )
+  }
+
 }

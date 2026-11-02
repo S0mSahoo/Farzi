@@ -70,6 +70,7 @@ import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import java.util.Calendar
 
@@ -89,6 +90,7 @@ fun BudgetScreen(
   var isDeletingBudget by remember { mutableStateOf(false) }
   var deleteBudgetError by remember { mutableStateOf<String?>(null) }
   val currencySymbol = userProfile.currencySymbol
+  val twoPane = LocalAdaptiveInfo.current.useTwoPaneLayout
   val monthKey = DateUtils.getMonthKey(selectedCalendar)
   val currentBudget = remember(allBudgets, monthKey) { allBudgets.firstOrNull { it.monthKey == monthKey } }
   val start = DateUtils.getStartOfMonth(selectedCalendar)
@@ -232,87 +234,167 @@ fun BudgetScreen(
         }
       }
 
-      item {
-        PremiumSectionHeading(
-          title = "Category limits",
-          subtitle = "Compare planned amounts with recorded spending.",
-          trailing = {
-            PremiumOutlinedButton(onClick = onOpenSetBudget, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) {
-              Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-              Spacer(Modifier.size(6.dp))
-              Text(if (currentBudget == null) "Set up" else "Edit")
-            }
-          }
-        )
-      }
-
-      if (configuredCategories.isEmpty()) {
-        item {
-          PremiumCard {
-            PremiumEmptyState(
-              title = "No category limits yet",
-              body = "Add caps for rent, groceries, transport, subscriptions and other categories to make the plan more useful.",
-              action = {
-                PremiumOutlinedButton(onClick = onOpenSetBudget) { Text("Add category limits") }
-              }
-            )
-          }
-        }
-      } else {
-        val list = configuredCategories
-        items(list.size, key = { "budget_cat_${list[it].key.name}" }) { index ->
-          val (category, limit) = list[index]
-          val spent = categoryActual[category] ?: 0.0
-          CategoryLimitCard(
-            category = category,
-            limit = limit,
-            spent = spent,
-            currencySymbol = currencySymbol
-          )
-        }
-      }
-
-      item {
-        PremiumSectionHeading(
-          title = "Spending outside category caps",
-          subtitle = "Categories with transactions but no individual limit."
-        )
-      }
-      if (unbudgeted.isEmpty()) {
-        item {
-          Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.52f),
-            modifier = Modifier.fillMaxWidth()
+      if (twoPane) {
+        item(key = "budget_categories_two_pane") {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Top
           ) {
-            Text(
-              "Nice work — every category with spending has a limit, or there is no spending recorded outside the plan.",
-              modifier = Modifier.padding(16.dp),
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-          }
-        }
-      } else {
-        item {
-          PremiumCard {
-            Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-              unbudgeted.forEach { entry ->
-                Row(
-                  modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                  Surface(shape = RoundedCornerShape(12.dp), color = entry.key.color.copy(alpha = 0.12f)) {
-                    Icon(entry.key.icon, contentDescription = null, tint = entry.key.color, modifier = Modifier.padding(9.dp).size(18.dp))
+            Column(modifier = Modifier.weight(1.15f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              PremiumSectionHeading(
+                title = "Category limits",
+                subtitle = "Compare planned amounts with recorded spending.",
+                trailing = {
+                  PremiumOutlinedButton(onClick = onOpenSetBudget, contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)) {
+                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+                    Text(if (currentBudget == null) "Set up" else "Edit")
                   }
-                  Text(entry.key.displayName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                  Text(IndianCurrencyFormatter.formatWithSymbol(entry.value, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+              )
+              if (configuredCategories.isEmpty()) {
+                PremiumCard {
+                  PremiumEmptyState(
+                    title = "No category limits yet",
+                    body = "Add caps for rent, groceries, transport, subscriptions and other categories to make the plan more useful.",
+                    action = { PremiumOutlinedButton(onClick = onOpenSetBudget) { Text("Add category limits") } }
+                  )
+                }
+              } else {
+                configuredCategories.forEach { (category, limit) ->
+                  CategoryLimitCard(
+                    category = category,
+                    limit = limit,
+                    spent = categoryActual[category] ?: 0.0,
+                    currencySymbol = currencySymbol
+                  )
+                }
+              }
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+              PremiumSectionHeading(
+                title = "Outside category caps",
+                subtitle = "Spending without an individual limit."
+              )
+              if (unbudgeted.isEmpty()) {
+                Surface(
+                  shape = RoundedCornerShape(18.dp),
+                  color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.52f),
+                  modifier = Modifier.fillMaxWidth()
+                ) {
+                  Text(
+                    "Every category with spending has a limit, or there is no spending outside the plan.",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                }
+              } else {
+                PremiumCard {
+                  Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    unbudgeted.forEach { entry ->
+                      Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                      ) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = entry.key.color.copy(alpha = 0.12f)) {
+                          Icon(entry.key.icon, contentDescription = null, tint = entry.key.color, modifier = Modifier.padding(9.dp).size(18.dp))
+                        }
+                        Text(entry.key.displayName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(IndianCurrencyFormatter.formatWithSymbol(entry.value, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                      }
+                    }
+                  }
                 }
               }
             }
           }
         }
+      } else {
+        item {
+          PremiumSectionHeading(
+            title = "Category limits",
+            subtitle = "Compare planned amounts with recorded spending.",
+            trailing = {
+              PremiumOutlinedButton(onClick = onOpenSetBudget, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 7.dp)) {
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.size(6.dp))
+                Text(if (currentBudget == null) "Set up" else "Edit")
+              }
+            }
+          )
+        }
+  
+        if (configuredCategories.isEmpty()) {
+          item {
+            PremiumCard {
+              PremiumEmptyState(
+                title = "No category limits yet",
+                body = "Add caps for rent, groceries, transport, subscriptions and other categories to make the plan more useful.",
+                action = {
+                  PremiumOutlinedButton(onClick = onOpenSetBudget) { Text("Add category limits") }
+                }
+              )
+            }
+          }
+        } else {
+          val list = configuredCategories
+          items(list.size, key = { "budget_cat_${list[it].key.name}" }) { index ->
+            val (category, limit) = list[index]
+            val spent = categoryActual[category] ?: 0.0
+            CategoryLimitCard(
+              category = category,
+              limit = limit,
+              spent = spent,
+              currencySymbol = currencySymbol
+            )
+          }
+        }
+  
+        item {
+          PremiumSectionHeading(
+            title = "Spending outside category caps",
+            subtitle = "Categories with transactions but no individual limit."
+          )
+        }
+        if (unbudgeted.isEmpty()) {
+          item {
+            Surface(
+              shape = RoundedCornerShape(18.dp),
+              color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.52f),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Text(
+                "Nice work — every category with spending has a limit, or there is no spending recorded outside the plan.",
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+            }
+          }
+        } else {
+          item {
+            PremiumCard {
+              Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                unbudgeted.forEach { entry ->
+                  Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                  ) {
+                    Surface(shape = RoundedCornerShape(12.dp), color = entry.key.color.copy(alpha = 0.12f)) {
+                      Icon(entry.key.icon, contentDescription = null, tint = entry.key.color, modifier = Modifier.padding(9.dp).size(18.dp))
+                    }
+                    Text(entry.key.displayName, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(IndianCurrencyFormatter.formatWithSymbol(entry.value, currencySymbol), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                  }
+                }
+              }
+            }
+          }
+        }
+  
       }
       item { Spacer(Modifier.height(10.dp)) }
     }

@@ -288,11 +288,14 @@ class AiActionValidationTest {
     @Test
     fun testNormalizedDateMatchingForUpdateAndDelete() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val targetDateStr = "2026-08-15"
+        val testYear = 2026
+        val targetDateStr = "$testYear-08-15"
         val targetTime = sdf.parse(targetDateStr)!!.time
+        val testRunId = java.util.UUID.randomUUID().toString().take(8)
+        val targetTitle = "Target Date Tx $testRunId"
 
         financeViewModel.addTransaction(
-            title = "Target Date Tx",
+            title = targetTitle,
             amount = 45.0,
             type = TransactionType.EXPENSE,
             category = TransactionCategory.FOOD_DINING,
@@ -300,11 +303,11 @@ class AiActionValidationTest {
             note = "Special lunch",
             paymentMethod = PaymentMethod.UPI
         )
-        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == "Target Date Tx" } }
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == targetTitle } }
 
         // Query with slash format "2026/08/15" -> should match normalized ISO day
         val rawSlashQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "2026/08/15", "newAmount": 55.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "$targetTitle", "targetDate": "$testYear/08/15", "newAmount": 55.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawSlashQuery)
@@ -316,7 +319,7 @@ class AiActionValidationTest {
 
         // Query with month name "August 2026" -> should match normalized month key
         val rawMonthNameQuery = """
-            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "Target Date Tx", "targetDate": "August 2026", "newAmount": 65.0}
+            ACTION_JSON: {"action": "UPDATE_TRANSACTION", "targetQuery": "$targetTitle", "targetDate": "August $testYear", "newAmount": 65.0}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawMonthNameQuery)
@@ -507,19 +510,30 @@ class AiActionValidationTest {
     @Test
     fun testNormalizedDateMatchingForDeletionsActualRecords() {
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-        val timeAug10 = sdf.parse("2026-08-10")!!.time
-        val timeAug15 = sdf.parse("2026-08-15")!!.time
-        val timeSept1 = sdf.parse("2026-09-01")!!.time
+        // Use a distant test-only year so the intentional "ALL August" action cannot
+        // delete fixed-date fixtures belonging to another test in the shared Room database.
+        val testYear = Calendar.getInstance().get(Calendar.YEAR) + 50
+        val timeAug10 = sdf.parse(String.format(Locale.US, "%04d-08-10", testYear))!!.time
+        val timeAug15 = sdf.parse(String.format(Locale.US, "%04d-08-15", testYear))!!.time
+        val timeSept1 = sdf.parse(String.format(Locale.US, "%04d-09-01", testYear))!!.time
+        // Room is a process-wide singleton in these Robolectric tests. A unique token prevents
+        // records left by other tests from matching this test's title/category query.
+        val testRunId = java.util.UUID.randomUUID().toString().take(8)
+        val aug10Title = "Aug 10 Coffee $testRunId"
+        val aug15Title = "Aug 15 Groceries $testRunId"
+        val sept1Title = "Sept 1 Utilities $testRunId"
 
-        financeViewModel.addTransaction("Aug 10 Coffee", 10.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, timeAug10, "", PaymentMethod.CASH)
-        financeViewModel.addTransaction("Aug 15 Groceries", 50.0, TransactionType.EXPENSE, TransactionCategory.GROCERIES, timeAug15, "", PaymentMethod.UPI)
-        financeViewModel.addTransaction("Sept 1 Utilities", 100.0, TransactionType.EXPENSE, TransactionCategory.UTILITIES, timeSept1, "", PaymentMethod.NET_BANKING)
+        financeViewModel.addTransaction(aug10Title, 10.0, TransactionType.EXPENSE, TransactionCategory.FOOD_DINING, timeAug10, "", PaymentMethod.CASH)
+        financeViewModel.addTransaction(aug15Title, 50.0, TransactionType.EXPENSE, TransactionCategory.GROCERIES, timeAug15, "", PaymentMethod.UPI)
+        financeViewModel.addTransaction(sept1Title, 100.0, TransactionType.EXPENSE, TransactionCategory.UTILITIES, timeSept1, "", PaymentMethod.NET_BANKING)
 
-        flushCoroutines { financeViewModel.allTransactions.value.size >= 3 }
+        flushCoroutines { financeViewModel.allTransactions.value.any { it.title == aug10Title } &&
+            financeViewModel.allTransactions.value.any { it.title == aug15Title } &&
+            financeViewModel.allTransactions.value.any { it.title == sept1Title } }
 
-        // 1. Delete Aug 15 Groceries using slash format "2026/08/15"
+        // 1. Delete only this test's Aug 15 transaction using slash format "2026/08/15".
         val rawDeleteSlashDay = """
-            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "Groceries", "targetDate": "2026/08/15"}
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "$testRunId", "targetDate": "$testYear/08/15"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawDeleteSlashDay)
@@ -528,16 +542,16 @@ class AiActionValidationTest {
         assertNull(pendingSlash?.validationError)
 
         aiViewModel.confirmAndExecutePendingAction()
-        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == "Aug 15 Groceries" } }
+        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == aug15Title } }
 
         val txsAfterDayDelete = financeViewModel.allTransactions.value
-        assertTrue("Aug 15 Groceries must be deleted", txsAfterDayDelete.none { it.title == "Aug 15 Groceries" })
-        assertTrue("Aug 10 Coffee must remain", txsAfterDayDelete.any { it.title == "Aug 10 Coffee" })
-        assertTrue("Sept 1 Utilities must remain", txsAfterDayDelete.any { it.title == "Sept 1 Utilities" })
+        assertTrue("Aug 15 transaction must be deleted", txsAfterDayDelete.none { it.title == aug15Title })
+        assertTrue("Aug 10 transaction must remain", txsAfterDayDelete.any { it.title == aug10Title })
+        assertTrue("September transaction must remain", txsAfterDayDelete.any { it.title == sept1Title })
 
-        // 2. Delete ALL August transactions using month-name target "August 2026"
+        // 2. Delete ALL August transactions using month-name target "August 2026".
         val rawDeleteAugMonth = """
-            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL", "targetDate": "August 2026"}
+            ACTION_JSON: {"action": "DELETE_TRANSACTION", "targetQuery": "ALL", "targetDate": "August $testYear"}
         """.trimIndent()
 
         invokeProcessAgenticAction(rawDeleteAugMonth)
@@ -546,11 +560,11 @@ class AiActionValidationTest {
         assertNull(pendingAug?.validationError)
 
         aiViewModel.confirmAndExecutePendingAction()
-        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == "Aug 10 Coffee" } }
+        flushCoroutines { financeViewModel.allTransactions.value.none { it.title == aug10Title } }
 
         val txsAfterMonthDelete = financeViewModel.allTransactions.value
-        assertTrue("Aug 10 Coffee must be deleted", txsAfterMonthDelete.none { it.title == "Aug 10 Coffee" })
-        assertTrue("Sept 1 Utilities in different month MUST remain untouched", txsAfterMonthDelete.any { it.title == "Sept 1 Utilities" })
+        assertTrue("Aug 10 transaction must be deleted", txsAfterMonthDelete.none { it.title == aug10Title })
+        assertTrue("September transaction MUST remain untouched", txsAfterMonthDelete.any { it.title == sept1Title })
     }
 
     @Test

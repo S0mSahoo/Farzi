@@ -26,6 +26,8 @@ import com.example.data.model.OccurrenceStatus
 import com.example.data.model.PaymentMethod
 import com.example.data.insight.FinanceInsight
 import com.example.data.insight.FinanceInsightEngine
+import com.example.data.insight.FinanceAggregations
+import com.example.data.insight.TransactionFilterProjector
 import com.example.data.model.RecurrenceInterval
 import com.example.data.model.RecurringOccurrence
 import com.example.data.model.RecurringRule
@@ -48,6 +50,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -56,7 +59,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.time.LocalDate
-import java.time.YearMonth
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
@@ -393,7 +395,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       recurringRules = rules,
       currencySymbol = profile.currencySymbol
     )
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
@@ -415,7 +417,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       recurringRules = rules,
       currencySymbol = profile.currencySymbol
     )
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.Eagerly,
     initialValue = emptyList()
@@ -448,164 +450,50 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ----------------- 1. Dashboard Flows (Scoped to _universalCalendar) -----------------
 
-  val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+  // One shared transaction scan feeds all monthly dashboard projections.
+  private val dashboardMonthlyMetrics: StateFlow<com.example.data.insight.MonthlyFinanceMetrics> = combine(
     allTransactions,
-    allBudgets,
     _universalCalendar
-  ) { transactions, budgets, cal ->
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
+  ) { transactions, calendar ->
+    FinanceAggregations.monthlyMetrics(transactions, calendar)
+  }.flowOn(Dispatchers.Default).stateIn(
+    scope = viewModelScope,
+    started = SharingStarted.WhileSubscribed(5000),
+    initialValue = FinanceAggregations.monthlyMetrics(emptyList(), _universalCalendar.value)
+  )
 
-    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val budgetObj = budgets.find { it.monthKey == monthKey }
-    val budgetLimit = budgetObj?.totalBudget ?: 0.0
-    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
-    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
-
-    MonthlyFinancialSummary(
-      monthKey = monthKey,
-      monthLabel = monthLabel,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      budgetLimit = budgetLimit,
-      budgetUsed = totalExpense,
-      budgetRemaining = budgetRemaining,
-      budgetUsagePercent = budgetUsagePercent,
-      transactionCount = monthTransactions.size
-    )
+  val dashboardMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
+    dashboardMonthlyMetrics,
+    allBudgets
+  ) { metrics, budgets ->
+    FinanceAggregations.monthlySummary(metrics, budgets)
   }.stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
-    initialValue = MonthlyFinancialSummary(
-      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
-      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
+    initialValue = FinanceAggregations.monthlySummary(
+      FinanceAggregations.monthlyMetrics(emptyList(), _universalCalendar.value),
+      emptyList()
     )
   )
 
   val dashboardYearSummary: StateFlow<YearlyFinancialSummary> = combine(
     allTransactions,
     _universalCalendar
-  ) { transactions, cal ->
-    val year = cal.get(Calendar.YEAR)
-    val startOfYear = DateUtils.getStartOfYear(year)
-    val endOfYear = DateUtils.getEndOfYear(year)
-
-    val yearTransactions = transactions.filter { it.timestamp in startOfYear..endOfYear }
-    val totalIncome = yearTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = yearTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val monthlyList = (0..11).map { monthIdx ->
-      val monthCal = Calendar.getInstance().apply {
-        set(year, monthIdx, 1, 0, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val mStart = DateUtils.getStartOfMonth(monthCal)
-      val mEnd = DateUtils.getEndOfMonth(monthCal)
-      val mTx = yearTransactions.filter { it.timestamp in mStart..mEnd }
-      val mIncome = mTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val mExpense = mTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      MonthlyFinancialSummary(
-        monthKey = DateUtils.getMonthKey(monthCal),
-        monthLabel = DateUtils.getMonthLabel(monthCal),
-        totalIncome = mIncome,
-        totalExpense = mExpense,
-        savings = mIncome - mExpense,
-        transactionCount = mTx.size
-      )
-    }
-
-    YearlyFinancialSummary(
-      year = year,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      monthlyBreakdown = monthlyList
-    )
-  }.stateIn(
+  ) { transactions, calendar ->
+    FinanceAggregations.yearlySummary(transactions, calendar.get(Calendar.YEAR))
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = YearlyFinancialSummary(year = Calendar.getInstance().get(Calendar.YEAR))
   )
 
-  val dashboardCategorySpending: StateFlow<List<CategorySpending>> = combine(
-    allTransactions,
-    _universalCalendar
-  ) { transactions, cal ->
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-    val monthExpenses = transactions.filter { it.timestamp in startOfMonth..endOfMonth && it.type == TransactionType.EXPENSE }
-    val totalMonthExpense = monthExpenses.sumOf { it.amount }
+  val dashboardCategorySpending: StateFlow<List<CategorySpending>> = dashboardMonthlyMetrics
+    .map { it.categorySpending }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    if (totalMonthExpense == 0.0) {
-      emptyList()
-    } else {
-      monthExpenses.groupBy { it.category }.map { (category, list) ->
-        val amount = list.sumOf { it.amount }
-        val pct = (amount / totalMonthExpense).toFloat()
-        CategorySpending(
-          category = category,
-          amount = amount,
-          percentage = pct,
-          count = list.size,
-          color = category.color
-        )
-      }.sortedByDescending { it.amount }
-    }
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
-
-  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = combine(
-    allTransactions,
-    _universalCalendar
-  ) { transactions, cal ->
-    val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-    val year = cal.get(Calendar.YEAR)
-    val month = cal.get(Calendar.MONTH)
-
-    val points = mutableListOf<DailySpendingPoint>()
-    for (day in 1..daysInMonth) {
-      val dayCal = Calendar.getInstance().apply {
-        set(year, month, day, 0, 0, 0)
-        set(Calendar.MILLISECOND, 0)
-      }
-      val startDay = dayCal.timeInMillis
-      val endDay = DateUtils.getEndOfDay(startDay)
-      val dayTx = transactions.filter { it.timestamp in startDay..endDay }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-
-      points.add(
-        DailySpendingPoint(
-          dayOfMonth = day,
-          dateKey = DateUtils.getDayKey(dayCal),
-          dayLabel = day.toString(),
-          expense = exp,
-          income = inc,
-          net = inc - exp
-        )
-      )
-    }
-    points
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = emptyList()
-  )
+  val dashboardDailyTrend: StateFlow<List<DailySpendingPoint>> = dashboardMonthlyMetrics
+    .map { it.dailyTrend }
+    .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   // ----------------- 2. Calendar Screen Flows (Scoped to _universalCalendar & _calendarSelectedDayMillis) -----------------
 
@@ -625,12 +513,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     // Mon -> 0 leading blanks, Tue -> 1, ..., Sat -> 5, Sun -> 6
     val leadDays = (firstDayOfWeek - Calendar.MONDAY + 7) % 7
     val todayKey = DateUtils.getDayKey(Calendar.getInstance())
+    val monthStart = DateUtils.getStartOfMonth(cal)
+    val monthEnd = DateUtils.getEndOfMonth(cal)
 
-    // Group transactions by day key for fast O(1) matching
-    val txByDate = HashMap<String, MutableList<TransactionItem>>()
+    // Aggregate only transactions belonging to the visible month. This still scans the source
+    // once, but avoids allocating date buckets and retaining transaction references for the
+    // user's entire history on every calendar page change.
+    // UI rendering then performs O(1) lookups without repeatedly filtering each day.
+    data class DayAccumulator(
+      val transactions: MutableList<TransactionItem> = mutableListOf(),
+      var income: Double = 0.0,
+      var expense: Double = 0.0
+    )
+    val byDate = HashMap<String, DayAccumulator>()
     for (tx in transactions) {
-      val key = DateUtils.getDayKey(tx.timestamp)
-      txByDate.getOrPut(key) { mutableListOf() }.add(tx)
+      if (tx.timestamp !in monthStart..monthEnd) continue
+      val bucket = byDate.getOrPut(DateUtils.getDayKey(tx.timestamp)) { DayAccumulator() }
+      bucket.transactions.add(tx)
+      when (tx.type) {
+        TransactionType.INCOME -> bucket.income += tx.amount
+        TransactionType.EXPENSE -> bucket.expense += tx.amount
+      }
     }
 
     val gridDays = ArrayList<CalendarDayData?>(42)
@@ -653,9 +556,10 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       }
       val dateKey = DateUtils.getDayKey(c)
       val start = DateUtils.getStartOfDay(c.timeInMillis)
-      val dayTx = txByDate[dateKey] ?: emptyList()
-      val inc = dayTx.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-      val exp = dayTx.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+      val dayBucket = byDate[dateKey]
+      val dayTx = dayBucket?.transactions ?: emptyList()
+      val inc = dayBucket?.income ?: 0.0
+      val exp = dayBucket?.expense ?: 0.0
       gridDays.add(
         CalendarDayData(
           dayOfMonth = day,
@@ -685,7 +589,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _universalCalendar
   ) { transactions, cal ->
     computeCalendarDays(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), transactions)
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -698,7 +602,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     val start = DateUtils.getStartOfDay(dayMillis)
     val end = DateUtils.getEndOfDay(dayMillis)
     transactions.filter { it.timestamp in start..end }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -706,48 +610,9 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ----------------- 3. Budget Screen Flows (Scoped to _universalCalendar) -----------------
 
-  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = combine(
-    allTransactions,
-    allBudgets,
-    _universalCalendar
-  ) { transactions, budgets, cal ->
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
+  // Reuse the dashboard summary so the budget screen does not rescan transactions.
+  val budgetMonthSummary: StateFlow<MonthlyFinancialSummary> = dashboardMonthSummary
 
-    val monthTransactions = transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-    val totalIncome = monthTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-    val totalExpense = monthTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val savings = totalIncome - totalExpense
-    val savingsRate = if (totalIncome > 0) (savings / totalIncome) * 100.0 else 0.0
-
-    val budgetObj = budgets.find { it.monthKey == monthKey }
-    val budgetLimit = budgetObj?.totalBudget ?: 0.0
-    val budgetRemaining = if (budgetLimit > 0) budgetLimit - totalExpense else 0.0
-    val budgetUsagePercent = if (budgetLimit > 0) (totalExpense / budgetLimit) * 100.0 else 0.0
-
-    MonthlyFinancialSummary(
-      monthKey = monthKey,
-      monthLabel = monthLabel,
-      totalIncome = totalIncome,
-      totalExpense = totalExpense,
-      savings = savings,
-      savingsRate = savingsRate,
-      budgetLimit = budgetLimit,
-      budgetUsed = totalExpense,
-      budgetRemaining = budgetRemaining,
-      budgetUsagePercent = budgetUsagePercent,
-      transactionCount = monthTransactions.size
-    )
-  }.stateIn(
-    scope = viewModelScope,
-    started = SharingStarted.WhileSubscribed(5000),
-    initialValue = MonthlyFinancialSummary(
-      monthKey = DateUtils.getMonthKey(Calendar.getInstance()),
-      monthLabel = DateUtils.getMonthLabel(Calendar.getInstance())
-    )
-  )
 
   // Category Detail View Flow (Respects universal calendar month)
   val selectedCategoryDetail: StateFlow<CategorySpendingDetail?> = combine(
@@ -756,29 +621,33 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _universalCalendar
   ) { category, transactions, cal ->
     if (category == null) return@combine null
-    val startOfMonth = DateUtils.getStartOfMonth(cal)
-    val endOfMonth = DateUtils.getEndOfMonth(cal)
-    val monthKey = DateUtils.getMonthKey(cal)
-    val monthLabel = DateUtils.getMonthLabel(cal)
+    val start = DateUtils.getStartOfMonth(cal)
+    val end = DateUtils.getEndOfMonth(cal)
+    var totalSpent = 0.0
+    var totalIncome = 0.0
+    val matching = ArrayList<TransactionItem>()
 
-    val catTransactions = transactions.filter {
-      it.category == category && it.timestamp in startOfMonth..endOfMonth
-    }.sortedByDescending { it.timestamp }
-
-    val totalSpent = catTransactions.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
-    val totalIncome = catTransactions.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+    for (transaction in transactions) {
+      if (transaction.category != category || transaction.timestamp !in start..end) continue
+      matching.add(transaction)
+      when (transaction.type) {
+        TransactionType.EXPENSE -> totalSpent += transaction.amount
+        TransactionType.INCOME -> totalIncome += transaction.amount
+      }
+    }
+    matching.sortByDescending { it.timestamp }
 
     CategorySpendingDetail(
       category = category,
-      monthKey = monthKey,
-      monthLabel = monthLabel,
+      monthKey = DateUtils.getMonthKey(cal),
+      monthLabel = DateUtils.getMonthLabel(cal),
       totalSpent = totalSpent,
-      transactionCount = catTransactions.size,
+      transactionCount = matching.size,
       totalIncome = totalIncome,
       netAmount = totalIncome - totalSpent,
-      transactions = catTransactions
+      transactions = matching
     )
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
   fun selectCategoryForDetail(category: TransactionCategory) {
     _selectedCategory.value = category
@@ -846,7 +715,7 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       }
     }
     results.sortedBy { it.occurrenceTimestamp }
-  }.stateIn(
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -854,15 +723,15 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   val todayRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.DUE_TODAY }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val overdueRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.OVERDUE }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   val upcomingRecurringPayments: StateFlow<List<RecurringOccurrence>> = allScheduledOccurrences.map { list ->
     list.filter { it.status == OccurrenceStatus.SCHEDULED || it.status == OccurrenceStatus.UPCOMING }
-  }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+  }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
   fun markRecurringPaymentPaid(occurrence: RecurringOccurrence) {
     viewModelScope.launch {
@@ -913,7 +782,21 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
       // 1. Genuine guest mode or unauthenticated local profile check
       if (!isAuthenticatedProfile()) {
         return@withContext try {
-          CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          // Guest/offline mode cannot inspect a cloud backup. Permit first-time setup, or
+          // re-entering the exact saved value, but never replace an existing key without
+          // verifying it against its cloud envelope. Otherwise a guest session after sign-out
+          // could silently make the user's existing Drive backup undecryptable.
+          val storedPassphrase = CryptoManager.getStoredCloudRecoveryPassphrase(getApplication())
+          if (storedPassphrase != null && storedPassphrase != candidatePassphrase) {
+            return@withContext Result.failure(
+              IllegalStateException(
+                "Sign in to the Google account that owns the cloud backup before changing its recovery passphrase. The existing passphrase was kept."
+              )
+            )
+          }
+          if (storedPassphrase == null) {
+            CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
+          }
           Result.success(Unit)
         } catch (e: Exception) {
           Result.failure(e)
@@ -960,40 +843,27 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
         }
       }
 
-      // 6. Handle encryption schemes explicitly
-      when (envelope.encryptionScheme) {
-        "recovery-passphrase-v1" -> {
-          val bundle = com.example.util.EncryptedBundle(
-            saltBase64 = envelope.saltBase64,
-            ivBase64 = envelope.ivBase64,
-            ciphertextBase64 = envelope.ciphertextBase64
-          )
-          val isValid = CryptoManager.verifyPassphraseAgainstBundle(bundle, candidatePassphrase)
-          if (!isValid) {
-            return@withContext Result.failure(
-              IllegalArgumentException("The entered recovery passphrase does not match your existing Google Drive cloud backup. Previously saved passphrase was kept.")
-            )
-          }
-
+      // 6. Verify the candidate according to the envelope's declared encryption scheme.
+      val bundle = com.example.util.EncryptedBundle(
+        saltBase64 = envelope.saltBase64,
+        ivBase64 = envelope.ivBase64,
+        ciphertextBase64 = envelope.ciphertextBase64
+      )
+      when (
+        CryptoManager.verifyRecoveryPassphraseForEnvelope(
+          bundle = bundle,
+          encryptionScheme = envelope.encryptionScheme,
+          passphrase = candidatePassphrase
+        )
+      ) {
+        com.example.util.RecoveryPassphraseVerification.MATCH,
+        com.example.util.RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION -> {
+          // Re-check both profile and account after the network operation; a session switch
+          // while the envelope was downloading must never authorize a local credential change.
           val currentAccount = driveService.getLastSignedInAccount()
-          if (!isAuthenticatedProfile() || currentAccount == null || !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id) {
-            return@withContext Result.failure(
-              IllegalStateException("The active session changed during verification. Passphrase was not updated.")
-            )
-          }
-
-          try {
-            CryptoManager.replaceStoredCloudRecoveryPassphrase(getApplication(), candidatePassphrase)
-            Result.success(Unit)
-          } catch (e: Exception) {
-            Result.failure(e)
-          }
-        }
-        "google-id-v1", "" -> {
-          // Legacy backup encrypted with Google ID.
-          // Allow new passphrase to be established; subsequent sync will migrate backup.
-          val currentAccount = driveService.getLastSignedInAccount()
-          if (!isAuthenticatedProfile() || currentAccount == null || !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id) {
+          if (!isAuthenticatedProfile() || currentAccount == null ||
+            !isActiveGoogleAccount(currentAccount) || currentAccount.id != account.id
+          ) {
             return@withContext Result.failure(
               IllegalStateException("The active session changed during verification. Passphrase was not updated.")
             )
@@ -1005,10 +875,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
             Result.failure(e)
           }
         }
-        else -> {
-          // Unknown encryption scheme. Fail safely.
+        com.example.util.RecoveryPassphraseVerification.MISMATCH -> {
           Result.failure(
-            IllegalStateException("The existing cloud backup uses an unsupported encryption scheme ('${envelope.encryptionScheme}'). Previously saved passphrase was kept.")
+            IllegalArgumentException(
+              "The entered recovery passphrase does not match your existing Google Drive cloud backup. Previously saved passphrase was kept."
+            )
+          )
+        }
+        com.example.util.RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION -> {
+          Result.failure(
+            IllegalStateException(
+              "The existing cloud backup uses an unsupported encryption scheme ('${envelope.encryptionScheme}'). Previously saved passphrase was kept."
+            )
           )
         }
       }
@@ -1029,17 +907,8 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
     _filterType,
     _filterCategory
   ) { transactions, query, type, cat ->
-    transactions.filter { item ->
-      val matchesQuery = query.isBlank() ||
-          item.title.contains(query, ignoreCase = true) ||
-          item.category.displayName.contains(query, ignoreCase = true) ||
-          item.note.contains(query, ignoreCase = true) ||
-          item.amount.toString().contains(query)
-      val matchesType = type == null || item.type == type
-      val matchesCat = cat == null || item.category == cat
-      matchesQuery && matchesType && matchesCat
-    }
-  }.stateIn(
+    TransactionFilterProjector.filter(transactions, query, type, cat)
+  }.flowOn(Dispatchers.Default).stateIn(
     scope = viewModelScope,
     started = SharingStarted.WhileSubscribed(5000),
     initialValue = emptyList()
@@ -1376,17 +1245,18 @@ class FinanceViewModel(application: Application) : AndroidViewModel(application)
 
   // ================= Budget Operations =================
 
+  private fun isValidMonthKey(value: String): Boolean {
+    // Persisted month keys use the strict YYYY-MM format on all supported Android API levels.
+    if (!Regex("""^\d{4}-(0[1-9]|1[0-2])$""").matches(value)) return false
+    return value.substring(0, 4).toIntOrNull()?.let { it in 1..9999 } == true
+  }
+
   suspend fun saveMonthlyBudgetSuspend(
     monthKey: String,
     totalBudget: Double,
     categoryBudgets: Map<TransactionCategory, Double> = emptyMap()
   ): Long = withContext(Dispatchers.IO) {
-    val validMonth = try {
-      YearMonth.parse(monthKey)
-      true
-    } catch (_: Exception) {
-      false
-    }
+    val validMonth = isValidMonthKey(monthKey)
     if (!validMonth || !totalBudget.isFinite() || totalBudget <= 0.0 ||
       categoryBudgets.values.any { !it.isFinite() || it < 0.0 }) {
       throw IllegalArgumentException("Invalid budget parameters")

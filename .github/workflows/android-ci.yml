@@ -52,6 +52,9 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
+      - name: Run Android lint
+        run: gradle --no-daemon lintDebug
+
       - name: Run unit tests
         run: gradle --no-daemon testDebugUnitTest
 

@@ -26,6 +26,12 @@ interface PaidRecurringOccurrenceDao {
   @Query("DELETE FROM paid_recurring_occurrences WHERE ruleId = :ruleId AND occurrenceDateKey = :dateKey")
   suspend fun unmarkPaid(ruleId: Long, dateKey: String)
 
+  @Query("DELETE FROM paid_recurring_occurrences WHERE ruleId = :ruleId AND occurrenceDateKey = :dateKey AND isCancelled = 1")
+  suspend fun unmarkCancelled(ruleId: Long, dateKey: String): Int
+
+  @Query("DELETE FROM paid_recurring_occurrences WHERE paidTransactionId IN (:transactionIds)")
+  suspend fun deleteByPaidTransactionIds(transactionIds: List<Long>): Int
+
   @Query("DELETE FROM paid_recurring_occurrences WHERE ruleId = :ruleId")
   suspend fun deleteForRule(ruleId: Long)
 

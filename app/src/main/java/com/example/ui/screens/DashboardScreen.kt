@@ -91,6 +91,7 @@ import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.FinanceViewModel
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -176,7 +177,8 @@ fun DashboardScreen(
       .background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.TopCenter
   ) {
-    val wide = maxWidth >= 700.dp
+    val adaptiveInfo = LocalAdaptiveInfo.current
+    val wide = adaptiveInfo.useTwoPaneLayout || maxWidth >= 840.dp
     LazyColumn(
       modifier = Modifier
         .widthIn(max = 1080.dp)
@@ -554,72 +556,58 @@ fun DashboardScreen(
         }
       }
 
-      // Spending Insights & Analysis Section
-      item {
-        val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
-        FinancialInsightsSection(
-          insights = activeInsights,
-          periodLabel = periodLabel,
-          currencySymbol = currencySymbol,
-          onOpenSetBudget = onOpenSetBudget,
-          onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
-        )
-      }
-
-      // Recent Activity
-      item {
-        PremiumSectionHeading(
-          title = "Recent activity",
-          subtitle = "Your latest entries for ${monthlySummary.monthLabel}",
-          trailing = {
-            PremiumTextButton(onClick = onOpenAllTransactions) {
-              Text("See all", fontWeight = FontWeight.Bold)
+      // Tablet/large-window dashboards place insight and recent activity in a true two-pane row.
+      if (wide) {
+        item(key = "dashboard_insights_and_activity_wide") {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.Top
+          ) {
+            Column(modifier = Modifier.weight(1.15f)) {
+              val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
+              FinancialInsightsSection(
+                insights = activeInsights,
+                periodLabel = periodLabel,
+                currencySymbol = currencySymbol,
+                onOpenSetBudget = onOpenSetBudget,
+                onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
+              )
             }
-          }
-        )
-      }
-      if (recentTransactions.isEmpty()) {
-        item {
-          PremiumCard {
-            PremiumEmptyState(
-              title = if (allTransactions.isEmpty()) "A fresh start" else "No activity this month",
-              body = if (allTransactions.isEmpty()) {
-                "Add your first transaction and your monthly picture will take shape."
-              } else {
-                "There are no entries for ${monthlySummary.monthLabel}. Choose another month or add a transaction for this period."
-              },
-              action = {
-                PremiumTonalButton(onClick = { onOpenAddTransaction(null) }) {
-                  Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                  Spacer(Modifier.width(8.dp))
-                  Text("Add transaction")
-                }
-              }
-            )
+            Column(modifier = Modifier.weight(1f)) {
+              DashboardRecentActivity(
+                recentTransactions = recentTransactions,
+                allTransactionsEmpty = allTransactions.isEmpty(),
+                monthLabel = monthlySummary.monthLabel,
+                currencySymbol = currencySymbol,
+                onOpenAllTransactions = onOpenAllTransactions,
+                onOpenAddTransaction = onOpenAddTransaction,
+                onEditTransaction = onEditTransaction
+              )
+            }
           }
         }
       } else {
         item {
-          PremiumCard {
-            Column(
-              modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-              verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-              recentTransactions.forEachIndexed { index, transaction ->
-                PremiumTransactionRow(
-                  transaction = transaction,
-                  currencySymbol = currencySymbol,
-                  onClick = { onEditTransaction(transaction) }
-                )
-                if (index != recentTransactions.lastIndex) {
-                  HorizontalDivider(
-                    modifier = Modifier.padding(start = 58.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                  )
-                }
-              }
-            }
-          }
+          val periodLabel = if (isAnnualView) currentYear.toString() else monthlySummary.monthLabel
+          FinancialInsightsSection(
+            insights = activeInsights,
+            periodLabel = periodLabel,
+            currencySymbol = currencySymbol,
+            onOpenSetBudget = onOpenSetBudget,
+            onCategoryClick = { category -> viewModel.selectCategoryForDetail(category) }
+          )
+        }
+        item {
+          DashboardRecentActivity(
+            recentTransactions = recentTransactions,
+            allTransactionsEmpty = allTransactions.isEmpty(),
+            monthLabel = monthlySummary.monthLabel,
+            currencySymbol = currencySymbol,
+            onOpenAllTransactions = onOpenAllTransactions,
+            onOpenAddTransaction = onOpenAddTransaction,
+            onEditTransaction = onEditTransaction
+          )
         }
       }
 
@@ -630,6 +618,69 @@ fun DashboardScreen(
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.padding(horizontal = 2.dp)
         )
+      }
+    }
+  }
+}
+
+@Composable
+private fun DashboardRecentActivity(
+  recentTransactions: List<TransactionItem>,
+  allTransactionsEmpty: Boolean,
+  monthLabel: String,
+  currencySymbol: String,
+  onOpenAllTransactions: () -> Unit,
+  onOpenAddTransaction: (TransactionType?) -> Unit,
+  onEditTransaction: (TransactionItem) -> Unit
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    PremiumSectionHeading(
+      title = "Recent activity",
+      subtitle = "Your latest entries for $monthLabel",
+      trailing = {
+        PremiumTextButton(onClick = onOpenAllTransactions) {
+          Text("See all", fontWeight = FontWeight.Bold)
+        }
+      }
+    )
+    if (recentTransactions.isEmpty()) {
+      PremiumCard {
+        PremiumEmptyState(
+          title = if (allTransactionsEmpty) "A fresh start" else "No activity this month",
+          body = if (allTransactionsEmpty) {
+            "Add your first transaction and your monthly picture will take shape."
+          } else {
+            "There are no entries for $monthLabel. Choose another month or add a transaction for this period."
+          },
+          action = {
+            PremiumTonalButton(onClick = { onOpenAddTransaction(null) }) {
+              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(Modifier.width(8.dp))
+              Text("Add transaction")
+            }
+          }
+        )
+      }
+    } else {
+      PremiumCard {
+        Column(
+          modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+          verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+          recentTransactions.forEachIndexed { index, transaction ->
+            PremiumTransactionRow(
+              transaction = transaction,
+              currencySymbol = currencySymbol,
+              onClick = { onEditTransaction(transaction) }
+            )
+            if (index != recentTransactions.lastIndex) {
+              HorizontalDivider(
+                modifier = Modifier.padding(start = 58.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+              )
+            }
+          }
+        }
       }
     }
   }

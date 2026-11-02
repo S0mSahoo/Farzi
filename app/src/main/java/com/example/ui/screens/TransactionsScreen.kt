@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +58,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import com.example.data.model.TransactionCategory
 import com.example.data.model.TransactionItem
@@ -73,6 +78,7 @@ import com.example.ui.components.PremiumTransactionRow
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.PaisaMotion
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.ui.viewmodel.FinanceViewModel
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -91,6 +97,8 @@ fun TransactionsScreen(
   val selectedCalendar by viewModel.dashboardCalendar.collectAsStateWithLifecycle()
 
   val coroutineScope = rememberCoroutineScope()
+  val useTwoPane = LocalAdaptiveInfo.current.useTwoPaneLayout
+  var selectedTransactionId by remember { mutableStateOf<Long?>(null) }
   var selectedDayOfMonth by remember { mutableStateOf<Int?>(null) } // null = All Month
   var showMonthPicker by remember { mutableStateOf(false) }
   var transactionToDelete by remember { mutableStateOf<TransactionItem?>(null) }
@@ -147,40 +155,100 @@ fun TransactionsScreen(
     )
   }
 
-  // Filter transactions by selected month & selected day (if day selected)
-  val monthTransactions = remember(transactions, startOfMonth, endOfMonth) {
-    transactions.filter { it.timestamp in startOfMonth..endOfMonth }
-  }
-
-  val filteredByDate = remember(monthTransactions, selectedDayOfMonth, selectedCalendar) {
-    if (selectedDayOfMonth == null) {
-      monthTransactions
-    } else {
-      val dayCal = (selectedCalendar.clone() as Calendar).apply {
-        set(Calendar.DAY_OF_MONTH, selectedDayOfMonth!!)
-      }
-      val startOfDay = DateUtils.getStartOfDay(dayCal.timeInMillis)
-      val endOfDay = DateUtils.getEndOfDay(dayCal.timeInMillis)
-      monthTransactions.filter { it.timestamp in startOfDay..endOfDay }
+  // Expensive filtering, aggregation and grouping stays off the UI thread.
+  val projection by produceState(
+    initialValue = TransactionScreenProjection(),
+    transactions,
+    startOfMonth,
+    endOfMonth,
+    selectedDayOfMonth,
+    selectedCalendar.get(Calendar.YEAR),
+    selectedCalendar.get(Calendar.MONTH)
+  ) {
+    value = withContext(Dispatchers.Default) {
+      TransactionHistoryProjector.project(
+        transactions = transactions,
+        startOfMonthMillis = startOfMonth,
+        endOfMonthMillis = endOfMonth,
+        selectedDayOfMonth = selectedDayOfMonth,
+        referenceTimestamp = System.currentTimeMillis()
+      )
     }
   }
-
-  val sorted = remember(filteredByDate) { filteredByDate.sortedByDescending { it.timestamp } }
-  val grouped = remember(sorted) {
-    val todayKey = DateUtils.getDayKey(Calendar.getInstance())
-    val yesterdayKey = DateUtils.getDayKey(Calendar.getInstance().apply { add(Calendar.DAY_OF_MONTH, -1) })
-    sorted.groupBy { tx ->
-      when (DateUtils.getDayKey(tx.timestamp)) {
-        todayKey -> "Today"
-        yesterdayKey -> "Yesterday"
-        else -> DateUtils.getDisplayDate(tx.timestamp)
-      }
-    }
-  }
-
-  val totalIncomeInView = remember(sorted) { sorted.filter { it.type == TransactionType.INCOME }.sumOf { it.amount } }
-  val totalExpenseInView = remember(sorted) { sorted.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount } }
+  val feedEntries = projection.feedEntries
+  val totalIncomeInView = projection.totalIncome
+  val totalExpenseInView = projection.totalExpense
   val netInView = totalIncomeInView - totalExpenseInView
+
+  val selectedTransaction = remember(projection.visibleTransactions, selectedTransactionId) {
+    projection.visibleTransactions.firstOrNull { it.id == selectedTransactionId }
+      ?: projection.visibleTransactions.firstOrNull()
+  }
+
+  val transactionDetailPanel: @Composable () -> Unit = {
+    if (selectedTransaction == null) {
+      PremiumCard {
+        PremiumEmptyState(
+          title = "Select a transaction",
+          body = "Choose a record from the history pane to inspect its category, payment method and notes."
+        )
+      }
+    } else {
+      val transaction = selectedTransaction
+      PremiumCard {
+        Column(
+          modifier = Modifier.fillMaxWidth().padding(20.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+          Text(
+            "TRANSACTION DETAILS",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.1.sp
+          )
+          Text(
+            transaction.title,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            IndianCurrencyFormatter.formatWithSymbol(transaction.amount, currencySymbol, includeSign = true),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = if (transaction.type == TransactionType.INCOME) IncomeGreen else ExpenseRed
+          )
+          HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+          DetailLine("Type", if (transaction.type == TransactionType.INCOME) "Income" else "Expense")
+          DetailLine("Category", transaction.category.displayName)
+          DetailLine("Date", DateUtils.getDisplayDate(transaction.timestamp))
+          DetailLine("Payment method", transaction.paymentMethod.displayName)
+          if (transaction.note.isNotBlank()) {
+            Text("Note", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(transaction.note, style = MaterialTheme.typography.bodyMedium)
+          }
+          Spacer(Modifier.height(4.dp))
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            PremiumTextButton(
+              onClick = { onEditTransaction(transaction) },
+              modifier = Modifier.weight(1f)
+            ) {
+              Text("Edit transaction")
+            }
+            PremiumTextButton(
+              onClick = { transactionToDelete = transaction },
+              modifier = Modifier.weight(1f)
+            ) {
+              Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = ExpenseRed)
+              Spacer(Modifier.width(5.dp))
+              Text("Delete", color = ExpenseRed)
+            }
+          }
+        }
+      }
+    }
+  }
 
   // Generate days for selected month
   val daysInMonth = remember(selectedCalendar) {
@@ -188,10 +256,7 @@ fun TransactionsScreen(
     cal.getActualMaximum(Calendar.DAY_OF_MONTH)
   }
 
-  Box(
-    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-    contentAlignment = Alignment.TopCenter
-  ) {
+  val transactionListContent: @Composable () -> Unit = {
     LazyColumn(
       modifier = Modifier.widthIn(max = 940.dp).fillMaxSize(),
       contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
@@ -271,7 +336,7 @@ fun TransactionsScreen(
 
                 val dayStart = DateUtils.getStartOfDay(dayCal.timeInMillis)
                 val dayEnd = DateUtils.getEndOfDay(dayCal.timeInMillis)
-                val hasTxOnDay = monthTransactions.any { it.timestamp in dayStart..dayEnd }
+                val hasTxOnDay = day in projection.daysWithTransactions
 
                 Surface(
                   onClick = { selectedDayOfMonth = if (selectedDayOfMonth == day) null else day },
@@ -348,7 +413,7 @@ fun TransactionsScreen(
               ) {
                 if (searchQuery.isNotBlank()) {
                   Text(
-                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    text = "${projection.recordCount} ${if (projection.recordCount == 1) "record" else "records"}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -356,7 +421,7 @@ fun TransactionsScreen(
                   )
                 } else {
                   com.example.ui.util.AnimatedFinancialText(
-                    text = "${sorted.size} ${if (sorted.size == 1) "record" else "records"}",
+                    text = "${projection.recordCount} ${if (projection.recordCount == 1) "record" else "records"}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -497,7 +562,7 @@ fun TransactionsScreen(
         }
       }
 
-      if (sorted.isEmpty()) {
+      if (projection.recordCount == 0) {
         item {
           PremiumCard {
             PremiumEmptyState(
@@ -522,8 +587,10 @@ fun TransactionsScreen(
           }
         }
       } else {
-        grouped.entries.forEach { (dateLabel, itemsForDay) ->
-          item(key = "header_$dateLabel") {
+        items(feedEntries, key = { it.key }) { entry ->
+          val dateLabel = entry.dateLabel
+          val transaction = entry.transaction
+          if (dateLabel != null) {
             Row(
               modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
               horizontalArrangement = Arrangement.SpaceBetween,
@@ -531,34 +598,24 @@ fun TransactionsScreen(
             ) {
               Text(dateLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
               Text(
-                "${itemsForDay.size} ${if (itemsForDay.size == 1) "entry" else "entries"}",
+                "${entry.entryCount} ${if (entry.entryCount == 1) "entry" else "entries"}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
             }
-          }
-          item(key = "group_$dateLabel") {
+          } else if (transaction != null) {
             PremiumCard {
-              Column(modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)) {
-                itemsForDay.forEachIndexed { index, tx ->
-                  PremiumTransactionRow(
-                    transaction = tx,
-                    currencySymbol = currencySymbol,
-                    onClick = { onEditTransaction(tx) },
-                    trailing = {
-                      PremiumIconButton(onClick = { transactionToDelete = tx }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${tx.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
-                      }
-                    }
-                  )
-                  if (index != itemsForDay.lastIndex) {
-                    HorizontalDivider(
-                      modifier = Modifier.padding(start = 58.dp),
-                      color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
-                    )
+              PremiumTransactionRow(
+                transaction = transaction,
+                currencySymbol = currencySymbol,
+                onClick = { if (useTwoPane) selectedTransactionId = transaction.id else onEditTransaction(transaction) },
+                trailing = {
+                  PremiumIconButton(onClick = { transactionToDelete = transaction }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.DeleteOutline, contentDescription = "Delete ${transaction.title}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(19.dp))
                   }
-                }
-              }
+                },
+                modifier = Modifier.padding(horizontal = 13.dp, vertical = 6.dp)
+              )
             }
           }
         }
@@ -575,4 +632,47 @@ fun TransactionsScreen(
       }
     }
   }
+
+  Box(
+    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+    contentAlignment = Alignment.TopCenter
+  ) {
+    if (useTwoPane) {
+      Row(
+        modifier = Modifier.fillMaxSize().widthIn(max = 1500.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.Top
+      ) {
+        Box(modifier = Modifier.weight(1.3f).fillMaxHeight()) {
+          transactionListContent()
+        }
+        Column(
+          modifier = Modifier
+            .weight(0.85f)
+            .fillMaxHeight()
+            .padding(end = 20.dp, top = 18.dp, bottom = 18.dp),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          transactionDetailPanel()
+        }
+      }
+    } else {
+      Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        transactionListContent()
+      }
+    }
+  }
 }
+@Composable
+private fun DetailLine(label: String, value: String) {
+  Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween,
+    verticalAlignment = Alignment.CenterVertically
+  ) {
+    Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+  }
+}
+
+

@@ -59,6 +59,31 @@ class FinanceRecoveryPassphraseVerificationTest {
   }
 
   @Test
+  fun testGuestModeCannotReplaceExistingRecoveryPassphrase() = runBlocking {
+    val original = "existing cloud recovery passphrase 2026"
+    val candidate = "new guest replacement passphrase 2026"
+    CryptoManager.replaceStoredCloudRecoveryPassphrase(app, original)
+
+    val repo = com.example.data.repository.FinanceRepository(app)
+    repo.saveUserProfile(UserProfile())
+    repo.setGuestDataMode(true)
+    val guestViewModel = FinanceViewModel(app)
+    flushCoroutines()
+
+    val result = guestViewModel.verifyAndSetRecoveryPassphrase(candidate)
+
+    assertTrue("Guest mode must not replace a passphrase without cloud verification", result.isFailure)
+    assertTrue(
+      result.exceptionOrNull()?.message.orEmpty().contains("Sign in to the Google account")
+    )
+    assertEquals(
+      "The original cloud recovery passphrase must remain available",
+      original,
+      CryptoManager.getStoredCloudRecoveryPassphrase(app)
+    )
+  }
+
+  @Test
   fun testShortPassphraseFailsValidationAndLeavesStoredValueIntact() = runBlocking {
     val initialPassphrase = "valid recovery passphrase 2026"
     viewModel.verifyAndSetRecoveryPassphrase(initialPassphrase)

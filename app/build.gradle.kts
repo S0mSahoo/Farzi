@@ -13,6 +13,12 @@ android {
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
+    val configuredPaisaAiModel = providers.gradleProperty("PAISA_AI_MODEL_NAME").orElse("").get().trim()
+    require(configuredPaisaAiModel.matches(Regex("[a-z0-9.-]*"))) {
+      "PAISA_AI_MODEL_NAME must contain only lowercase letters, digits, dots, and hyphens."
+    }
+    buildConfigField("String", "PAISA_AI_MODEL_NAME", "\"$configuredPaisaAiModel\"")
+
     applicationId = "com.aistudio.paisa.tracker"
     minSdk = 24
     targetSdk = 36

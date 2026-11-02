@@ -19,6 +19,14 @@ data class EncryptedBundle(
   val ciphertextBase64: String
 )
 
+/** Outcome of checking a candidate against the encryption format of a cloud backup. */
+enum class RecoveryPassphraseVerification {
+  MATCH,
+  LEGACY_BACKUP_REQUIRES_MIGRATION,
+  MISMATCH,
+  UNSUPPORTED_ENCRYPTION
+}
+
 object CryptoManager {
   private const val ALGORITHM = "AES/GCM/NoPadding"
   private const val GCM_TAG_LENGTH = 128
@@ -34,6 +42,14 @@ object CryptoManager {
   private const val RECOVERY_WRAP_KEY_ALIAS = "paisa_cloud_recovery_wrap_key_v1"
 
   private val secureRandom = SecureRandom()
+
+  private fun requireValidGcmIv(iv: ByteArray) {
+    require(iv.size == GCM_IV_LENGTH) { "Invalid AES-GCM initialization vector." }
+  }
+
+  private fun requireValidGcmCiphertext(ciphertext: ByteArray) {
+    require(ciphertext.size >= GCM_TAG_LENGTH / 8) { "Invalid AES-GCM ciphertext." }
+  }
 
   /**
    * Legacy key derivation retained exclusively to decrypt backups created by older app versions.
@@ -121,11 +137,35 @@ object CryptoManager {
     val iv = Base64.decode(bundle.ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(bundle.ciphertextBase64, Base64.NO_WRAP)
     require(salt.size == SALT_LENGTH) { "Invalid backup encryption salt." }
-    require(iv.size == GCM_IV_LENGTH) { "Invalid backup encryption IV." }
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val key = deriveRecoveryKey(passphrase, salt)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+  }
+
+  /**
+   * Applies the recovery-passphrase policy for a downloaded cloud envelope.
+   * Legacy formats remain recoverable through their existing migration path; unknown formats
+   * are rejected rather than accidentally treated as a valid passphrase.
+   */
+  fun verifyRecoveryPassphraseForEnvelope(
+    bundle: EncryptedBundle,
+    encryptionScheme: String,
+    passphrase: String
+  ): RecoveryPassphraseVerification {
+    if (passphrase.length < 12) return RecoveryPassphraseVerification.MISMATCH
+    return when (encryptionScheme) {
+      "recovery-passphrase-v1" ->
+        if (verifyPassphraseAgainstBundle(bundle, passphrase)) {
+          RecoveryPassphraseVerification.MATCH
+        } else {
+          RecoveryPassphraseVerification.MISMATCH
+        }
+      "google-id-v1", "" -> RecoveryPassphraseVerification.LEGACY_BACKUP_REQUIRES_MIGRATION
+      else -> RecoveryPassphraseVerification.UNSUPPORTED_ENCRYPTION
+    }
   }
 
   /**
@@ -165,6 +205,7 @@ object CryptoManager {
    * It is intentionally not included in Android backup/restore; another device must have the
    * user re-enter the same passphrase to access the cross-device cloud backup.
    */
+  @Synchronized
   fun storeCloudRecoveryPassphrase(context: Context, passphrase: String) {
     require(passphrase.length >= 12) { "Use a recovery passphrase with at least 12 characters." }
     val current = getStoredCloudRecoveryPassphrase(context)
@@ -181,13 +222,7 @@ object CryptoManager {
     cipher.init(Cipher.ENCRYPT_MODE, key)
     val iv = cipher.iv ?: throw IllegalStateException("Cipher failed to generate an initialization vector.")
     val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-    val committed = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE).edit()
-      .putString(RECOVERY_IV_KEY, Base64.encodeToString(iv, Base64.NO_WRAP))
-      .putString(RECOVERY_VALUE_KEY, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-      .commit()
-    if (!committed) {
-      throw java.io.IOException("Failed to commit recovery passphrase to secure preferences.")
-    }
+    persistRecoveryPassphrase(context, iv, encrypted)
   }
 
   /**
@@ -195,6 +230,7 @@ object CryptoManager {
    * encryption key or rewrite the cloud backup; it only lets a user correct a passphrase entry
    * or re-enter the same cross-device recovery passphrase on this device.
    */
+  @Synchronized
   fun replaceStoredCloudRecoveryPassphrase(context: Context, passphrase: String) {
     require(passphrase.length >= 12) { "Recovery passphrase must contain at least 12 characters." }
     val key = getOrCreateRecoveryWrapKey()
@@ -203,13 +239,66 @@ object CryptoManager {
     cipher.init(Cipher.ENCRYPT_MODE, key)
     val iv = cipher.iv ?: throw IllegalStateException("Cipher failed to generate an initialization vector.")
     val encrypted = cipher.doFinal(passphrase.toByteArray(Charsets.UTF_8))
-    val committed = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE).edit()
-      .putString(RECOVERY_IV_KEY, Base64.encodeToString(iv, Base64.NO_WRAP))
-      .putString(RECOVERY_VALUE_KEY, Base64.encodeToString(encrypted, Base64.NO_WRAP))
-      .commit()
-    if (!committed) {
-      throw java.io.IOException("Failed to commit recovery passphrase to secure preferences.")
+    persistRecoveryPassphrase(context, iv, encrypted)
+  }
+
+  /**
+   * Writes the IV and ciphertext as one preferences transaction. If disk persistence fails,
+   * restore the previous in-memory values and attempt to persist that rollback before returning
+   * an error to the caller.
+   */
+  private fun persistRecoveryPassphrase(context: Context, iv: ByteArray, encrypted: ByteArray) {
+    val prefs = context.getSharedPreferences(RECOVERY_PREFS, Context.MODE_PRIVATE)
+    val previousIv = prefs.getString(RECOVERY_IV_KEY, null)
+    val previousValue = prefs.getString(RECOVERY_VALUE_KEY, null)
+    persistRecoveryPassphraseValues(
+      previousIv = previousIv,
+      previousValue = previousValue,
+      newIv = Base64.encodeToString(iv, Base64.NO_WRAP),
+      newValue = Base64.encodeToString(encrypted, Base64.NO_WRAP)
+    ) { ivValue, encryptedValue ->
+      prefs.edit().apply {
+        if (ivValue == null) remove(RECOVERY_IV_KEY) else putString(RECOVERY_IV_KEY, ivValue)
+        if (encryptedValue == null) remove(RECOVERY_VALUE_KEY) else putString(RECOVERY_VALUE_KEY, encryptedValue)
+      }.commit()
     }
+  }
+
+  /**
+   * Persists a new IV/ciphertext pair and restores the exact previous preference state if the
+   * write fails. Keeping this operation injectable makes both failure paths deterministic in tests.
+   */
+  internal fun persistRecoveryPassphraseValues(
+    previousIv: String?,
+    previousValue: String?,
+    newIv: String,
+    newValue: String,
+    persist: (iv: String?, value: String?) -> Boolean
+  ) {
+    val writeFailure = try {
+      if (persist(newIv, newValue)) return
+      null
+    } catch (e: Exception) {
+      e
+    }
+
+    val rollbackSucceeded = try {
+      persist(previousIv, previousValue)
+    } catch (_: Exception) {
+      false
+    }
+
+    if (!rollbackSucceeded) {
+      throw IllegalStateException(
+        "Recovery passphrase persistence failed and the previous preferences could not be confirmed. Check device storage and retry before clearing app data.",
+        writeFailure
+      )
+    }
+
+    throw java.io.IOException(
+      "Failed to persist the recovery passphrase. The previous saved value was restored.",
+      writeFailure
+    )
   }
 
   /** Returns the locally Keystore-wrapped passphrase, or null if none has been configured. */
@@ -226,6 +315,8 @@ object CryptoManager {
     val cipher = Cipher.getInstance(ALGORITHM)
     val iv = Base64.decode(ivText, Base64.NO_WRAP)
     val encrypted = Base64.decode(encryptedText, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(encrypted)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(encrypted), Charsets.UTF_8)
   }
@@ -267,6 +358,8 @@ object CryptoManager {
     val salt = Base64.decode(bundle.saltBase64, Base64.NO_WRAP)
     val iv = Base64.decode(bundle.ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(bundle.ciphertextBase64, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val key = deriveKey(userIdentifier, salt)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
@@ -296,6 +389,8 @@ object CryptoManager {
     val key = deriveKey(localMasterKey, salt)
     val iv = Base64.decode(ivBase64, Base64.NO_WRAP)
     val ciphertext = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
+    requireValidGcmIv(iv)
+    requireValidGcmCiphertext(ciphertext)
     val cipher = Cipher.getInstance(ALGORITHM)
     cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH, iv))
     return String(cipher.doFinal(ciphertext), Charsets.UTF_8)

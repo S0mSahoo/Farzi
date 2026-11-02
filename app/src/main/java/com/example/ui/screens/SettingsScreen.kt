@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -114,6 +117,7 @@ import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.MinimalBlue
 import com.example.ui.viewmodel.FinanceViewModel
+import com.example.ui.util.LocalAdaptiveInfo
 import com.example.util.BiometricAuthManager
 import com.example.util.CryptoManager
 import com.example.util.JsonValidationResult
@@ -130,6 +134,8 @@ fun SettingsScreen(
   onOpenExportModal: () -> Unit
 ) {
   val context = LocalContext.current
+  val adaptiveInfo = LocalAdaptiveInfo.current
+  val useSettingsGrid = adaptiveInfo.width >= 840.dp && adaptiveInfo.useTwoPaneLayout
   val coroutineScope = rememberCoroutineScope()
   val userProfile by viewModel.userProfile.collectAsStateWithLifecycle()
   val googleDriveState by viewModel.googleDriveState.collectAsStateWithLifecycle()
@@ -657,17 +663,19 @@ fun SettingsScreen(
   }
 
 
-  LazyColumn(
+  LazyVerticalGrid(
+    columns = GridCells.Fixed(if (useSettingsGrid) 2 else 1),
     modifier = Modifier
-      .widthIn(max = 920.dp)
+      .widthIn(max = if (useSettingsGrid) 1280.dp else 920.dp)
       .fillMaxSize()
       .background(MaterialTheme.colorScheme.background)
       .testTag("settings_screen"),
     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
+    horizontalArrangement = Arrangement.spacedBy(if (useSettingsGrid) 18.dp else 0.dp),
     verticalArrangement = Arrangement.spacedBy(20.dp)
   ) {
-    // Header
-    item {
+    // Header spans both columns on tablets.
+    item(span = { GridItemSpan(maxLineSpan) }) {
       PremiumPageHeader(
         title = "Settings",
         subtitle = "Your account, data and privacy preferences."
