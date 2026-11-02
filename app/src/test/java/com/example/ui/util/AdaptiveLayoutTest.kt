@@ -38,4 +38,32 @@ class AdaptiveLayoutTest {
     assertFalse(info.useTwoPaneLayout)
     assertEquals(AppNavigationType.NAVIGATION_RAIL, info.navigationType)
   }
+
+  @Test
+  fun compactLandscapePhoneUsesNavigationRail() {
+    val info = calculateAdaptiveInfo(540.dp, 360.dp)
+    assertTrue(info.isLandscapePhone)
+    assertEquals(WindowWidthSizeClass.COMPACT, info.widthSizeClass)
+    assertEquals(WindowHeightSizeClass.COMPACT, info.heightSizeClass)
+    assertEquals(AppNavigationType.NAVIGATION_RAIL, info.navigationType)
+    assertFalse(info.useTwoPaneLayout)
+  }
+
+  @Test
+  fun squareFoldableUnfoldedAllowsTwoPane() {
+    val info = calculateAdaptiveInfo(600.dp, 600.dp)
+    assertFalse(info.isLandscapePhone)
+    assertEquals(WindowWidthSizeClass.MEDIUM, info.widthSizeClass)
+    assertEquals(AppNavigationType.NAVIGATION_RAIL, info.navigationType)
+    assertTrue(info.useTwoPaneLayout)
+  }
+
+  @Test
+  fun extraLargeDesktopUsesDrawerAndExpandedHeight() {
+    val info = calculateAdaptiveInfo(1440.dp, 920.dp)
+    assertEquals(WindowWidthSizeClass.EXPANDED, info.widthSizeClass)
+    assertEquals(WindowHeightSizeClass.EXPANDED, info.heightSizeClass)
+    assertEquals(AppNavigationType.PERMANENT_DRAWER, info.navigationType)
+    assertTrue(info.useTwoPaneLayout)
+  }
 }

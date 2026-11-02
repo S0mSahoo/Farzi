@@ -42,6 +42,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import androidx.compose.foundation.layout.widthIn
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoryDetailSheet(
@@ -50,7 +52,6 @@ fun CategoryDetailSheet(
   onDismiss: () -> Unit
 ) {
   val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-  val category = detail.category
 
   ModalBottomSheet(
     onDismissRequest = onDismiss,
@@ -58,193 +59,216 @@ fun CategoryDetailSheet(
     containerColor = MaterialTheme.colorScheme.surface,
     shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(horizontal = 20.dp, vertical = 8.dp)
+    Box(
+      modifier = Modifier.fillMaxWidth(),
+      contentAlignment = Alignment.Center
     ) {
-      // Header
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-          Surface(
-            shape = CircleShape,
-            color = category.color.copy(alpha = 0.15f),
-            modifier = Modifier.size(44.dp)
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Icon(
-                imageVector = category.icon,
-                contentDescription = null,
-                tint = category.color,
-                modifier = Modifier.size(24.dp)
-              )
-            }
-          }
+      CategoryDetailContent(
+        detail = detail,
+        currencySymbol = currencySymbol,
+        onDismiss = onDismiss,
+        modifier = Modifier.widthIn(max = 640.dp)
+      )
+    }
+  }
+}
 
-          Column {
-            Text(
-              text = category.displayName,
-              style = MaterialTheme.typography.titleLarge,
-              fontWeight = FontWeight.Bold,
-              color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-              text = "${detail.monthLabel} • ${detail.transactionCount} transaction${if (detail.transactionCount != 1) "s" else ""}",
-              style = MaterialTheme.typography.labelMedium,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
+@Composable
+fun CategoryDetailContent(
+  detail: CategorySpendingDetail,
+  currencySymbol: String = "₹",
+  onDismiss: (() -> Unit)? = null,
+  modifier: Modifier = Modifier
+) {
+  val category = detail.category
+  Column(
+    modifier = modifier
+      .fillMaxWidth()
+      .padding(horizontal = 20.dp, vertical = 8.dp)
+  ) {
+    // Header
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
+    ) {
+      Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+      ) {
+        Surface(
+          shape = CircleShape,
+          color = category.color.copy(alpha = 0.15f),
+          modifier = Modifier.size(44.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = category.icon,
+              contentDescription = null,
+              tint = category.color,
+              modifier = Modifier.size(24.dp)
             )
           }
         }
 
+        Column {
+          Text(
+            text = category.displayName,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+          )
+          Text(
+            text = "${detail.monthLabel} • ${detail.transactionCount} transaction${if (detail.transactionCount != 1) "s" else ""}",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+        }
+      }
+
+      if (onDismiss != null) {
         PremiumIconButton(onClick = onDismiss) {
           Icon(Icons.Default.Close, contentDescription = "Close")
         }
       }
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(16.dp))
 
-      // Summary Cards (Total Spent & Income if applicable)
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    // Summary Cards (Total Spent & Income if applicable)
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+      Surface(
+        shape = RoundedCornerShape(24.dp),
+        color = ExpenseRed.copy(alpha = 0.08f),
+        border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.2f)),
+        modifier = Modifier.weight(1f)
       ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+          Text(
+            text = "Total Spent",
+            style = MaterialTheme.typography.labelSmall,
+            color = ExpenseRed
+          )
+          Spacer(modifier = Modifier.height(4.dp))
+          Text(
+            text = IndianCurrencyFormatter.formatWithSymbol(detail.totalSpent, currencySymbol),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = ExpenseRed
+          )
+        }
+      }
+
+      if (detail.totalIncome > 0) {
         Surface(
           shape = RoundedCornerShape(24.dp),
-          color = ExpenseRed.copy(alpha = 0.08f),
-          border = androidx.compose.foundation.BorderStroke(1.dp, ExpenseRed.copy(alpha = 0.2f)),
+          color = IncomeGreen.copy(alpha = 0.08f),
+          border = androidx.compose.foundation.BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.2f)),
           modifier = Modifier.weight(1f)
         ) {
           Column(modifier = Modifier.padding(14.dp)) {
             Text(
-              text = "Total Spent",
+              text = "Income Received",
               style = MaterialTheme.typography.labelSmall,
-              color = ExpenseRed
+              color = IncomeGreen
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-              text = IndianCurrencyFormatter.formatWithSymbol(detail.totalSpent, currencySymbol),
+              text = IndianCurrencyFormatter.formatWithSymbol(detail.totalIncome, currencySymbol),
               style = MaterialTheme.typography.titleMedium,
               fontWeight = FontWeight.Bold,
-              color = ExpenseRed
+              color = IncomeGreen
             )
           }
         }
-
-        if (detail.totalIncome > 0) {
-          Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = IncomeGreen.copy(alpha = 0.08f),
-            border = androidx.compose.foundation.BorderStroke(1.dp, IncomeGreen.copy(alpha = 0.2f)),
-            modifier = Modifier.weight(1f)
-          ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-              Text(
-                text = "Income Received",
-                style = MaterialTheme.typography.labelSmall,
-                color = IncomeGreen
-              )
-              Spacer(modifier = Modifier.height(4.dp))
-              Text(
-                text = IndianCurrencyFormatter.formatWithSymbol(detail.totalIncome, currencySymbol),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = IncomeGreen
-              )
-            }
-          }
-        }
       }
+    }
 
-      Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(16.dp))
 
-      Text(
-        text = "Transactions (${detail.monthLabel})",
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onSurface
-      )
+    Text(
+      text = "Transactions (${detail.monthLabel})",
+      style = MaterialTheme.typography.titleSmall,
+      fontWeight = FontWeight.Bold,
+      color = MaterialTheme.colorScheme.onSurface
+    )
 
-      Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
-      if (detail.transactions.isEmpty()) {
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(120.dp),
-          contentAlignment = Alignment.Center
-        ) {
-          Text(
-            text = "No transactions found in ${detail.monthLabel}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      } else {
-        LazyColumn(
-          modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 380.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          items(detail.transactions, key = { it.id }) { item ->
-            val isExpense = item.type == TransactionType.EXPENSE
-            val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.timestamp))
+    if (detail.transactions.isEmpty()) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(120.dp),
+        contentAlignment = Alignment.Center
+      ) {
+        Text(
+          text = "No transactions found in ${detail.monthLabel}",
+          style = MaterialTheme.typography.bodyMedium,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+      }
+    } else {
+      LazyColumn(
+        modifier = Modifier
+          .fillMaxWidth()
+          .heightIn(max = 380.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        items(detail.transactions, key = { it.id }) { item ->
+          val isExpense = item.type == TransactionType.EXPENSE
+          val dateStr = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(item.timestamp))
 
-            Surface(
-              shape = RoundedCornerShape(20.dp),
-              color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-              modifier = Modifier.fillMaxWidth()
+          Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+            modifier = Modifier.fillMaxWidth()
+          ) {
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+              verticalAlignment = Alignment.CenterVertically,
+              horizontalArrangement = Arrangement.SpaceBetween
             ) {
-              Row(
-                modifier = Modifier
-                  .fillMaxWidth()
-                  .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-              ) {
-                Column(modifier = Modifier.weight(1f)) {
-                  Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                  )
+              Column(modifier = Modifier.weight(1f)) {
+                Text(
+                  text = item.title,
+                  style = MaterialTheme.typography.bodyMedium,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                  text = "$dateStr • ${item.paymentMethod.displayName}",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (item.note.isNotBlank()) {
                   Spacer(modifier = Modifier.height(2.dp))
                   Text(
-                    text = "$dateStr • ${item.paymentMethod.displayName}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = item.note,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                   )
-                  if (item.note.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                      text = item.note,
-                      style = MaterialTheme.typography.bodySmall,
-                      color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                    )
-                  }
                 }
-
-                Text(
-                  text = "${if (isExpense) "-" else "+"}${IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol)}",
-                  style = MaterialTheme.typography.titleSmall,
-                  fontWeight = FontWeight.Bold,
-                  color = if (isExpense) ExpenseRed else IncomeGreen
-                )
               }
+
+              Text(
+                text = "${if (isExpense) "-" else "+"}${IndianCurrencyFormatter.formatWithSymbol(item.amount, currencySymbol)}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = if (isExpense) ExpenseRed else IncomeGreen
+              )
             }
           }
         }
       }
-
-      Spacer(modifier = Modifier.height(24.dp))
     }
+
+    Spacer(modifier = Modifier.height(24.dp))
   }
 }

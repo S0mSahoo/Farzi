@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -189,181 +190,356 @@ fun RecurringScreen(
     recurringRules.sortedBy { !it.isActive }
   }
 
+  val adaptiveInfo = com.example.ui.util.LocalAdaptiveInfo.current
+  val useTwoPane = adaptiveInfo.useTwoPaneLayout
+
   Box(
     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.TopCenter
   ) {
-    LazyColumn(
-      modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize().testTag("recurring_screen"),
-      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-      verticalArrangement = Arrangement.spacedBy(17.dp)
-    ) {
-      item {
-        PremiumPageHeader(
-          title = "Recurring",
-          subtitle = "Bills, subscriptions and regular payments.",
-          trailing = {
-            PremiumTonalButton(onClick = onOpenAddRecurringRule) {
-              Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-              Spacer(Modifier.width(6.dp))
-              Text("Add rule")
-            }
-          }
-        )
-      }
-
-      item {
-        val isLight = !com.example.ui.theme.isAppInDarkTheme()
-        Surface(
-          shape = RoundedCornerShape(28.dp),
-          color = Color.Transparent,
-          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-          modifier = Modifier
-            .fillMaxWidth()
-            .background(
-              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                 colors = if (isLight) {
-                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                } else {
-                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
-                }
-              ),
-              shape = RoundedCornerShape(28.dp)
-            )
+    if (useTwoPane) {
+      Row(
+        modifier = Modifier
+          .widthIn(max = 1280.dp)
+          .fillMaxSize()
+          .padding(horizontal = 20.dp, vertical = 18.dp)
+          .testTag("recurring_screen"),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
+      ) {
+        // Left Pane: Upcoming Bills / Payment Schedule
+        LazyColumn(
+          modifier = Modifier.weight(1.1f).fillMaxHeight(),
+          verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
-          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
-          Row(
-            modifier = Modifier.fillMaxWidth().padding(20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-              Text("BILLS STILL TO PAY", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = textColor, fontWeight = FontWeight.Bold)
-              com.example.ui.util.AnimatedFinancialText("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = subTextColor)
-            }
-            Surface(shape = RoundedCornerShape(17.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
-              Icon(Icons.Default.Repeat, contentDescription = null, tint = textColor, modifier = Modifier.padding(13.dp).size(24.dp))
+          item {
+            PremiumPageHeader(
+              title = "Recurring",
+              subtitle = "Bills, subscriptions and regular payments."
+            )
+          }
+
+          item {
+            val isLight = !com.example.ui.theme.isAppInDarkTheme()
+            Surface(
+              shape = RoundedCornerShape(28.dp),
+              color = Color.Transparent,
+              border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
+              modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                  brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = if (isLight) {
+                      listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                    } else {
+                      listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                    }
+                  ),
+                  shape = RoundedCornerShape(28.dp)
+                )
+            ) {
+              val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+              val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
+              Row(
+                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                  Text("BILLS STILL TO PAY", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                  com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = textColor, fontWeight = FontWeight.Bold)
+                  com.example.ui.util.AnimatedFinancialText("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = subTextColor)
+                }
+                Surface(shape = RoundedCornerShape(17.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
+                  Icon(Icons.Default.Repeat, contentDescription = null, tint = textColor, modifier = Modifier.padding(13.dp).size(24.dp))
+                }
+              }
             }
           }
-        }
-      }
 
-      item {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-          com.example.ui.components.PremiumSegmentedToggle(
-            options = listOf("Upcoming bills", "Rules · ${recurringRules.size}"),
-            selectedIndex = selectedTab,
-            onSelect = { selectedTab = it },
-            modifier = Modifier.testTag("recurring_period_toggle")
-          )
-        }
-      }
-
-      item(key = "recurring_section_heading") {
-        AnimatedContent(
-          targetState = selectedTab,
-          transitionSpec = { PaisaMotion.DefaultContentTransform },
-          label = "recurring_heading_transition"
-        ) { tab ->
-          if (tab == 0) {
+          item(key = "recurring_two_pane_schedule_header") {
             com.example.ui.components.PremiumSectionHeading(
               title = "Payment schedule",
               subtitle = "Mark payments once they are completed."
             )
-          } else {
-            com.example.ui.components.PremiumSectionHeading(
-              title = "Your recurring rules",
-              subtitle = "Pause or adjust a rule any time."
-            )
           }
-        }
-      }
 
-      if (selectedTab == 0) {
-        if (outstanding.isEmpty()) {
-          item(key = "recurring_empty_upcoming") {
-            PremiumCard {
-              PremiumEmptyState(
-                title = "You're all caught up",
-                body = "No active scheduled or overdue payments are waiting for you.",
-                action = {
-                  PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add a recurring rule")
+          if (outstanding.isEmpty()) {
+            item(key = "recurring_empty_upcoming") {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "You're all caught up",
+                  body = "No active scheduled or overdue payments are waiting for you.",
+                  action = {
+                    PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
+                      Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                      Spacer(Modifier.width(6.dp))
+                      Text("Add a recurring rule")
+                    }
                   }
+                )
+              }
+            }
+          } else {
+            items(
+              items = scheduleItems,
+              key = { item ->
+                when (item) {
+                  is ScheduleItem.DateHeader -> "header_${item.dateKey}"
+                  is ScheduleItem.Occurrence -> "occ_${item.occurrence.rule.id}_${item.occurrence.occurrenceDateKey}"
                 }
+              }
+            ) { item ->
+              when (item) {
+                is ScheduleItem.DateHeader -> {
+                  Text(
+                    item.dateKey,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                  )
+                }
+                is ScheduleItem.Occurrence -> {
+                  OccurrencePremiumCard(
+                    occurrence = item.occurrence,
+                    currencySymbol = currencySymbol,
+                    onMarkPaid = { viewModel.markRecurringPaymentPaid(item.occurrence) },
+                    onSkip = { occurrenceToCancel = item.occurrence },
+                    modifier = Modifier.animateItem()
+                  )
+                }
+              }
+            }
+          }
+          item { Spacer(Modifier.height(10.dp)) }
+        }
+
+        // Right Pane: Recurring Rules
+        LazyColumn(
+          modifier = Modifier.weight(1f).fillMaxHeight(),
+          verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+          item(key = "recurring_two_pane_rules_header") {
+            PremiumPageHeader(
+              title = "Recurring Rules",
+              subtitle = "${recurringRules.size} configured rule${if (recurringRules.size != 1) "s" else ""}",
+              trailing = {
+                PremiumTonalButton(onClick = onOpenAddRecurringRule) {
+                  Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                  Spacer(Modifier.width(6.dp))
+                  Text("Add rule")
+                }
+              }
+            )
+          }
+
+          if (recurringRules.isEmpty()) {
+            item(key = "recurring_empty_rules") {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "No rules yet",
+                  body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
+                  action = {
+                    PremiumButton(onClick = onOpenAddRecurringRule) {
+                      Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                      Spacer(Modifier.width(6.dp))
+                      Text("Create first rule")
+                    }
+                  }
+                )
+              }
+            }
+          } else {
+            items(
+              items = sortedRules,
+              key = { "rule_${it.id}" }
+            ) { rule ->
+              RecurringRulePremiumCard(
+                rule = rule,
+                currencySymbol = currencySymbol,
+                onEdit = { onEditRecurringRule(rule) },
+                onDelete = { ruleToDelete = rule },
+                onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) },
+                modifier = Modifier.animateItem()
               )
             }
           }
-        } else {
-          items(
-            items = scheduleItems,
-            key = { item ->
-              when (item) {
-                is ScheduleItem.DateHeader -> "header_${item.dateKey}"
-                is ScheduleItem.Occurrence -> "occ_${item.occurrence.rule.id}_${item.occurrence.occurrenceDateKey}"
+          item { Spacer(Modifier.height(10.dp)) }
+        }
+      }
+    } else {
+      LazyColumn(
+        modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize().testTag("recurring_screen"),
+        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(17.dp)
+      ) {
+        item {
+          PremiumPageHeader(
+            title = "Recurring",
+            subtitle = "Bills, subscriptions and regular payments.",
+            trailing = {
+              PremiumTonalButton(onClick = onOpenAddRecurringRule) {
+                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Add rule")
               }
             }
-          ) { item ->
-            when (item) {
-              is ScheduleItem.DateHeader -> {
-                Text(
-                  item.dateKey,
-                  style = MaterialTheme.typography.titleSmall,
-                  fontWeight = FontWeight.Bold,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  modifier = Modifier.padding(top = 4.dp)
-                )
+          )
+        }
+
+        item {
+          val isLight = !com.example.ui.theme.isAppInDarkTheme()
+          Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = Color.Transparent,
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                   colors = if (isLight) {
+                    listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                  } else {
+                    listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                  }
+                ),
+                shape = RoundedCornerShape(28.dp)
+              )
+          ) {
+            val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+            val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
+            Row(
+              modifier = Modifier.fillMaxWidth().padding(20.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Text("BILLS STILL TO PAY", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(outstandingTotal, currencySymbol), style = MaterialTheme.typography.headlineSmall, color = textColor, fontWeight = FontWeight.Bold)
+                com.example.ui.util.AnimatedFinancialText("${unpaidBills.size} bills · ${outstanding.size} scheduled items", style = MaterialTheme.typography.bodySmall, color = subTextColor)
               }
-              is ScheduleItem.Occurrence -> {
-                OccurrencePremiumCard(
-                  occurrence = item.occurrence,
-                  currencySymbol = currencySymbol,
-                  onMarkPaid = { viewModel.markRecurringPaymentPaid(item.occurrence) },
-                  onSkip = { occurrenceToCancel = item.occurrence },
-                  modifier = Modifier.animateItem()
-                )
+              Surface(shape = RoundedCornerShape(17.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
+                Icon(Icons.Default.Repeat, contentDescription = null, tint = textColor, modifier = Modifier.padding(13.dp).size(24.dp))
               }
             }
           }
         }
-      } else {
-        if (recurringRules.isEmpty()) {
-          item(key = "recurring_empty_rules") {
-            PremiumCard {
-              PremiumEmptyState(
-                title = "No rules yet",
-                body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
-                action = {
-                  PremiumButton(onClick = onOpenAddRecurringRule) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Create first rule")
-                  }
-                }
-              )
-            }
-          }
-        } else {
-          items(
-            items = sortedRules,
-            key = { "rule_${it.id}" }
-          ) { rule ->
-            RecurringRulePremiumCard(
-              rule = rule,
-              currencySymbol = currencySymbol,
-              onEdit = { onEditRecurringRule(rule) },
-              onDelete = { ruleToDelete = rule },
-              onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) },
-              modifier = Modifier.animateItem()
+
+        item {
+          Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            com.example.ui.components.PremiumSegmentedToggle(
+              options = listOf("Upcoming bills", "Rules · ${recurringRules.size}"),
+              selectedIndex = selectedTab,
+              onSelect = { selectedTab = it },
+              modifier = Modifier.testTag("recurring_period_toggle")
             )
           }
         }
+
+        item(key = "recurring_section_heading") {
+          AnimatedContent(
+            targetState = selectedTab,
+            transitionSpec = { PaisaMotion.DefaultContentTransform },
+            label = "recurring_heading_transition"
+          ) { tab ->
+            if (tab == 0) {
+              com.example.ui.components.PremiumSectionHeading(
+                title = "Payment schedule",
+                subtitle = "Mark payments once they are completed."
+              )
+            } else {
+              com.example.ui.components.PremiumSectionHeading(
+                title = "Your recurring rules",
+                subtitle = "Pause or adjust a rule any time."
+              )
+            }
+          }
+        }
+
+        if (selectedTab == 0) {
+          if (outstanding.isEmpty()) {
+            item(key = "recurring_empty_upcoming") {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "You're all caught up",
+                  body = "No active scheduled or overdue payments are waiting for you.",
+                  action = {
+                    PremiumOutlinedButton(onClick = onOpenAddRecurringRule) {
+                      Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                      Spacer(Modifier.width(6.dp))
+                      Text("Add a recurring rule")
+                    }
+                  }
+                )
+              }
+            }
+          } else {
+            items(
+              items = scheduleItems,
+              key = { item ->
+                when (item) {
+                  is ScheduleItem.DateHeader -> "header_${item.dateKey}"
+                  is ScheduleItem.Occurrence -> "occ_${item.occurrence.rule.id}_${item.occurrence.occurrenceDateKey}"
+                }
+              }
+            ) { item ->
+              when (item) {
+                is ScheduleItem.DateHeader -> {
+                  Text(
+                    item.dateKey,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                  )
+                }
+                is ScheduleItem.Occurrence -> {
+                  OccurrencePremiumCard(
+                    occurrence = item.occurrence,
+                    currencySymbol = currencySymbol,
+                    onMarkPaid = { viewModel.markRecurringPaymentPaid(item.occurrence) },
+                    onSkip = { occurrenceToCancel = item.occurrence },
+                    modifier = Modifier.animateItem()
+                  )
+                }
+              }
+            }
+          }
+        } else {
+          if (recurringRules.isEmpty()) {
+            item(key = "recurring_empty_rules") {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "No rules yet",
+                  body = "Add rent, subscriptions, utilities or regular income to make future payments easier to track.",
+                  action = {
+                    PremiumButton(onClick = onOpenAddRecurringRule) {
+                      Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(17.dp))
+                      Spacer(Modifier.width(6.dp))
+                      Text("Create first rule")
+                    }
+                  }
+                )
+              }
+            }
+          } else {
+            items(
+              items = sortedRules,
+              key = { "rule_${it.id}" }
+            ) { rule ->
+              RecurringRulePremiumCard(
+                rule = rule,
+                currencySymbol = currencySymbol,
+                onEdit = { onEditRecurringRule(rule) },
+                onDelete = { ruleToDelete = rule },
+                onToggle = { active -> viewModel.toggleRecurringRule(rule.id, active) },
+                modifier = Modifier.animateItem()
+              )
+            }
+          }
+        }
+        item { Spacer(Modifier.height(10.dp)) }
       }
-      item { Spacer(Modifier.height(10.dp)) }
     }
   }
 }

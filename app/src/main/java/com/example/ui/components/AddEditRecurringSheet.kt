@@ -73,6 +73,9 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import kotlinx.coroutines.launch
 
+import androidx.compose.foundation.layout.widthIn
+import com.example.ui.util.LocalAdaptiveInfo
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditRecurringSheet(
@@ -92,6 +95,10 @@ fun AddEditRecurringSheet(
     note: String
   ) -> Unit
 ) {
+  val adaptiveInfo = LocalAdaptiveInfo.current
+  val compactHeight = adaptiveInfo.isLandscapePhone
+  val horizontalContentPadding = if (compactHeight) 16.dp else 24.dp
+  val fieldSpacing = if (compactHeight) 8.dp else 14.dp
   var ruleType by remember {
     mutableStateOf(initialRule?.type ?: TransactionType.EXPENSE)
   }
@@ -161,14 +168,19 @@ fun AddEditRecurringSheet(
       )
     }
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp)
-        .navigationBarsPadding()
-        .padding(bottom = 28.dp)
+    Box(
+      modifier = Modifier.fillMaxWidth(),
+      contentAlignment = Alignment.Center
     ) {
+      Column(
+        modifier = Modifier
+          .widthIn(max = 640.dp)
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState())
+          .padding(horizontal = horizontalContentPadding)
+          .navigationBarsPadding()
+          .padding(bottom = 28.dp)
+      ) {
       // Header
       Row(
         modifier = Modifier
@@ -566,4 +578,5 @@ fun AddEditRecurringSheet(
       }
     }
   }
+}
 }

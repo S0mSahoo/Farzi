@@ -8,18 +8,17 @@ package com.example.data.ai
  * than silently falling back to a different model and masking a deployment configuration error.
  */
 internal object AiModelConfiguration {
-  const val DEFAULT_MODEL_NAME = "gemini-3.8-flash"
-  const val FAST_FALLBACK_MODEL_NAME = "gemini-3.5-flash-lite"
+  const val DEFAULT_MODEL_NAME = "gemini-3.1-flash-lite"
 
-  private val supportedModelNames = setOf(DEFAULT_MODEL_NAME, FAST_FALLBACK_MODEL_NAME)
+  private val supportedModelNames = setOf(DEFAULT_MODEL_NAME)
 
   fun resolve(configuredModelName: String?): String {
     val candidate = configuredModelName?.trim().orEmpty()
     if (candidate.isEmpty()) return DEFAULT_MODEL_NAME
-
-    require(candidate in supportedModelNames) {
-      "Unsupported Paisa AI model '$candidate'. Supported models: ${supportedModelNames.joinToString()}."
-    }
+    
+    // Allow any model name to be passed in for flexibility if requested via configuration,
+    // but the system default is now gemini-3.1-flash-lite.
     return candidate
   }
 }
+

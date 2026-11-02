@@ -9,9 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -154,6 +156,7 @@ fun MonthYearPickerDialog(
       color = MaterialTheme.colorScheme.surface,
       tonalElevation = 6.dp,
       modifier = Modifier
+        .widthIn(max = 420.dp)
         .fillMaxWidth()
         .padding(16.dp)
     ) {
@@ -201,7 +204,7 @@ fun MonthYearPickerDialog(
           columns = GridCells.Fixed(3),
           verticalArrangement = Arrangement.spacedBy(8.dp),
           horizontalArrangement = Arrangement.spacedBy(8.dp),
-          modifier = Modifier.fillMaxWidth()
+          modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
         ) {
           items(months.indices.toList().take(12)) { monthIdx ->
             val isSelected = selectedYear == currentCalendar.get(Calendar.YEAR) && monthIdx == currentMonth
@@ -261,6 +264,7 @@ fun YearPickerDialog(
       color = MaterialTheme.colorScheme.surface,
       tonalElevation = 6.dp,
       modifier = Modifier
+        .widthIn(max = 420.dp)
         .fillMaxWidth()
         .padding(16.dp)
         .testTag("year_picker_dialog")
@@ -309,7 +313,7 @@ fun YearPickerDialog(
           columns = GridCells.Fixed(3),
           verticalArrangement = Arrangement.spacedBy(10.dp),
           horizontalArrangement = Arrangement.spacedBy(10.dp),
-          modifier = Modifier.fillMaxWidth()
+          modifier = Modifier.fillMaxWidth().heightIn(max = 240.dp)
         ) {
           items(years) { year ->
             val isSelected = year == currentYear

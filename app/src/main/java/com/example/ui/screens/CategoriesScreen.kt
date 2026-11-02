@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -60,6 +61,9 @@ import com.example.ui.components.PremiumPageHeader
 import com.example.ui.components.PremiumSectionHeading
 import com.example.ui.viewmodel.FinanceViewModel
 
+import com.example.ui.util.LocalAdaptiveInfo
+import com.example.ui.components.CategoryDetailContent
+
 @Composable
 fun CategoriesScreen(viewModel: FinanceViewModel) {
   val allTransactions by viewModel.allTransactions.collectAsStateWithLifecycle()
@@ -72,6 +76,8 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
   val monthLabel = DateUtils.getMonthLabel(selectedCalendar)
   val start = DateUtils.getStartOfMonth(selectedCalendar)
   val end = DateUtils.getEndOfMonth(selectedCalendar)
+  val adaptiveInfo = LocalAdaptiveInfo.current
+  val useTwoPane = adaptiveInfo.useTwoPaneLayout
 
   val categoryItems = remember(allTransactions, selectedCalendar, selectedType) {
     val monthTransactions = allTransactions.filter {
@@ -98,12 +104,14 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
   val total = categoryItems.sumOf { it.amount }
   val count = categoryItems.sumOf { it.count }
 
-  selectedCategoryDetail?.let { detail ->
-    CategoryDetailSheet(
-      detail = detail,
-      currencySymbol = currencySymbol,
-      onDismiss = { viewModel.clearSelectedCategoryDetail() }
-    )
+  if (!useTwoPane) {
+    selectedCategoryDetail?.let { detail ->
+      CategoryDetailSheet(
+        detail = detail,
+        currencySymbol = currencySymbol,
+        onDismiss = { viewModel.clearSelectedCategoryDetail() }
+      )
+    }
   }
   if (showMonthPicker) {
     MonthYearPickerDialog(
@@ -120,144 +128,238 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
     contentAlignment = Alignment.TopCenter
   ) {
-    LazyColumn(
-      modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize(),
-      contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
-      verticalArrangement = Arrangement.spacedBy(17.dp)
-    ) {
-      item {
-        PremiumPageHeader(
-          title = "Categories",
-          subtitle = "See where your money flows.",
-          trailing = {
-            PremiumMonthNavigator(
-              label = monthLabel,
-              onPrevious = { viewModel.previousDashboardMonth() },
-              onNext = { viewModel.nextDashboardMonth() },
-              onPick = { showMonthPicker = true }
-            )
-          }
-        )
-      }
-      item {
-        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-          com.example.ui.components.PremiumSegmentedToggle(
-            options = listOf("Spending", "Income"),
-            selectedIndex = if (selectedType == TransactionType.EXPENSE) 0 else 1,
-            onSelect = { selectedType = if (it == 0) TransactionType.EXPENSE else TransactionType.INCOME },
-            modifier = Modifier.testTag("categories_type_toggle")
+    if (useTwoPane) {
+      Row(
+        modifier = Modifier
+          .widthIn(max = 1280.dp)
+          .fillMaxSize()
+          .padding(horizontal = 20.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(20.dp)
+      ) {
+        Box(modifier = Modifier.weight(1.2f).fillMaxHeight()) {
+          CategoryBreakdownColumn(
+            selectedCalendar = selectedCalendar,
+            monthLabel = monthLabel,
+            selectedType = selectedType,
+            onSelectType = { selectedType = it },
+            total = total,
+            count = count,
+            populated = populated,
+            currencySymbol = currencySymbol,
+            allTransactions = allTransactions,
+            start = start,
+            end = end,
+            onPreviousMonth = { viewModel.previousDashboardMonth() },
+            onNextMonth = { viewModel.nextDashboardMonth() },
+            onPickMonth = { showMonthPicker = true },
+            onSelectCategory = { viewModel.selectCategoryForDetail(it) }
           )
         }
-      }
-      item(key = "categories_hero_card") {
-        AnimatedContent(
-          targetState = selectedType,
-          transitionSpec = { PaisaMotion.DefaultContentTransform },
-          label = "categories_type_transition"
-        ) { type ->
-          val isExpense = type == TransactionType.EXPENSE
-          val isLight = !com.example.ui.theme.isAppInDarkTheme()
-          val textColor = if (isLight) Color(0xFF2E1065) else Color.White
-          val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
 
-          Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = Color.Transparent,
-            border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                  colors = if (isLight) {
-                    listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
-                  } else {
-                    listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
-                  }
-                ),
-                shape = RoundedCornerShape(28.dp)
+        Box(
+          modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()
+            .padding(top = 8.dp)
+        ) {
+          if (selectedCategoryDetail != null) {
+            PremiumCard(modifier = Modifier.fillMaxWidth()) {
+              CategoryDetailContent(
+                detail = selectedCategoryDetail!!,
+                currencySymbol = currencySymbol,
+                onDismiss = { viewModel.clearSelectedCategoryDetail() }
               )
-          ) {
-            Row(
-              modifier = Modifier.fillMaxWidth().padding(20.dp),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                Text(if (isExpense) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
-                com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
-                com.example.ui.util.AnimatedFinancialText("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
-              }
-              Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
-                Text(
-                  if (isExpense) "OUT" else "IN",
-                  modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
-                  color = textColor,
-                  style = MaterialTheme.typography.titleMedium,
-                  fontWeight = FontWeight.Bold
-                )
-              }
+            }
+          } else {
+            PremiumCard(modifier = Modifier.fillMaxWidth()) {
+              PremiumEmptyState(
+                title = "Category details",
+                body = "Select any category on the left to see all its transactions for this month.",
+                modifier = Modifier.padding(24.dp)
+              )
             }
           }
         }
       }
+    } else {
+      CategoryBreakdownColumn(
+        selectedCalendar = selectedCalendar,
+        monthLabel = monthLabel,
+        selectedType = selectedType,
+        onSelectType = { selectedType = it },
+        total = total,
+        count = count,
+        populated = populated,
+        currencySymbol = currencySymbol,
+        allTransactions = allTransactions,
+        start = start,
+        end = end,
+        onPreviousMonth = { viewModel.previousDashboardMonth() },
+        onNextMonth = { viewModel.nextDashboardMonth() },
+        onPickMonth = { showMonthPicker = true },
+        onSelectCategory = { viewModel.selectCategoryForDetail(it) },
+        modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize()
+      )
+    }
+  }
+}
 
-      item(key = "categories_dynamic_content") {
-        AnimatedContent(
-          targetState = selectedType,
-          transitionSpec = { PaisaMotion.DefaultContentTransform },
-          label = "categories_list_transition"
-        ) { type ->
-          val typePopulated = remember(allTransactions, selectedCalendar, type) {
-            val monthTransactions = allTransactions.filter {
-              it.timestamp in start..end && it.type == type
+@Composable
+private fun CategoryBreakdownColumn(
+  selectedCalendar: java.util.Calendar,
+  monthLabel: String,
+  selectedType: TransactionType,
+  onSelectType: (TransactionType) -> Unit,
+  total: Double,
+  count: Int,
+  populated: List<CategorySpending>,
+  currencySymbol: String,
+  allTransactions: List<com.example.data.model.TransactionItem>,
+  start: Long,
+  end: Long,
+  onPreviousMonth: () -> Unit,
+  onNextMonth: () -> Unit,
+  onPickMonth: () -> Unit,
+  onSelectCategory: (TransactionCategory) -> Unit,
+  modifier: Modifier = Modifier.fillMaxSize()
+) {
+  LazyColumn(
+    modifier = modifier,
+    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+    verticalArrangement = Arrangement.spacedBy(17.dp)
+  ) {
+    item {
+      PremiumPageHeader(
+        title = "Categories",
+        subtitle = "See where your money flows.",
+        trailing = {
+          PremiumMonthNavigator(
+            label = monthLabel,
+            onPrevious = onPreviousMonth,
+            onNext = onNextMonth,
+            onPick = onPickMonth
+          )
+        }
+      )
+    }
+    item {
+      Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        com.example.ui.components.PremiumSegmentedToggle(
+          options = listOf("Spending", "Income"),
+          selectedIndex = if (selectedType == TransactionType.EXPENSE) 0 else 1,
+          onSelect = { onSelectType(if (it == 0) TransactionType.EXPENSE else TransactionType.INCOME) },
+          modifier = Modifier.testTag("categories_type_toggle")
+        )
+      }
+    }
+    item(key = "categories_hero_card") {
+      AnimatedContent(
+        targetState = selectedType,
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "categories_type_transition"
+      ) { type ->
+        val isExpense = type == TransactionType.EXPENSE
+        val isLight = !com.example.ui.theme.isAppInDarkTheme()
+        val textColor = if (isLight) Color(0xFF2E1065) else Color.White
+        val subTextColor = if (isLight) Color(0xFF4C1D95).copy(alpha = 0.78f) else Color.White.copy(alpha = 0.72f)
+
+        Surface(
+          shape = RoundedCornerShape(28.dp),
+          color = Color.Transparent,
+          border = androidx.compose.foundation.BorderStroke(1.dp, if (isLight) Color(0xFFE2E8F0) else Color.White.copy(alpha = 0.28f)),
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(
+              brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                colors = if (isLight) {
+                  listOf(Color(0xFFF3E8FF), Color(0xFFEDE9FE))
+                } else {
+                  listOf(Color(0xFF6D28D9), Color(0xFF4C1D95))
+                }
+              ),
+              shape = RoundedCornerShape(28.dp)
+            )
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth().padding(20.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+              Text(if (isExpense) "TOTAL SPENDING" else "TOTAL INCOME", style = MaterialTheme.typography.labelMedium, color = subTextColor, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp)
+              com.example.ui.util.AnimatedFinancialText(IndianCurrencyFormatter.formatWithSymbol(total, currencySymbol), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = textColor)
+              com.example.ui.util.AnimatedFinancialText("${populated.size} active categories · $count entries", style = MaterialTheme.typography.bodySmall, color = subTextColor)
             }
-            TransactionCategory.values()
-              .filter { it.defaultType == type }
-              .map { category ->
-                val matching = monthTransactions.filter { it.category == category }
-                val amount = matching.sumOf { it.amount }
-                CategorySpending(
-                  category = category,
-                  amount = amount,
-                  percentage = if (monthTransactions.sumOf { it.amount } > 0.0) {
-                    (amount / monthTransactions.sumOf { it.amount }).toFloat()
-                  } else 0f,
-                  count = matching.size,
-                  color = category.color
+            Surface(shape = RoundedCornerShape(16.dp), color = if (isLight) Color(0xFFE9D5FF) else Color.White.copy(alpha = 0.15f)) {
+              Text(
+                if (isExpense) "OUT" else "IN",
+                modifier = Modifier.padding(horizontal = 15.dp, vertical = 12.dp),
+                color = textColor,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+      }
+    }
+
+    item(key = "categories_dynamic_content") {
+      AnimatedContent(
+        targetState = selectedType,
+        transitionSpec = { PaisaMotion.DefaultContentTransform },
+        label = "categories_list_transition"
+      ) { type ->
+        val typePopulated = remember(allTransactions, selectedCalendar, type) {
+          val monthTransactions = allTransactions.filter {
+            it.timestamp in start..end && it.type == type
+          }
+          TransactionCategory.values()
+            .filter { it.defaultType == type }
+            .map { category ->
+              val matching = monthTransactions.filter { it.category == category }
+              val amount = matching.sumOf { it.amount }
+              CategorySpending(
+                category = category,
+                amount = amount,
+                percentage = if (monthTransactions.sumOf { it.amount } > 0.0) {
+                  (amount / monthTransactions.sumOf { it.amount }).toFloat()
+                } else 0f,
+                count = matching.size,
+                color = category.color
+              )
+            }
+            .sortedByDescending { it.amount }
+            .filter { it.amount > 0.0 }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
+          PremiumSectionHeading(
+            title = if (type == TransactionType.EXPENSE) "Your spending mix" else "Income sources",
+            subtitle = "Tap a category to see the underlying transactions."
+          )
+
+          AnimatedContent(
+            targetState = typePopulated.isEmpty(),
+            transitionSpec = { PaisaMotion.DefaultContentTransform },
+            label = "categories_empty_or_list"
+          ) { isEmpty ->
+            if (isEmpty) {
+              PremiumCard {
+                PremiumEmptyState(
+                  title = "Nothing in these categories yet",
+                  body = "When you record ${if (type == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
                 )
               }
-              .sortedByDescending { it.amount }
-              .filter { it.amount > 0.0 }
-          }
-
-          Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
-            PremiumSectionHeading(
-              title = if (type == TransactionType.EXPENSE) "Your spending mix" else "Income sources",
-              subtitle = "Tap a category to see the underlying transactions."
-            )
-
-            AnimatedContent(
-              targetState = typePopulated.isEmpty(),
-              transitionSpec = { PaisaMotion.DefaultContentTransform },
-              label = "categories_empty_or_list"
-            ) { isEmpty ->
-              if (isEmpty) {
-                PremiumCard {
-                  PremiumEmptyState(
-                    title = "Nothing in these categories yet",
-                    body = "When you record ${if (type == TransactionType.EXPENSE) "spending" else "income"}, your category breakdown will appear here."
-                  )
-                }
-              } else {
-                Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
-                  typePopulated.forEach { item ->
-                    androidx.compose.runtime.key(item.category) {
-                      CategoryPremiumRow(
-                        item = item,
-                        currencySymbol = currencySymbol,
-                        onClick = { viewModel.selectCategoryForDetail(item.category) }
-                      )
-                    }
+            } else {
+              Column(verticalArrangement = Arrangement.spacedBy(17.dp)) {
+                typePopulated.forEach { item ->
+                  androidx.compose.runtime.key(item.category) {
+                    CategoryPremiumRow(
+                      item = item,
+                      currencySymbol = currencySymbol,
+                      onClick = { onSelectCategory(item.category) }
+                    )
                   }
                 }
               }
@@ -265,9 +367,9 @@ fun CategoriesScreen(viewModel: FinanceViewModel) {
           }
         }
       }
-
-      item { Spacer(Modifier.height(10.dp)) }
     }
+
+    item { Spacer(Modifier.height(10.dp)) }
   }
 }
 

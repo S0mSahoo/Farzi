@@ -41,11 +41,17 @@ import android.app.Activity
 import com.example.ui.theme.MinimalIndigo
 import com.example.util.BiometricAuthManager
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import com.example.ui.util.LocalAdaptiveInfo
+
 @Composable
 fun AppLockScreen(
   onUnlockSuccess: () -> Unit
 ) {
   val context = LocalContext.current
+  val isLandscapePhone = LocalAdaptiveInfo.current.isLandscapePhone
   
   // (FLAG_SECURE removed for browser emulator visibility)
 
@@ -81,31 +87,33 @@ fun AppLockScreen(
   ) {
     Column(
       modifier = Modifier
+        .widthIn(max = 440.dp)
         .fillMaxWidth()
-        .padding(32.dp),
+        .verticalScroll(rememberScrollState())
+        .padding(horizontal = 24.dp, vertical = if (isLandscapePhone) 12.dp else 32.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.Center
     ) {
       Surface(
         shape = CircleShape,
         color = MinimalIndigo.copy(alpha = 0.12f),
-        modifier = Modifier.size(96.dp)
+        modifier = Modifier.size(if (isLandscapePhone) 64.dp else 96.dp)
       ) {
         Box(contentAlignment = Alignment.Center) {
           Icon(
             imageVector = Icons.Default.Lock,
             contentDescription = "Locked",
             tint = MinimalIndigo,
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(if (isLandscapePhone) 28.dp else 44.dp)
           )
         }
       }
 
-      Spacer(modifier = Modifier.height(28.dp))
+      Spacer(modifier = Modifier.height(if (isLandscapePhone) 12.dp else 28.dp))
 
       Text(
         text = "Paisa is Locked",
-        style = MaterialTheme.typography.headlineSmall,
+        style = if (isLandscapePhone) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
       )
@@ -120,7 +128,7 @@ fun AppLockScreen(
       )
 
       if (authError != null) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
         Text(
           text = authError.orEmpty(),
           style = MaterialTheme.typography.bodySmall,
@@ -129,7 +137,7 @@ fun AppLockScreen(
         )
       }
 
-      Spacer(modifier = Modifier.height(36.dp))
+      Spacer(modifier = Modifier.height(if (isLandscapePhone) 16.dp else 36.dp))
 
       Button(
         onClick = { triggerBiometric() },

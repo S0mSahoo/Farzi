@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -287,14 +288,19 @@ fun ExportDataModal(
       )
     }
   ) {
-    Column(
-      modifier = Modifier
-        .fillMaxWidth()
-        .verticalScroll(rememberScrollState())
-        .padding(horizontal = 24.dp)
-        .navigationBarsPadding()
-        .padding(bottom = 24.dp)
+    Box(
+      modifier = Modifier.fillMaxWidth(),
+      contentAlignment = Alignment.Center
     ) {
+      Column(
+        modifier = Modifier
+          .widthIn(max = 640.dp)
+          .fillMaxWidth()
+          .verticalScroll(rememberScrollState())
+          .padding(horizontal = 24.dp)
+          .navigationBarsPadding()
+          .padding(bottom = 24.dp)
+      ) {
       // Header
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -681,4 +687,5 @@ fun ExportDataModal(
       }
     }
   }
+}
 }

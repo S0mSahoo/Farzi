@@ -6,11 +6,12 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.google.services)
+  alias(libs.plugins.secrets)
 }
 
 android {
   namespace = "com.example"
-  compileSdk { version = release(36) { minorApiLevel = 1 } }
+  compileSdk = 36
 
   defaultConfig {
     val configuredPaisaAiModel = providers.gradleProperty("PAISA_AI_MODEL_NAME").orElse("").get().trim()
@@ -19,7 +20,7 @@ android {
     }
     buildConfigField("String", "PAISA_AI_MODEL_NAME", "\"$configuredPaisaAiModel\"")
 
-    applicationId = "com.aistudio.paisa.tracker"
+    applicationId = "com.aistudio.paisa.vwtnyq"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
@@ -75,6 +76,11 @@ android {
 
 
 googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
+
+secrets {
+  propertiesFileName = ".env"
+  defaultPropertiesFileName = ".env.example"
+}
 
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.insight.FinanceInsight
 import com.example.data.insight.InsightSeverity
@@ -190,6 +191,64 @@ class AnalyticsAndRecurringScreensTest {
 
     composeTestRule
       .onNodeWithText("No spending insights yet")
+      .assertIsDisplayed()
+  }
+
+  @Test
+  fun recurringScreenTwoPaneRendersScheduleAndRulesSimultaneously() {
+    val expandedInfo = com.example.ui.util.calculateAdaptiveInfo(
+      1024.dp,
+      768.dp
+    )
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        androidx.compose.runtime.CompositionLocalProvider(
+          com.example.ui.util.LocalAdaptiveInfo provides expandedInfo
+        ) {
+          RecurringScreen(
+            viewModel = viewModel,
+            onOpenAddRecurringRule = {},
+            onEditRecurringRule = {}
+          )
+        }
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    // In two-pane mode, both Schedule and Rules headers should be visible simultaneously
+    composeTestRule
+      .onNodeWithText("Payment schedule")
+      .assertIsDisplayed()
+
+    composeTestRule
+      .onNodeWithText("Recurring Rules")
+      .assertIsDisplayed()
+  }
+
+  @Test
+  fun categoriesScreenTwoPaneRendersBreakdownAndDetailPlaceholder() {
+    val expandedInfo = com.example.ui.util.calculateAdaptiveInfo(
+      1024.dp,
+      768.dp
+    )
+    composeTestRule.setContent {
+      MyApplicationTheme {
+        androidx.compose.runtime.CompositionLocalProvider(
+          com.example.ui.util.LocalAdaptiveInfo provides expandedInfo
+        ) {
+          CategoriesScreen(viewModel = viewModel)
+        }
+      }
+    }
+    composeTestRule.waitForIdle()
+
+    // Category breakdown header and detail placeholder are both displayed in two-pane
+    composeTestRule
+      .onNodeWithText("Categories")
+      .assertIsDisplayed()
+
+    composeTestRule
+      .onNodeWithText("Category details")
       .assertIsDisplayed()
   }
 }

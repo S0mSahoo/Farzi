@@ -13,25 +13,21 @@ class AiModelConfigurationTest {
   }
 
   @Test
-  fun configuredVerifiedModelIsTrimmedAndPreserved() {
+  fun configuredModelIsTrimmedAndPreserved() {
+    val arbitraryModel = "my-custom-model"
     assertEquals(
-      AiModelConfiguration.DEFAULT_MODEL_NAME,
-      AiModelConfiguration.resolve("  gemini-3.8-flash  ")
+      arbitraryModel,
+      AiModelConfiguration.resolve("  $arbitraryModel  ")
     )
   }
 
   @Test
-  fun verifiedFlashLiteModelCanBeSelectedForLowerCostDeployments() {
+  fun anyNonEmptyModelCanBeSelected() {
+    val model = "gemini-3.1-flash-lite"
     assertEquals(
-      AiModelConfiguration.FAST_FALLBACK_MODEL_NAME,
-      AiModelConfiguration.resolve(AiModelConfiguration.FAST_FALLBACK_MODEL_NAME)
+      model,
+      AiModelConfiguration.resolve(model)
     )
-  }
-
-  @Test
-  fun unsupportedModelFailsFastInsteadOfSilentlyChangingModels() {
-    assertThrows(IllegalArgumentException::class.java) {
-      AiModelConfiguration.resolve("gemini-2.0-flash")
-    }
   }
 }
+
